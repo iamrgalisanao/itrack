@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Python (scratch venv used in this working directory)
+.venv/
+
+# Vite cache
+.vite/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Claude Code local-only settings (personal permission allowlist for this
+# machine/session — not shared project config, matches Claude Code's own
+# `.local.json` convention for files that shouldn't be committed)
+.claude/settings.local.json
+
+# Data exports / generated dumps sitting in the project root — not source,
+# not the documented seed input (that lives in docs/ and is intentionally
+# tracked), and may contain real business data. Never commit these. Anchored
+# to the repo root (leading /) so docs/*.xlsx — the actual seed file the
+# backend seeder reads — stays tracked.
+/*.xlsx
+/excel_data.json
+/excel_full.json
+/transaction-logs-*
+

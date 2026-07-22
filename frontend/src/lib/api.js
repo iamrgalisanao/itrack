@@ -1,0 +1,144 @@
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Lets AuthContext react to a session ending mid-use (expiry, invalidation,
+// disabled account) the same way it reacts to explicit sign-out — any 401
+// from any request clears the signed-in user, and RequireAuth takes it from
+// there. Registered by AuthContext on mount via setUnauthorizedHandler.
+let onUnauthorized = null
+export function setUnauthorizedHandler(fn) {
+  onUnauthorized = fn
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      onUnauthorized?.()
+    }
+    return Promise.reject(error)
+  }
+)
+
+// Dashboard
+export const fetchDashboard = () => api.get('/dashboard')
+
+// Projects
+export const fetchProjects = () => api.get('/projects')
+export const fetchProject = (id) => api.get(`/projects/${id}`)
+export const createProject = (data) => api.post('/projects', data)
+export const updateProject = (id, data) => api.put(`/projects/${id}`, data)
+export const deleteProject = (id) => api.delete(`/projects/${id}`)
+
+// Modules
+export const fetchModules = (projectId) => api.get(`/projects/${projectId}/modules`)
+export const fetchModule = (id) => api.get(`/modules/${id}`)
+export const createModule = (projectId, data) => api.post(`/projects/${projectId}/modules`, data)
+export const updateModule = (id, data) => api.put(`/modules/${id}`, data)
+export const deleteModule = (id) => api.delete(`/modules/${id}`)
+
+// Activities
+export const fetchActivities = (moduleId) => api.get(`/modules/${moduleId}/activities`)
+export const fetchActivity = (id) => api.get(`/activities/${id}`)
+export const createActivity = (moduleId, data) => api.post(`/modules/${moduleId}/activities`, data)
+export const updateActivity = (id, data) => api.put(`/activities/${id}`, data)
+export const deleteActivity = (id) => api.delete(`/activities/${id}`)
+
+// Sub-Activities
+export const fetchSubActivities = (activityId) => api.get(`/activities/${activityId}/sub-activities`)
+export const fetchSubActivity = (id) => api.get(`/sub-activities/${id}`)
+export const createSubActivity = (activityId, data) => api.post(`/activities/${activityId}/sub-activities`, data)
+export const updateSubActivity = (id, data) => api.put(`/sub-activities/${id}`, data)
+export const deleteSubActivity = (id) => api.delete(`/sub-activities/${id}`)
+
+// Detailed Activities
+export const fetchDetailedActivities = (subActivityId) => api.get(`/sub-activities/${subActivityId}/detailed-activities`)
+export const fetchDetailedActivity = (id) => api.get(`/detailed-activities/${id}`)
+export const createDetailedActivity = (subActivityId, data) => api.post(`/sub-activities/${subActivityId}/detailed-activities`, data)
+export const updateDetailedActivity = (id, data) => api.put(`/detailed-activities/${id}`, data)
+export const deleteDetailedActivity = (id) => api.delete(`/detailed-activities/${id}`)
+
+// Team Members
+export const fetchTeamMembers = () => api.get('/team-members')
+export const fetchTeamMember = (id) => api.get(`/team-members/${id}`)
+export const createTeamMember = (data) => api.post('/team-members', data)
+export const updateTeamMember = (id, data) => api.put(`/team-members/${id}`, data)
+export const deleteTeamMember = (id) => api.delete(`/team-members/${id}`)
+
+// Glossary Terms
+export const fetchGlossaryTerms = () => api.get('/glossary-terms')
+export const fetchGlossaryTerm = (id) => api.get(`/glossary-terms/${id}`)
+export const createGlossaryTerm = (data) => api.post('/glossary-terms', data)
+export const updateGlossaryTerm = (id, data) => api.put(`/glossary-terms/${id}`, data)
+export const deleteGlossaryTerm = (id) => api.delete(`/glossary-terms/${id}`)
+
+// Attachments (nested under detailed-activities)
+export const fetchAttachments  = (detailedActivityId) =>
+  api.get(`/detailed-activities/${detailedActivityId}/attachments`)
+
+// Note: do NOT set Content-Type manually — Axios sets it with the correct multipart boundary
+export const uploadAttachment  = (detailedActivityId, formData, onUploadProgress) =>
+  api.post(`/detailed-activities/${detailedActivityId}/attachments`, formData, { onUploadProgress })
+
+export const deleteAttachment  = (id) => api.delete(`/attachments/${id}`)
+
+/**
+ * Download a protected attachment via Axios (preserves session cookie auth).
+ * Using <a href> would bypass auth and fail access control.
+ */
+export const downloadAttachment = async (id, filename) => {
+  const response = await api.get(`/attachments/${id}/download`, { responseType: 'blob' })
+  const url  = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href  = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// Comments (nested under detailed-activities)
+export const fetchComments = (detailedActivityId) => api.get(`/detailed-activities/${detailedActivityId}/comments`)
+export const createComment = (detailedActivityId, data) => api.post(`/detailed-activities/${detailedActivityId}/comments`, data)
+export const deleteComment = (commentId) => api.delete(`/comments/${commentId}`)
+
+// Notifications
+export const fetchNotifications = () => api.get('/notifications')
+export const markNotificationRead = (id) => api.put(`/notifications/${id}/read`)
+export const markAllNotificationsRead = () => api.post('/notifications/read-all')
+
+// Reports and Project Health
+export const updateProjectHealth = (projectId, data) => api.patch(`/projects/${projectId}/health`, data)
+export const fetchReports = (params) => api.get('/reports', { params })
+export const downloadReportCsv = async (params) => {
+  const response = await api.get('/reports/export-csv', { params, responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', 'project-report.csv')
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// Audit Logs & Department Grants (Admin only)
+export const fetchAuditLogs = (params) => api.get('/audit-logs', { params })
+export const fetchDepartmentGrants = () => api.get('/department-grants')
+export const createDepartmentGrant = (data) => api.post('/department-grants', data)
+export const deleteDepartmentGrant = (id) => api.delete(`/department-grants/${id}`)
+
+// Support Ops
+export const fetchSupportIssues = (projectId, workTypes = 'support') =>
+  api.get('/support-ops', { params: { project_id: projectId, work_types: workTypes } })
+export const createSupportIssue = (data) => api.post('/support-ops', data)
+
+export default api
