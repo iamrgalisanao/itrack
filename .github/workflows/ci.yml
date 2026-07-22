@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend (PHPUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, xml, ctype, json, bcmath, dom, fileinfo, curl, zip, pdo, sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: backend/vendor
+          key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # phpunit.xml overrides DB_CONNECTION to sqlite :memory: for the test
+      # run itself, so no database service container is needed here.
+      - name: Run backend test suite
+        run: php artisan test
+
+  frontend-build:
+    name: Frontend (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The real correctness gate — catches actual compile/syntax errors.
+      - name: Build
+        run: npm run build
+
+      # Informational only: this repo has pre-existing ESLint findings
+      # (unused vars, a react-hooks rule) unrelated to any specific change.
+      # Reported here without blocking CI until that debt is cleaned up
+      # separately; remove `continue-on-error` once it's addressed.
+      - name: Lint (non-blocking)
+        continue-on-error: true
+        run: npm run lint
