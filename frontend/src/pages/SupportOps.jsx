@@ -152,8 +152,10 @@ export default function SupportOps() {
 
   useEffect(() => {
     if (selectedProjectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
       loadIssues(selectedProjectId, includeLearning)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadIssues is recreated every render; including it would loop
   }, [selectedProjectId, includeLearning])
 
   const toggleLearning = () => setIncludeLearning((prev) => !prev)

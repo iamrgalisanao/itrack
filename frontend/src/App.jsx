@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from 'react'
-import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   FolderKanban,
@@ -20,7 +20,6 @@ import {
   LogOut,
   MessagesSquare,
 } from 'lucide-react'
-import { Progress } from '@/components/ui/progress'
 import { fetchDashboard } from '@/lib/api'
 import Dashboard from './pages/Dashboard'
 import WorkProgram from './pages/WorkProgram'
@@ -66,6 +65,7 @@ export function ThemeProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook colocated with its ThemeProvider, matches this codebase's context convention
 export function useTheme() {
   const context = useContext(ThemeContext)
   if (!context) {
@@ -310,6 +310,7 @@ function MobileBar() {
   })
 
   // Close drawer on route change
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local UI state to router location, not a data load
   useEffect(() => { setOpen(false) }, [location.pathname])
 
   return (

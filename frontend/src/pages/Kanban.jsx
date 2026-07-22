@@ -7,19 +7,14 @@ import {
 import {
   FolderKanban,
   Search,
-  Filter,
-  Plus,
   Calendar,
   AlertTriangle,
   CheckCircle2,
   Clock,
   User,
   MoreVertical,
-  ChevronRight,
   SlidersHorizontal,
-  ChevronDown,
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/context/AuthContext'
 import TaskDetailModal from '@/components/TaskDetailModal'
 
@@ -120,8 +115,10 @@ export default function Kanban() {
 
   useEffect(() => {
     if (selectedProjectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
       loadTasks(selectedProjectId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadTasks is recreated every render; including it would loop
   }, [selectedProjectId])
 
   // Handle deep linking query param ?task={id}
@@ -133,6 +130,7 @@ export default function Kanban() {
       const taskId = parseInt(taskIdParam, 10)
       const task = tasks.find(t => t.id === taskId)
       if (task) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs the modal to a deep-linked ?task= query param, not a data load
         setSelectedTask({ ...task })
       } else {
         showToast('You no longer have access to this task or it may have been archived.', 'error')

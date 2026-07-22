@@ -20,7 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Table,
@@ -67,11 +66,9 @@ import {
   ZoomOut,
   Maximize2,
   Settings,
-  List,
   GanttChart,
   FolderOpen,
   LayoutList,
-  AlertCircle,
   RefreshCw,
   SearchX,
   Layers,
@@ -135,6 +132,7 @@ export default function WorkProgram() {
 
   useEffect(() => {
     if (modules.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
       populateStateFromModules(modules)
     }
   }, [modules])
@@ -211,10 +209,10 @@ export default function WorkProgram() {
           const fullKey = `${m.id}-${a.id}-${sa.id}`
           const tasks = detailedActivities[fullKey] || []
 
-          let saMinDate = null
-          let saMaxDate = null
-          let saActualMinDate = null
-          let saActualMaxDate = null
+          let saMinDate
+          let saMaxDate
+          let saActualMinDate
+          let saActualMaxDate
           let saProgress = sa.progress !== undefined ? sa.progress : 0
           let saStatus = sa.status || 'not_started'
 
@@ -253,10 +251,10 @@ export default function WorkProgram() {
           subRollups.push(rolledUpSubActivities[fullKey])
         })
 
-        let aMinDate = null
-        let aMaxDate = null
-        let aActualMinDate = null
-        let aActualMaxDate = null
+        let aMinDate
+        let aMaxDate
+        let aActualMinDate
+        let aActualMaxDate
         let aProgress = a.progress !== undefined ? a.progress : 0
         let aStatus = a.status || 'not_started'
 
@@ -295,10 +293,10 @@ export default function WorkProgram() {
         actRollups.push(rolledUpActivities[key])
       })
 
-      let mMinDate = null
-      let mMaxDate = null
-      let mActualMinDate = null
-      let mActualMaxDate = null
+      let mMinDate
+      let mMaxDate
+      let mActualMinDate
+      let mActualMaxDate
       let mProgress = m.progress !== undefined ? m.progress : 0
       let mStatus = m.status || 'not_started'
 
@@ -454,7 +452,7 @@ export default function WorkProgram() {
   }
 
   const getGanttBarStyles = (status, isCritical = false) => {
-    let baseStyles = {}
+    let baseStyles
     switch (status) {
       case 'completed':
         baseStyles = {
@@ -944,6 +942,7 @@ export default function WorkProgram() {
 
   useEffect(() => {
     if (selectedProject) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
       setGanttDataLoading(true)
       fetchModules(selectedProject)
         .then(res => {

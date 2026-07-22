@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -49,10 +49,6 @@ export default function Team() {
     phone: '',
   })
 
-  useEffect(() => {
-    fetchMembers()
-  }, [])
-
   const fetchMembers = () => {
     setLoading(true)
     fetchTeamMembers()
@@ -65,6 +61,11 @@ export default function Team() {
         setLoading(false)
       })
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+    fetchMembers()
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

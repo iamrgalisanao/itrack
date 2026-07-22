@@ -32,10 +32,12 @@ export default function TaskDetailModal({
 
   // Reset local edit state whenever a different task is opened.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local edit form to the selected task, not a data load
     setForm(task)
     setModalTab('details')
     setCommentCount(task?.comments_count ?? 0)
     setFileCount(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on task.id only, not the whole task object
   }, [task?.id])
 
   if (!task || !form) return null

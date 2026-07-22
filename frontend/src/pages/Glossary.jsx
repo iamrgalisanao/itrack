@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -34,10 +34,6 @@ export default function Glossary() {
     category: '',
   })
 
-  useEffect(() => {
-    fetchTerms()
-  }, [])
-
   const fetchTerms = () => {
     setLoading(true)
     fetchGlossaryTerms()
@@ -50,6 +46,11 @@ export default function Glossary() {
         setLoading(false)
       })
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+    fetchTerms()
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

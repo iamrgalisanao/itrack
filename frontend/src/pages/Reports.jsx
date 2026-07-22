@@ -8,7 +8,6 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import {
   BarChart3,
-  Calendar,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -16,9 +15,7 @@ import {
   Download,
   AlertOctagon,
   RefreshCw,
-  TrendingUp,
   FileText,
-  User,
   SlidersHorizontal,
   Bookmark,
 } from 'lucide-react'
@@ -34,7 +31,7 @@ export default function Reports() {
   const [projectsList, setProjectsList] = useState([])
   const [departmentsList, setDepartmentsList] = useState(['all'])
   const [assigneesList, setAssigneesList] = useState(['all'])
-  const [loadingConfig, setLoadingConfig] = useState(true)
+  const [, setLoadingConfig] = useState(true)
 
   // Filters state
   const [selectedProjectId, setSelectedProjectId] = useState('all')
@@ -57,11 +54,6 @@ export default function Reports() {
   const [editHealthNote, setEditHealthNote] = useState('')
   const [isSavingHealth, setIsSavingHealth] = useState(false)
   const [healthFeedback, setHealthFeedback] = useState(null) // { type: 'success'|'error', msg: string }
-
-  // Initial config load
-  useEffect(() => {
-    loadConfiguration()
-  }, [userRole, userDept])
 
   const loadConfiguration = async () => {
     setLoadingConfig(true)
@@ -104,21 +96,12 @@ export default function Reports() {
     }
   }
 
-  // Load report data when filters change
+  // Initial config load
   useEffect(() => {
-    loadReport()
-  }, [
-    selectedProjectId,
-    selectedDept,
-    selectedHealth,
-    selectedStatus,
-    dateStart,
-    dateEnd,
-    selectedAssignee,
-    taskStatusFilter,
-    userRole,
-    userDept,
-  ])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+    loadConfiguration()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadConfiguration is recreated every render; including it would loop
+  }, [userRole, userDept])
 
   const loadReport = async () => {
     setLoading(true)
@@ -159,6 +142,24 @@ export default function Reports() {
       setLoading(false)
     }
   }
+
+  // Load report data when filters change
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+    loadReport()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadReport is recreated every render; including it would loop
+  }, [
+    selectedProjectId,
+    selectedDept,
+    selectedHealth,
+    selectedStatus,
+    dateStart,
+    dateEnd,
+    selectedAssignee,
+    taskStatusFilter,
+    userRole,
+    userDept,
+  ])
 
   // Handle health submit
   const handleHealthSave = async (e) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   fetchProjects,
@@ -11,21 +11,16 @@ import {
   ChevronRight,
   List,
   Grid,
-  TrendingUp,
   AlertTriangle,
   CheckCircle2,
   Clock,
   User,
-  SlidersHorizontal,
-  ChevronRightSquare,
   Milestone,
   ArrowRight,
   X,
-  Plus,
   MessageSquare,
   Paperclip,
 } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/context/AuthContext'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
@@ -39,7 +34,7 @@ export default function Schedule() {
   const [selectedProjectId, setSelectedProjectId] = useState('all')
   const [departmentFilter, setDepartmentFilter] = useState('all')
   const [assigneeFilter, setAssigneeFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter] = useState('all')
   
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
@@ -134,10 +129,12 @@ export default function Schedule() {
 
   useEffect(() => {
     if (projects.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
       loadTasks()
     } else {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadTasks is recreated every render; including it would loop
   }, [projects, selectedProjectId])
 
   // Handle deep linking query param ?task={id}
@@ -149,6 +146,7 @@ export default function Schedule() {
       const taskId = parseInt(taskIdParam, 10)
       const task = tasks.find(t => t.id === taskId)
       if (task) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs the modal to a deep-linked ?task= query param, not a data load
         setSelectedTask({ ...task })
         setModalTab('details')
         setCommentCount(task.comments_count ?? 0)
@@ -215,15 +213,6 @@ export default function Schedule() {
   }
 
   const filteredTasks = getFilteredTasks()
-
-  // Date Parsing helper
-  const parseLocalDate = (dateStr) => {
-    if (!dateStr) return null
-    const parts = dateStr.substring(0, 10).split('-')
-    if (parts.length !== 3) return null
-    const [year, month, day] = parts.map(Number)
-    return new Date(year, month - 1, day)
-  }
 
   const isTaskOverdue = (task) => {
     if (task.status === 'completed') return false

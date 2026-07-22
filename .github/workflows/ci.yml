@@ -66,10 +66,5 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Informational only: this repo has pre-existing ESLint findings
-      # (unused vars, a react-hooks rule) unrelated to any specific change.
-      # Reported here without blocking CI until that debt is cleaned up
-      # separately; remove `continue-on-error` once it's addressed.
-      - name: Lint (non-blocking)
-        continue-on-error: true
+      - name: Lint
         run: npm run lint

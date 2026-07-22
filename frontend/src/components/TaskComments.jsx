@@ -8,7 +8,6 @@ import {
   Send,
   AlertTriangle,
   Loader2,
-  User,
 } from 'lucide-react'
 
 /**
@@ -39,20 +38,6 @@ export default function TaskComments({ taskId, userRole, onCountChange }) {
   const bottomRef = useRef(null)
 
   const isClient = userRole === 'Client'
-  const canDelete = userRole === 'Admin' || userRole === 'Project Manager' || userRole === 'Team Member'
-
-  // Load comments on mount or when taskId changes
-  useEffect(() => {
-    if (!taskId) return
-    loadComments()
-  }, [taskId])
-
-  // Scroll to bottom when new comments arrive
-  useEffect(() => {
-    if (!loading && comments.length > 0) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [comments.length, loading])
 
   const loadComments = async () => {
     setLoading(true)
@@ -69,6 +54,21 @@ export default function TaskComments({ taskId, userRole, onCountChange }) {
       setLoading(false)
     }
   }
+
+  // Load comments on mount or when taskId changes
+  useEffect(() => {
+    if (!taskId) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+    loadComments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadComments is recreated every render; including it would loop
+  }, [taskId])
+
+  // Scroll to bottom when new comments arrive
+  useEffect(() => {
+    if (!loading && comments.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [comments.length, loading])
 
   const handleSubmit = async (e) => {
     e.preventDefault()

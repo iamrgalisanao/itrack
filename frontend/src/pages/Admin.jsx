@@ -17,7 +17,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
@@ -39,12 +38,10 @@ import {
   Trash2,
   Edit,
   Search,
-  Filter,
   ChevronLeft,
   ChevronRight,
   ArrowRight,
   RefreshCw,
-  SlidersHorizontal,
 } from 'lucide-react'
 
 export default function Admin() {
@@ -140,9 +137,11 @@ export default function Admin() {
 
   // Load appropriate data on active tab changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
     if (activeTab === 'members') loadMembers()
     else if (activeTab === 'grants') loadGrants()
     else if (activeTab === 'logs') loadLogs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load* functions are recreated every render; including them would loop
   }, [activeTab])
 
   // --- Member Actions ---

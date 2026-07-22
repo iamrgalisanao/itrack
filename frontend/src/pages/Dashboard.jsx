@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { fetchDashboard } from '@/lib/api'
@@ -365,6 +365,7 @@ export default function Dashboard() {
       .catch(() => { setError('Failed to load dashboard data'); setLoading(false) })
   }
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
   useEffect(() => { load() }, [])
 
   if (loading) {

@@ -29,8 +29,34 @@ export default function NotificationBell({ userRole }) {
   const dropdownRef = useRef(null)
   const navigate = useNavigate()
 
+  const loadNotifications = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetchNotifications()
+      setUnreadCount(res.data.unread_count || 0)
+      setNotifications(res.data.notifications || [])
+    } catch (err) {
+      console.error('Failed to load notifications:', err)
+      setError('Unable to load notifications.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshNotifications = async () => {
+    try {
+      const res = await fetchNotifications()
+      setUnreadCount(res.data.unread_count || 0)
+      setNotifications(res.data.notifications || [])
+    } catch (err) {
+      console.error('Silent notification refresh failed:', err)
+    }
+  }
+
   // Load notifications initially and whenever role changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
     loadNotifications()
   }, [userRole])
 
@@ -77,31 +103,6 @@ export default function NotificationBell({ userRole }) {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  const loadNotifications = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetchNotifications()
-      setUnreadCount(res.data.unread_count || 0)
-      setNotifications(res.data.notifications || [])
-    } catch (err) {
-      console.error('Failed to load notifications:', err)
-      setError('Unable to load notifications.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const refreshNotifications = async () => {
-    try {
-      const res = await fetchNotifications()
-      setUnreadCount(res.data.unread_count || 0)
-      setNotifications(res.data.notifications || [])
-    } catch (err) {
-      console.error('Silent notification refresh failed:', err)
-    }
-  }
 
   const handleMarkAsRead = async (e, notification) => {
     e.stopPropagation() // Prevent triggering click on the notification card itself

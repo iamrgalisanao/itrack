@@ -17,6 +17,15 @@ import {
   X,
 } from 'lucide-react'
 
+// File-type icon by MIME
+const FileIcon = ({ mimeType, className = 'h-5 w-5' }) => {
+  if (mimeType?.startsWith('image/'))                        return <FileImage className={className} />
+  if (mimeType === 'application/pdf')                        return <FileText className={className} />
+  if (mimeType?.includes('spreadsheet') || mimeType?.includes('xlsx')) return <FileSpreadsheet className={className} />
+  if (mimeType?.includes('zip'))                             return <FileArchive className={className} />
+  return <File className={className} />
+}
+
 /**
  * TaskFiles — Self-contained file attachment panel for a Detailed Activity (task).
  *
@@ -61,11 +70,6 @@ export default function TaskFiles({ taskId, userRole, onCountChange }) {
   ]
   const MAX_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 
-  useEffect(() => {
-    if (!taskId) return
-    loadFiles()
-  }, [taskId])
-
   const loadFiles = async () => {
     setLoading(true)
     setError(null)
@@ -81,6 +85,13 @@ export default function TaskFiles({ taskId, userRole, onCountChange }) {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!taskId) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+    loadFiles()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadFiles is recreated every render; including it would loop
+  }, [taskId])
 
   // ── File validation ────────────────────────────────────────────────────────
   const validateFile = (file) => {
@@ -193,15 +204,6 @@ export default function TaskFiles({ taskId, userRole, onCountChange }) {
     return new Date(iso).toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric',
     })
-  }
-
-  // File-type icon by MIME
-  const FileIcon = ({ mimeType, className = 'h-5 w-5' }) => {
-    if (mimeType?.startsWith('image/'))                        return <FileImage className={className} />
-    if (mimeType === 'application/pdf')                        return <FileText className={className} />
-    if (mimeType?.includes('spreadsheet') || mimeType?.includes('xlsx')) return <FileSpreadsheet className={className} />
-    if (mimeType?.includes('zip'))                             return <FileArchive className={className} />
-    return <File className={className} />
   }
 
   // File type colour accent
