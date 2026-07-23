@@ -140,5 +140,7 @@ export const deleteDepartmentGrant = (id) => api.delete(`/department-grants/${id
 export const fetchSupportIssues = (projectId, workTypes = 'support') =>
   api.get('/support-ops', { params: { project_id: projectId, work_types: workTypes } })
 export const createSupportIssue = (data) => api.post('/support-ops', data)
+export const logSupportGeneration = (issueId, { artifact_type, template_stage, issue_updated_at }) =>
+  api.post(`/support-ops/${issueId}/generation-log`, { artifact_type, template_stage, issue_updated_at })
 
 export default api

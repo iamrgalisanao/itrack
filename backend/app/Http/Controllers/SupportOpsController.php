@@ -20,6 +20,14 @@ class SupportOpsController extends Controller
     // share the name, and survives renames.
     private const SUPPORT_CHAIN_CODE = 'SUPPORT-OPS';
 
+    // work_type values eligible for the generation-log endpoint — matches
+    // exactly what index() can ever return to the board (the default
+    // 'support' scope plus the opt-in 'learning' filter toggle from
+    // 002-support-ops-tracker's FR-012). An ordinary Kanban-only task
+    // (work_type = project/bug/feature/admin) is never Support-Ops-scoped
+    // and must 404 here, per 003-templates-prompt-generator's FR-013.
+    private const GENERATION_LOG_ELIGIBLE_WORK_TYPES = ['support', 'learning'];
+
     // ─── Role Helpers ────────────────────────────────────────────────────────
     // View access is inclusion-based (grant only recognized internal roles) —
     // never a deny-list. A deny-list ("block only if Client") silently grants
@@ -129,6 +137,103 @@ class SupportOpsController extends Controller
         );
 
         return (new SupportIssueResource($issue))->response()->setStatusCode(201);
+    }
+
+    // ─── POST /support-ops/{id}/generation-log ──────────────────────────────
+
+    /**
+     * Records an audit entry when a Support Ops generator (a client-facing
+     * message template, the freeform draft, or the troubleshooting packet —
+     * see 003-templates-prompt-generator) discloses personal information,
+     * for Data Privacy Act (RA 10173) accountability. This endpoint never
+     * mutates the issue itself — it is a log-only side channel (FR-009).
+     *
+     * The server independently derives whether personal information was
+     * actually included from the issue's own current field values; it never
+     * trusts client-supplied flags for this (see
+     * contracts/generation-log-api.md's trust-boundary requirement) — the
+     * request body carries no `included_*` fields at all. What counts as
+     * "included" is artifact-type specific (FR-013): a template or the
+     * freeform draft never puts `tenant_name` in their output, so
+     * `included_tenant_name` is hardcoded false for those two regardless of
+     * the issue's actual tenant, while the packet is the only artifact type
+     * where it's a real check.
+     */
+    public function generationLog(Request $request, $id)
+    {
+        $user = $this->user($request);
+
+        if (!$this->canView($user)) {
+            return response()->json(['message' => 'Unauthorized: Support Ops is restricted to internal team members.'], 403);
+        }
+
+        $issue = DetailedActivity::find($id);
+        if (!$issue || !in_array($issue->work_type, self::GENERATION_LOG_ELIGIBLE_WORK_TYPES, true)) {
+            return response()->json(['message' => 'Not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'artifact_type'    => 'required|in:template,draft,packet',
+            'template_stage'   => [
+                'nullable',
+                'string',
+                'in:acknowledgement,intake_request,investigation_started,progress_update,waiting_for_client,root_cause_found,resolved',
+                'required_if:artifact_type,template',
+                'prohibited_if:artifact_type,draft,packet',
+            ],
+            // Must match Carbon::toIso8601String()'s exact output format
+            // (Y-m-d\TH:i:sP) — validated as a format check only, never
+            // parsed into a Carbon/DateTime instance here. Parsing-then-
+            // reformatting risks silently accepting a value that wouldn't
+            // actually match the model's own serialization byte-for-byte,
+            // which would defeat the snapshot comparison below.
+            'issue_updated_at' => ['required', 'string', 'date_format:Y-m-d\TH:i:sP'],
+        ]);
+
+        // Plain string comparison of the untouched request value against the
+        // freshly-loaded model's own serialization — no parsing/reformatting
+        // of either side (see contracts/generation-log-api.md).
+        $currentUpdatedAt = optional($issue->updated_at)->toIso8601String();
+        $snapshotStale = $validated['issue_updated_at'] !== $currentUpdatedAt;
+
+        // Artifact-type-specific inclusion check (FR-013) — never a shared
+        // issue-level check. A template/draft never discloses tenant_name,
+        // so it is hardcoded false for them regardless of the issue's actual
+        // tenant_name; only the packet evaluates it for real.
+        $includedClientName = trim((string) $issue->client_name) !== '';
+        $includedTenantName = $validated['artifact_type'] === 'packet'
+            && trim((string) $issue->tenant_name) !== '';
+
+        // Skip the write only when the snapshot is fresh AND nothing was
+        // actually included — a stale snapshot always logs regardless of
+        // the current field values, erring toward an extra/defensive entry
+        // over silently under-logging (RA 10173 accountability).
+        if (!$snapshotStale && !$includedClientName && !$includedTenantName) {
+            return response()->json(['logged' => true]);
+        }
+
+        $actionByArtifactType = [
+            'template' => 'support_issue.template_generated',
+            'draft'    => 'support_issue.draft_started',
+            'packet'   => 'support_issue.packet_generated',
+        ];
+
+        AuditLogger::record(
+            $request,
+            $actionByArtifactType[$validated['artifact_type']],
+            'detailed_activity',
+            $issue->id,
+            null,
+            [
+                'artifact_type'        => $validated['artifact_type'],
+                'template_stage'       => $validated['template_stage'] ?? null,
+                'included_client_name' => $includedClientName,
+                'included_tenant_name' => $includedTenantName,
+                'snapshot_stale'       => $snapshotStale,
+            ]
+        );
+
+        return response()->json(['logged' => true]);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

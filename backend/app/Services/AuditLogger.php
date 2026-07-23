@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
  *   project.created | project.updated | project.deleted | project.health_updated
  *   task.created | task.updated | task.deleted | task.status_changed | task.client_visibility_changed
  *   support_issue.created
+ *   support_issue.template_generated | support_issue.draft_started | support_issue.packet_generated
  *   member.created | member.updated | member.deleted
  *   comment.deleted | attachment.deleted
  *   department_grant.created | department_grant.deleted
