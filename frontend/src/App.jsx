@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import {
   LayoutDashboard,
   FolderKanban,
+  Columns3,
   BookOpen,
   Users,
   Settings,
@@ -20,8 +21,11 @@ import {
   LogOut,
   MessagesSquare,
   Sunrise,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { fetchDashboard } from '@/lib/api'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import Dashboard from './pages/Dashboard'
 import WorkProgram from './pages/WorkProgram'
 import Glossary from './pages/Glossary'
@@ -76,19 +80,55 @@ export function useTheme() {
   return context
 }
 
-/* ─── Nav items shared by sidebar + mobile drawer ─────────────────────────── */
-const NAV_ITEMS = [
-  { path: '/',             label: 'Dashboard',     icon: LayoutDashboard },
-  { path: '/work-program', label: 'Work Program',  icon: FolderKanban },
-  { path: '/kanban',       label: 'Kanban Board',  icon: FolderKanban, internalOnly: true },
-  { path: '/support-ops',  label: 'Support Ops',   icon: MessagesSquare, internalOnly: true },
-  { path: '/support-ops/today', label: 'Today',    icon: Sunrise, internalOnly: true },
-  { path: '/schedule',     label: 'Schedule View', icon: Calendar },
-  { path: '/reports',      label: 'Reports & Health', icon: BarChart3 },
-  { path: '/glossary',     label: 'Glossary',      icon: BookOpen },
-  { path: '/team',         label: 'Team',          icon: Users },
-  { path: '/admin',        label: 'Admin Panel',   icon: ShieldCheck, adminOnly: true },
+/* ─── Nav items shared by sidebar + mobile drawer ─────────────────────────────
+   Grouped by task frequency/audience, not alphabetically or by add-order:
+   - Workspace: the daily task-flow loop, visible to everyone.
+   - Team Ops: internal execution views — invisible to Clients entirely, so
+     the whole group disappears rather than leaving a partially-filtered list.
+     "Today" is a nested sub-view of Support Ops (route /support-ops/today),
+     rendered indented beneath it rather than as a flat peer.
+   - Insights: read-heavy reference/reporting material, checked not worked in.
+   - People & Admin: lowest-frequency, roster/account administration. */
+const NAV_GROUPS = [
+  {
+    label: 'Workspace',
+    items: [
+      { path: '/',             label: 'Dashboard',     icon: LayoutDashboard },
+      { path: '/work-program', label: 'Work Program',  icon: FolderKanban },
+      { path: '/schedule',     label: 'Schedule View', icon: Calendar },
+    ],
+  },
+  {
+    label: 'Team Ops',
+    items: [
+      { path: '/kanban',      label: 'Kanban Board', icon: Columns3, internalOnly: true },
+      {
+        path: '/support-ops', label: 'Support Ops', icon: MessagesSquare, internalOnly: true,
+        subItem: { path: '/support-ops/today', label: 'Today', icon: Sunrise },
+      },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [
+      { path: '/reports',  label: 'Reports & Health', icon: BarChart3 },
+      { path: '/glossary', label: 'Glossary',         icon: BookOpen },
+    ],
+  },
+  {
+    label: 'People & Admin',
+    items: [
+      { path: '/team',  label: 'Team',        icon: Users },
+      { path: '/admin', label: 'Admin Panel', icon: ShieldCheck, adminOnly: true },
+    ],
+  },
 ]
+
+function isNavItemVisible(item, userRole) {
+  if (item.internalOnly && userRole === 'Client') return false
+  if (item.adminOnly && userRole !== 'Admin') return false
+  return true
+}
 
 /* ─── Overall-progress mini-card (sidebar) ─────────────────────────────────── */
 function ProgressSnapshot() {
@@ -130,19 +170,91 @@ function ProgressSnapshot() {
   )
 }
 
-/* ─── Sidebar (desktop persistent + icon-only rail) ────────────────────────── */
-/* ─── Sidebar (desktop persistent + icon-only rail) ────────────────────────── */
-function Sidebar({ collapsed = false }) {
+/* ─── A single nav row, optionally tooltip-wrapped when the rail is collapsed ─
+   Tooltips only exist in collapsed mode — the label is already on-screen in
+   expanded mode, so a duplicate hover tooltip there would just be noise. */
+function SidebarNavLink({ path, label, icon: Icon, groupLabel, collapsed, indent = false }) {
   const location = useLocation()
+  const isActive = location.pathname === path
+
+  const link = (
+    <Link
+      to={path}
+      className={[
+        'relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium',
+        'transition-all duration-150 group',
+        isActive
+          ? 'bg-primary/10 text-primary'
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
+        collapsed ? 'justify-center px-0' : indent ? 'pl-8 pr-3' : 'px-3',
+      ].join(' ')}
+    >
+      {isActive && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
+      )}
+      <Icon className={['h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'].join(' ')} />
+      {!collapsed && <span>{label}</span>}
+      {!collapsed && isActive && (
+        <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60" />
+      )}
+    </Link>
+  )
+
+  if (!collapsed) return link
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipContent side="right" sideOffset={10}>
+        <span className="block text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {groupLabel}
+        </span>
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+/* ─── Grouped nav shared by the desktop sidebar (collapsible) and the mobile
+   drawer (always expanded) ─────────────────────────────────────────────── */
+function SidebarNavGroups({ collapsed, userRole }) {
+  return (
+    <>
+      {NAV_GROUPS.map((group, groupIndex) => {
+        const items = group.items.filter(item => isNavItemVisible(item, userRole))
+        if (!items.length) return null
+        return (
+          <div
+            key={group.label}
+            className={collapsed && groupIndex > 0 ? 'mt-3 pt-3 border-t border-border/60' : 'mt-0.5'}
+          >
+            {!collapsed && (
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-3 mb-1.5">
+                {group.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {items.map(item => (
+                <div key={item.path}>
+                  <SidebarNavLink {...item} groupLabel={group.label} collapsed={collapsed} />
+                  {item.subItem && isNavItemVisible(item, userRole) && (
+                    <SidebarNavLink {...item.subItem} groupLabel={item.label} collapsed={collapsed} indent />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+/* ─── Sidebar (desktop persistent + icon-only rail) ────────────────────────── */
+function Sidebar({ collapsed, onToggleCollapsed }) {
   const { theme, setTheme, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
   const userRole = user?.role
-
-  const visibleItems = NAV_ITEMS.filter(item => {
-    if (item.internalOnly && userRole === 'Client') return false
-    if (item.adminOnly && userRole !== 'Admin') return false
-    return true
-  })
 
   return (
     <aside
@@ -152,54 +264,34 @@ function Sidebar({ collapsed = false }) {
         collapsed ? 'w-[72px]' : 'w-[260px]',
       ].join(' ')}
     >
-      {/* Brand */}
-      <div className={['flex items-center gap-3 px-4 py-5 border-b border-border/60', collapsed ? 'justify-center px-0' : ''].join(' ')}>
-        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary shrink-0">
-          <span className="text-sm font-black text-primary-foreground">i</span>
-        </div>
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <p className="text-base font-bold leading-none tracking-tight">Track</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Project Workspace</p>
+      {/* Brand + collapse toggle */}
+      <div className={['border-b border-border/60 px-4 py-4', collapsed ? 'px-2' : ''].join(' ')}>
+        <div className={['flex items-center gap-3', collapsed ? 'flex-col gap-2' : 'justify-between'].join(' ')}>
+          <div className={['flex items-center gap-3 overflow-hidden', collapsed ? 'justify-center' : ''].join(' ')}>
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary shrink-0">
+              <span className="text-sm font-black text-primary-foreground">i</span>
+            </div>
+            {!collapsed && (
+              <div className="overflow-hidden">
+                <p className="text-base font-bold leading-none tracking-tight">Track</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Project Workspace</p>
+              </div>
+            )}
           </div>
-        )}
+          <button
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-        {!collapsed && (
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 mb-2">
-            Navigation
-          </p>
-        )}
-        {visibleItems.map(({ path, label, icon: Icon }) => {
-          const isActive = location.pathname === path
-          return (
-            <Link
-              key={path}
-              to={path}
-              title={collapsed ? label : undefined}
-              className={[
-                'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
-                'transition-all duration-150 group',
-                isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
-                collapsed ? 'justify-center px-0' : '',
-              ].join(' ')}
-            >
-              {/* Left accent bar */}
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
-              )}
-              <Icon className={['h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'].join(' ')} />
-              {!collapsed && <span>{label}</span>}
-              {!collapsed && isActive && (
-                <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60" />
-              )}
-            </Link>
-          )
-        })}
+      <nav className="flex-1 py-3 px-2 overflow-y-auto">
+        <SidebarNavGroups collapsed={collapsed} userRole={userRole} />
       </nav>
 
       {/* Progress snapshot — only in full sidebar */}
@@ -225,32 +317,49 @@ function Sidebar({ collapsed = false }) {
 
       {/* Footer links */}
       <div className={['border-t border-border/60 py-3 px-2 space-y-0.5', collapsed ? '' : ''].join(' ')}>
-        {[{ icon: Settings, label: 'Settings' }, { icon: HelpCircle, label: 'Help Center' }].map(({ icon: Icon, label }) => (
-          <button
-            key={label}
-            title={collapsed ? label : undefined}
-            className={[
-              'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground',
-              'hover:text-foreground hover:bg-muted/60 transition-colors',
-              collapsed ? 'justify-center px-0' : '',
-            ].join(' ')}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{label}</span>}
-          </button>
-        ))}
-        <button
-          onClick={logout}
-          title={collapsed ? 'Sign Out' : undefined}
-          className={[
-            'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground',
-            'hover:text-destructive hover:bg-destructive/10 transition-colors',
-            collapsed ? 'justify-center px-0' : '',
-          ].join(' ')}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
-        </button>
+        {[{ icon: Settings, label: 'Settings' }, { icon: HelpCircle, label: 'Help Center' }].map(({ icon: Icon, label }) => {
+          const button = (
+            <button
+              className={[
+                'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground',
+                'hover:text-foreground hover:bg-muted/60 transition-colors',
+                collapsed ? 'justify-center px-0' : '',
+              ].join(' ')}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{label}</span>}
+            </button>
+          )
+          if (!collapsed) return <div key={label}>{button}</div>
+          return (
+            <Tooltip key={label}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10}>{label}</TooltipContent>
+            </Tooltip>
+          )
+        })}
+        {(() => {
+          const signOutButton = (
+            <button
+              onClick={logout}
+              className={[
+                'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground',
+                'hover:text-destructive hover:bg-destructive/10 transition-colors',
+                collapsed ? 'justify-center px-0' : '',
+              ].join(' ')}
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>Sign Out</span>}
+            </button>
+          )
+          if (!collapsed) return signOutButton
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>{signOutButton}</TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10}>Sign Out</TooltipContent>
+            </Tooltip>
+          )
+        })()}
       </div>
 
       {/* Theme Toggle */}
@@ -305,12 +414,6 @@ function MobileBar() {
   const { theme, setTheme } = useTheme()
   const { user, logout } = useAuth()
   const userRole = user?.role
-
-  const visibleItems = NAV_ITEMS.filter(item => {
-    if (item.internalOnly && userRole === 'Client') return false
-    if (item.adminOnly && userRole !== 'Admin') return false
-    return true
-  })
 
   // Close drawer on route change
   // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local UI state to router location, not a data load
@@ -376,30 +479,9 @@ function MobileBar() {
           </button>
         </div>
 
-        {/* Drawer nav */}
-        <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
-          {visibleItems.map(({ path, label, icon: Icon }) => {
-            const isActive = location.pathname === path
-            return (
-              <Link
-                key={path}
-                to={path}
-                className={[
-                  'relative flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
-                ].join(' ')}
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
-                )}
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{label}</span>
-                {isActive && <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60" />}
-              </Link>
-            )
-          })}
+        {/* Drawer nav — grouped, always expanded (the drawer has room for labels) */}
+        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+          <SidebarNavGroups collapsed={false} userRole={userRole} />
         </nav>
 
         {/* Progress in drawer */}
@@ -567,10 +649,17 @@ function SupportOpsGuard({ children }) {
 function AppShell() {
   const { user } = useAuth()
   const userRole = user?.role
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true')
+
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(collapsed))
+  }, [collapsed])
+
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Desktop sidebar */}
-      <Sidebar collapsed={false} />
+      <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed(c => !c)} />
 
       {/* Right side: header + scrollable content */}
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -603,6 +692,7 @@ function AppShell() {
         </main>
       </div>
     </div>
+    </TooltipProvider>
   )
 }
 
