@@ -28,6 +28,12 @@ import {
   createDepartmentGrant,
   deleteDepartmentGrant,
   fetchAuditLogs,
+  fetchUsers,
+  createUser,
+  updateUser,
+  disableUser,
+  reactivateUser,
+  resetUserPassword,
 } from '@/lib/api'
 import {
   ShieldCheck,
@@ -42,10 +48,53 @@ import {
   ChevronRight,
   ArrowRight,
   RefreshCw,
+  UserCog,
+  Ban,
+  UserCheck,
+  KeyRound,
 } from 'lucide-react'
+
+// Mirrors User::validRoles() and UserManagementController::DEPARTMENT_REQUIRED_ROLES.
+const USER_ROLES = ['Admin', 'Project Manager', 'Department Head', 'Team Member', 'Client']
+const DEPARTMENT_REQUIRED_ROLES = ['Team Member', 'Department Head', 'Client']
+const DEPARTMENTS = ['IT', 'Engineering', 'Marketing', 'Finance']
 
 export default function Admin() {
   const [activeTab, setActiveTab] = useState('members')
+
+  // --- User Accounts State (006-real-user-management) — real, login-capable
+  // User accounts. Deliberately named "User Accounts" (not "Users") and
+  // uses a distinct icon (UserCog) from the "Members" tab above, which
+  // manages the separate, non-authenticating job-title roster
+  // (TeamMember) used for task assignment — never the same thing.
+  const [userAccountsLoading, setUserAccountsLoading] = useState(false)
+  const [users, setUsers] = useState([])
+  const [userMeta, setUserMeta] = useState({ current_page: 1, last_page: 1, total: 0 })
+  const [userFilters, setUserFilters] = useState({
+    search: '',
+    role: '',
+    department: '',
+    status: '',
+    page: 1,
+  })
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
+  const [userForm, setUserForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    role: 'Team Member',
+    department: 'IT',
+  })
+  const [userFormError, setUserFormError] = useState('')
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false)
+  const [resetPasswordTarget, setResetPasswordTarget] = useState(null)
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    password: '',
+    password_confirmation: '',
+  })
+  const [resetPasswordError, setResetPasswordError] = useState('')
 
   // --- Members State ---
   const [members, setMembers] = useState([])
@@ -135,10 +184,34 @@ export default function Admin() {
       })
   }
 
+  const loadUserAccounts = (filtersToUse = userFilters) => {
+    setUserAccountsLoading(true)
+    const cleaned = {}
+    Object.entries(filtersToUse).forEach(([key, val]) => {
+      if (val) cleaned[key] = val
+    })
+
+    fetchUsers(cleaned)
+      .then((res) => {
+        setUsers(res.data.data || [])
+        setUserMeta({
+          current_page: res.data.meta?.current_page || 1,
+          last_page: res.data.meta?.last_page || 1,
+          total: res.data.meta?.total || 0,
+        })
+        setUserAccountsLoading(false)
+      })
+      .catch((err) => {
+        console.error('Failed to load user accounts:', err)
+        setUserAccountsLoading(false)
+      })
+  }
+
   // Load appropriate data on active tab changes
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
     if (activeTab === 'members') loadMembers()
+    else if (activeTab === 'user-accounts') loadUserAccounts()
     else if (activeTab === 'grants') loadGrants()
     else if (activeTab === 'logs') loadLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load* functions are recreated every render; including them would loop
@@ -190,6 +263,122 @@ export default function Admin() {
       } catch (err) {
         console.error('Failed to delete member:', err)
       }
+    }
+  }
+
+  // --- User Account Actions ---
+  const handleUserFilterChange = (key, value) => {
+    const updated = { ...userFilters, [key]: value, page: 1 }
+    setUserFilters(updated)
+    loadUserAccounts(updated)
+  }
+
+  const handleUserPageChange = (newPage) => {
+    const updated = { ...userFilters, page: newPage }
+    setUserFilters(updated)
+    loadUserAccounts(updated)
+  }
+
+  const handleOpenUserAdd = () => {
+    setEditingUser(null)
+    setUserForm({
+      name: '',
+      email: '',
+      password: '',
+      password_confirmation: '',
+      role: 'Team Member',
+      department: 'IT',
+    })
+    setUserFormError('')
+    setIsUserDialogOpen(true)
+  }
+
+  const handleOpenUserEdit = (user) => {
+    setEditingUser(user)
+    setUserForm({
+      name: user.name,
+      email: user.email,
+      password: '',
+      password_confirmation: '',
+      role: user.role,
+      department: user.department || DEPARTMENTS[0],
+    })
+    setUserFormError('')
+    setIsUserDialogOpen(true)
+  }
+
+  const handleUserSubmit = async (e) => {
+    e.preventDefault()
+    setUserFormError('')
+    const needsDepartment = DEPARTMENT_REQUIRED_ROLES.includes(userForm.role)
+    try {
+      if (editingUser) {
+        await updateUser(editingUser.id, {
+          name: userForm.name,
+          email: userForm.email,
+          role: userForm.role,
+          department: needsDepartment ? userForm.department : null,
+        })
+      } else {
+        await createUser({
+          ...userForm,
+          department: needsDepartment ? userForm.department : null,
+        })
+      }
+      setIsUserDialogOpen(false)
+      loadUserAccounts()
+    } catch (err) {
+      console.error('Failed to save user:', err)
+      const errors = err.response?.data?.errors
+      const firstError = errors ? Object.values(errors)[0]?.[0] : null
+      setUserFormError(firstError || err.response?.data?.message || 'Failed to save user.')
+    }
+  }
+
+  const handleUserDisable = async (user) => {
+    if (!confirm(`Disable "${user.name}"? They will be signed out and unable to sign in until reactivated.`)) {
+      return
+    }
+    try {
+      await disableUser(user.id)
+      loadUserAccounts()
+    } catch (err) {
+      console.error('Failed to disable user:', err)
+      alert(err.response?.data?.message || 'Failed to disable user.')
+    }
+  }
+
+  const handleUserReactivate = async (user) => {
+    if (!confirm(`Reactivate "${user.name}"? They will be able to sign in again immediately.`)) {
+      return
+    }
+    try {
+      await reactivateUser(user.id)
+      loadUserAccounts()
+    } catch (err) {
+      console.error('Failed to reactivate user:', err)
+      alert(err.response?.data?.message || 'Failed to reactivate user.')
+    }
+  }
+
+  const handleOpenResetPassword = (user) => {
+    setResetPasswordTarget(user)
+    setResetPasswordForm({ password: '', password_confirmation: '' })
+    setResetPasswordError('')
+    setIsResetPasswordDialogOpen(true)
+  }
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault()
+    setResetPasswordError('')
+    try {
+      await resetUserPassword(resetPasswordTarget.id, resetPasswordForm)
+      setIsResetPasswordDialogOpen(false)
+    } catch (err) {
+      console.error('Failed to reset password:', err)
+      const errors = err.response?.data?.errors
+      const firstError = errors ? Object.values(errors)[0]?.[0] : null
+      setResetPasswordError(firstError || err.response?.data?.message || 'Failed to reset password.')
     }
   }
 
@@ -280,10 +469,14 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 max-w-[450px]">
+        <TabsList className="grid w-full grid-cols-4 max-w-155">
           <TabsTrigger value="members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Members
+          </TabsTrigger>
+          <TabsTrigger value="user-accounts" className="flex items-center gap-2">
+            <UserCog className="h-4 w-4" />
+            User Accounts
           </TabsTrigger>
           <TabsTrigger value="grants" className="flex items-center gap-2">
             <Share2 className="h-4 w-4" />
@@ -439,6 +632,353 @@ export default function Admin() {
                   </Button>
                   <Button type="submit">
                     {editingMember ? 'Save Changes' : 'Add Role'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        {/* ────────────────── USER ACCOUNTS PANEL ──────────────────
+            Real, login-capable User accounts (006-real-user-management) —
+            distinct from the "Members" tab above, which is a separate,
+            non-authenticating job-title roster used only for task
+            assignment. */}
+        <TabsContent value="user-accounts" className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">User Accounts</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Manage real, sign-in-capable accounts — name, email, system role, department, and status.
+                Separate from the "Members" tab, which only defines job-title roles for task assignment.
+              </p>
+            </div>
+            <Button onClick={handleOpenUserAdd}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Accounts</CardTitle>
+              <CardDescription>Search, filter, and manage real user accounts</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
+                <div className="space-y-1 md:col-span-2">
+                  <label className="font-semibold">Search</label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Name or email..."
+                      value={userFilters.search}
+                      onChange={(e) => handleUserFilterChange('search', e.target.value)}
+                      className="h-7 text-xs pl-7"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold">Role</label>
+                  <select
+                    value={userFilters.role}
+                    onChange={(e) => handleUserFilterChange('role', e.target.value)}
+                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  >
+                    <option value="">All Roles</option>
+                    {USER_ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold">Department</label>
+                  <select
+                    value={userFilters.department}
+                    onChange={(e) => handleUserFilterChange('department', e.target.value)}
+                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  >
+                    <option value="">All Depts</option>
+                    {DEPARTMENTS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold">Status</label>
+                  <select
+                    value={userFilters.status}
+                    onChange={(e) => handleUserFilterChange('status', e.target.value)}
+                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="disabled">Disabled</option>
+                  </select>
+                </div>
+              </div>
+
+              {userAccountsLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                  Loading user accounts...
+                </div>
+              ) : users.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">No user accounts found.</div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead className="w-35">Role</TableHead>
+                          <TableHead className="w-30">Department</TableHead>
+                          <TableHead className="w-25">Status</TableHead>
+                          <TableHead className="w-25 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {users.map((u) => (
+                          <TableRow key={u.id}>
+                            <TableCell className="font-semibold">{u.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{u.role}</Badge>
+                            </TableCell>
+                            <TableCell>{u.department || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={u.is_active ? 'success' : 'destructive'}>
+                                {u.is_active ? 'Active' : 'Disabled'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenUserEdit(u)}
+                                  title="Edit"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                {u.is_active ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleUserDisable(u)}
+                                    title="Disable"
+                                  >
+                                    <Ban className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleUserReactivate(u)}
+                                    title="Reactivate"
+                                  >
+                                    <UserCheck className="h-4 w-4 text-success" />
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleOpenResetPassword(u)}
+                                  title="Reset Password"
+                                >
+                                  <KeyRound className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div>
+                      Showing {users.length} of {userMeta.total} accounts
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={userFilters.page <= 1}
+                        onClick={() => handleUserPageChange(userFilters.page - 1)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span>
+                        Page {userMeta.current_page} of {userMeta.last_page}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={userFilters.page >= userMeta.last_page}
+                        onClick={() => handleUserPageChange(userFilters.page + 1)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* User Add Dialog */}
+          <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingUser ? 'Edit User' : 'Add User'}</DialogTitle>
+                <DialogDescription>
+                  {editingUser
+                    ? 'Changes take effect on this user\'s very next request — no re-login needed.'
+                    : 'Create a real, sign-in-capable account.'}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleUserSubmit} className="space-y-4 pt-2">
+                {userFormError && (
+                  <div className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                    {userFormError}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">Name</label>
+                  <Input
+                    value={userForm.name}
+                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">Email</label>
+                  <Input
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+                {!editingUser && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold">Password</label>
+                      <Input
+                        type="password"
+                        value={userForm.password}
+                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                        minLength={8}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold">Confirm Password</label>
+                      <Input
+                        type="password"
+                        value={userForm.password_confirmation}
+                        onChange={(e) => setUserForm({ ...userForm, password_confirmation: e.target.value })}
+                        minLength={8}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold">Role</label>
+                    <select
+                      value={userForm.role}
+                      onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                      className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {USER_ROLES.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold">
+                      Department{DEPARTMENT_REQUIRED_ROLES.includes(userForm.role) ? '' : ' (optional)'}
+                    </label>
+                    <select
+                      value={userForm.department}
+                      onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
+                      className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsUserDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    {editingUser ? 'Save Changes' : 'Add User'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Reset Password Dialog */}
+          <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+            <DialogContent className="sm:max-w-106">
+              <DialogHeader>
+                <DialogTitle>Reset Password</DialogTitle>
+                <DialogDescription>
+                  Set a new password for "{resetPasswordTarget?.name}". They will sign in with this new
+                  password — the old one stops working immediately.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-4 pt-2">
+                {resetPasswordError && (
+                  <div className="text-xs text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                    {resetPasswordError}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">New Password</label>
+                  <Input
+                    type="password"
+                    value={resetPasswordForm.password}
+                    onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, password: e.target.value })}
+                    minLength={8}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold">Confirm New Password</label>
+                  <Input
+                    type="password"
+                    value={resetPasswordForm.password_confirmation}
+                    onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, password_confirmation: e.target.value })}
+                    minLength={8}
+                    required
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsResetPasswordDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    Reset Password
                   </Button>
                 </div>
               </form>

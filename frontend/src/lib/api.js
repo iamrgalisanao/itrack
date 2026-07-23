@@ -136,6 +136,16 @@ export const fetchDepartmentGrants = () => api.get('/department-grants')
 export const createDepartmentGrant = (data) => api.post('/department-grants', data)
 export const deleteDepartmentGrant = (id) => api.delete(`/department-grants/${id}`)
 
+// User Accounts (006-real-user-management, Admin only) — real, sign-in-capable
+// accounts. Distinct from Team Members above, which is a non-authenticating
+// job-title roster.
+export const fetchUsers = (params) => api.get('/users', { params })
+export const createUser = (data) => api.post('/users', data)
+export const updateUser = (id, data) => api.patch(`/users/${id}`, data)
+export const disableUser = (id) => api.post(`/users/${id}/disable`)
+export const reactivateUser = (id) => api.post(`/users/${id}/reactivate`)
+export const resetUserPassword = (id, data) => api.post(`/users/${id}/reset-password`, data)
+
 // Support Ops
 export const fetchSupportIssues = (projectId, workTypes = 'support') =>
   api.get('/support-ops', { params: { project_id: projectId, work_types: workTypes } })

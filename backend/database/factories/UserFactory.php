@@ -23,6 +23,15 @@ class UserFactory extends Factory
      * Defaults to a safe internal Team Member in IT. Tests that need a specific
      * role/department should override these explicitly via create([...]).
      *
+     * `is_active` is explicit here (not left to the migration's DB-level
+     * `default(true)`) because `create()` doesn't automatically re-fetch
+     * DB-computed defaults into the in-memory model on every driver — and
+     * `actingAs()` in tests uses that in-memory instance directly, without
+     * re-fetching from the database. Without this, `is_active` would read
+     * as `null` in test helpers, and 006-real-user-management's
+     * `EnsureUserIsActive` middleware treats a falsy `is_active` as
+     * disabled, incorrectly rejecting every test-created user.
+     *
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -33,6 +42,7 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'role' => User::ROLE_TEAM_MEMBER,
             'department' => 'IT',
+            'is_active' => true,
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
         ];

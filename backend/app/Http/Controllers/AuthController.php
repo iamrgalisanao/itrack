@@ -26,7 +26,14 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (! Auth::attempt($request->only('email', 'password'))) {
+        // is_active => true (006-real-user-management): a disabled account
+        // fails here with the exact same generic message a wrong password
+        // gets — never a distinct "account disabled" message, which would
+        // let an attacker confirm an email belongs to a real (if disabled)
+        // account (research.md).
+        $credentials = array_merge($request->only('email', 'password'), ['is_active' => true]);
+
+        if (! Auth::attempt($credentials)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);

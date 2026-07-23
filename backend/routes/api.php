@@ -12,6 +12,8 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\GlossaryTermController;
 use App\Http\Controllers\SupportOpsController;
+use App\Http\Controllers\UserManagementController;
+use App\Http\Middleware\EnsureUserIsActive;
 
 // ─── Public routes (no auth required) ────────────────────────────────────────
 
@@ -21,8 +23,11 @@ use App\Http\Controllers\SupportOpsController;
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 
 // ─── Authenticated routes ────────────────────────────────────────────────────
-// Everything below requires a valid Sanctum session cookie.
-Route::middleware('auth:sanctum')->group(function () {
+// Everything below requires a valid Sanctum session cookie. EnsureUserIsActive
+// (006-real-user-management) applies to this entire group — including
+// /api/me — so a disabled account loses access on its very next request,
+// not just future login attempts (research.md's global-gate decision).
+Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function () {
 
     // Auth management
     Route::get('/me', [AuthController::class, 'me']);
@@ -46,6 +51,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Team Members
     Route::apiResource('team-members', TeamMemberController::class);
+
+    // User Management (Admin only — real User accounts, distinct from the
+    // Team Member roster above)
+    Route::get('users', [UserManagementController::class, 'index']);
+    Route::post('users', [UserManagementController::class, 'store']);
+    Route::patch('users/{user}', [UserManagementController::class, 'update']);
+    Route::post('users/{user}/disable', [UserManagementController::class, 'disable']);
+    Route::post('users/{user}/reactivate', [UserManagementController::class, 'reactivate']);
+    Route::post('users/{user}/reset-password', [UserManagementController::class, 'resetPassword']);
 
     // Glossary Terms
     Route::apiResource('glossary-terms', GlossaryTermController::class);
