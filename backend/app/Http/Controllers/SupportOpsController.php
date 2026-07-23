@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\SupportIssueResource;
+use App\Http\Resources\TodaySupportIssueResource;
 use App\Models\Activity;
 use App\Models\DetailedActivity;
 use App\Models\Module;
@@ -10,6 +11,9 @@ use App\Models\Project;
 use App\Models\SubActivity;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\SupportOpsStaleness;
+use App\Services\SupportOpsTodayClassifier;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class SupportOpsController extends Controller
@@ -27,6 +31,13 @@ class SupportOpsController extends Controller
     // (work_type = project/bug/feature/admin) is never Support-Ops-scoped
     // and must 404 here, per 003-templates-prompt-generator's FR-013.
     private const GENERATION_LOG_ELIGIBLE_WORK_TYPES = ['support', 'learning'];
+
+    // Support-Ops-eligible work_type values (FR-011) — never ordinary
+    // Kanban/project tasks (work_type = project/bug/feature/admin). Kept as
+    // its own constant, distinct from GENERATION_LOG_ELIGIBLE_WORK_TYPES
+    // above even though the values happen to match today, since the two
+    // rules exist for unrelated reasons and shouldn't be coupled.
+    private const TODAY_ELIGIBLE_WORK_TYPES = ['support', 'learning'];
 
     // ─── Role Helpers ────────────────────────────────────────────────────────
     // View access is inclusion-based (grant only recognized internal roles) —
@@ -77,6 +88,58 @@ class SupportOpsController extends Controller
             ->get();
 
         return SupportIssueResource::collection($issues);
+    }
+
+    // ─── GET /support-ops/today ──────────────────────────────────────────────
+
+    /**
+     * Cross-project "Today" aggregation (Support Ops Phase 3 —
+     * 004-daily-operating-dashboard). Unlike index(), this is intentionally
+     * not scoped to a single project_id: it aggregates every project the
+     * signed-in user can access (Project::accessibleTo, the same mechanism
+     * ReportController uses) and classifies each qualifying issue into
+     * exactly one of four sections via SupportOpsTodayClassifier (FR-003,
+     * FR-009/FR-009a) — never re-derived client-side.
+     */
+    public function today(Request $request)
+    {
+        $user = $this->user($request);
+
+        if (!$this->canView($user)) {
+            return response()->json(['message' => 'Unauthorized: Support Ops is restricted to internal team members.'], 403);
+        }
+
+        $projectIds = Project::query()->accessibleTo($user)->pluck('id');
+
+        // DB-level narrowing (data-model.md): a `completed`-status issue can
+        // never qualify for any of the four sections, so it's excluded here
+        // rather than loaded and discarded during classification.
+        $issues = DetailedActivity::whereHas('subActivity.activity.module', function ($query) use ($projectIds) {
+            $query->whereIn('project_id', $projectIds);
+        })
+            ->whereIn('work_type', self::TODAY_ELIGIBLE_WORK_TYPES)
+            ->where('status', '!=', 'completed')
+            ->with('subActivity.activity.module.project')
+            ->get();
+
+        $now = Carbon::now();
+        $buckets = SupportOpsTodayClassifier::classify($issues, $now);
+
+        usort($buckets['stale'], function (DetailedActivity $a, DetailedActivity $b) {
+            return SupportOpsStaleness::staleAt($a) <=> SupportOpsStaleness::staleAt($b);
+        });
+
+        foreach ($buckets['stale'] as $issue) {
+            $issue->overdue_since = optional(SupportOpsStaleness::staleAt($issue))->toIso8601String();
+        }
+
+        return response()->json([
+            'stale'                => TodaySupportIssueResource::collection($buckets['stale']),
+            'watch_closely'        => TodaySupportIssueResource::collection($buckets['watch_closely']),
+            'waiting_for_client'   => TodaySupportIssueResource::collection($buckets['waiting_for_client']),
+            'learning_priorities'  => TodaySupportIssueResource::collection($buckets['learning_priorities']),
+            'generated_at'         => $now->toIso8601String(),
+        ]);
     }
 
     // ─── POST /support-ops ──────────────────────────────────────────────────

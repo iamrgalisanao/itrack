@@ -142,5 +142,6 @@ export const fetchSupportIssues = (projectId, workTypes = 'support') =>
 export const createSupportIssue = (data) => api.post('/support-ops', data)
 export const logSupportGeneration = (issueId, { artifact_type, template_stage, issue_updated_at }) =>
   api.post(`/support-ops/${issueId}/generation-log`, { artifact_type, template_stage, issue_updated_at })
+export const fetchTodayDashboard = () => api.get('/support-ops/today')
 
 export default api

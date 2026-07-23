@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   LogOut,
   MessagesSquare,
+  Sunrise,
 } from 'lucide-react'
 import { fetchDashboard } from '@/lib/api'
 import Dashboard from './pages/Dashboard'
@@ -30,6 +31,7 @@ import Schedule from './pages/Schedule'
 import Reports from './pages/Reports'
 import Admin from './pages/Admin'
 import SupportOps from './pages/SupportOps'
+import TodayDashboard from './pages/TodayDashboard'
 import Login from './pages/Login'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
@@ -80,6 +82,7 @@ const NAV_ITEMS = [
   { path: '/work-program', label: 'Work Program',  icon: FolderKanban },
   { path: '/kanban',       label: 'Kanban Board',  icon: FolderKanban, internalOnly: true },
   { path: '/support-ops',  label: 'Support Ops',   icon: MessagesSquare, internalOnly: true },
+  { path: '/support-ops/today', label: 'Today',    icon: Sunrise, internalOnly: true },
   { path: '/schedule',     label: 'Schedule View', icon: Calendar },
   { path: '/reports',      label: 'Reports & Health', icon: BarChart3 },
   { path: '/glossary',     label: 'Glossary',      icon: BookOpen },
@@ -589,6 +592,7 @@ function AppShell() {
               <Route path="/work-program" element={<WorkProgram />} />
               <Route path="/kanban"       element={<KanbanGuard><Kanban /></KanbanGuard>} />
               <Route path="/support-ops"  element={<SupportOpsGuard><SupportOps /></SupportOpsGuard>} />
+              <Route path="/support-ops/today" element={<SupportOpsGuard><TodayDashboard /></SupportOpsGuard>} />
               <Route path="/schedule"     element={<Schedule />} />
               <Route path="/reports"      element={<Reports />} />
               <Route path="/glossary"     element={<Glossary />} />

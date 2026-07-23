@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Support Ops
     Route::get('support-ops', [SupportOpsController::class, 'index']);
     Route::post('support-ops', [SupportOpsController::class, 'store']);
+    Route::get('support-ops/today', [SupportOpsController::class, 'today']);
     Route::post('support-ops/{id}/generation-log', [SupportOpsController::class, 'generationLog']);
 
     // Notifications
