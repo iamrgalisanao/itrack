@@ -70,8 +70,12 @@ class NotificationTest extends TestCase
         $responseTM = $this->actingAs($this->createUser('Team Member'), 'sanctum')
             ->getJson('/api/notifications');
 
+        // 3, not 1: 005-support-ops-automation's daily summary + weekly
+        // report are generated for every internal-role request per FR-007,
+        // even with zero qualifying Support Ops activity (as here) — on top
+        // of the one assignment notification this test seeds.
         $responseTM->assertStatus(200);
-        $responseTM->assertJsonCount(1, 'notifications');
+        $responseTM->assertJsonCount(3, 'notifications');
         $responseTM->assertJsonFragment(['title' => 'Assigned']);
         $responseTM->assertJsonMissing(['title' => 'Assigned PM']);
 
@@ -80,7 +84,7 @@ class NotificationTest extends TestCase
             ->getJson('/api/notifications');
 
         $responsePM->assertStatus(200);
-        $responsePM->assertJsonCount(1, 'notifications');
+        $responsePM->assertJsonCount(3, 'notifications');
         $responsePM->assertJsonFragment(['title' => 'Assigned PM']);
         $responsePM->assertJsonMissing(['title' => 'Assigned']);
     }
@@ -151,7 +155,11 @@ class NotificationTest extends TestCase
             ]
         ]);
         
-        $this->assertEquals(2, $response->json('unread_count'));
+        // 4, not 2: the overdue + due_soon notifications this test seeds,
+        // plus 005-support-ops-automation's daily summary + weekly report,
+        // generated for every internal-role request per FR-007 (even with
+        // zero qualifying Support Ops activity, as here).
+        $this->assertEquals(4, $response->json('unread_count'));
     }
 
     /**

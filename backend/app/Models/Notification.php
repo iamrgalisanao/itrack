@@ -87,9 +87,15 @@ class Notification extends Model
         ?string $linkUrl = null,
         ?string $eventKey = null,
         ?string $eventDate = null,
-        ?array $metadata = null
+        ?array $metadata = null,
+        ?int $recipientUserId = null
     ): ?self {
-        // Enforce deduplication unique composite key rule:
+        // Enforce deduplication unique composite key rule. recipient_user_id
+        // is intentionally not part of this lookup — for individually-
+        // targeted rows (005-support-ops-automation), $eventKey itself
+        // already encodes the recipient's identity, so two different
+        // recipients sharing a role/type/activity naturally get different
+        // event keys and never collide here.
         if ($eventKey) {
             $existing = self::where('user_role', $userRole)
                 ->where('type', $type)
@@ -104,6 +110,7 @@ class Notification extends Model
         // Create the notification
         $notification = self::create([
             'user_role'            => $userRole,
+            'recipient_user_id'    => $recipientUserId,
             'type'                 => $type,
             'severity'             => $severity,
             'title'                => $title,
