@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { formatDate } from '@/lib/utils'
 import TaskDetailModal from '@/components/TaskDetailModal'
 
 const COLUMNS = [
@@ -35,6 +36,7 @@ export default function Kanban() {
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState(null)
   const [draggedOverColumn, setDraggedOverColumn] = useState(null)
   
   // Filters
@@ -59,7 +61,8 @@ export default function Kanban() {
   }
 
   // Load projects initially
-  useEffect(() => {
+  const loadProjects = () => {
+    setProjectsError(null)
     fetchProjects()
       .then((res) => {
         const list = res.data.data || res.data
@@ -72,9 +75,13 @@ export default function Kanban() {
       })
       .catch((err) => {
         console.error('Failed to fetch projects:', err)
+        setProjectsError('Failed to load projects.')
         setLoading(false)
       })
-  }, [])
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+  useEffect(() => { loadProjects() }, [])
 
   // Load modules (tasks) for selected project
   const loadTasks = async (projectId) => {
@@ -283,9 +290,9 @@ export default function Kanban() {
     <div className="space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
-          toast.type === 'error' 
-            ? 'bg-destructive/15 border-destructive text-destructive' 
+        <div role="status" aria-live="polite" className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
+          toast.type === 'error'
+            ? 'bg-destructive/15 border-destructive text-destructive'
             : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
         }`}>
           {toast.type === 'error' ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -365,7 +372,15 @@ export default function Kanban() {
       </div>
 
       {/* Kanban Board Container */}
-      {loading ? (
+      {projectsError ? (
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <AlertTriangle className="h-10 w-10 text-destructive" />
+          <p className="text-sm text-destructive font-medium">{projectsError}</p>
+          <button onClick={loadProjects} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity">
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-muted-foreground">
           <Clock className="h-8 w-8 animate-spin text-primary" />
           <span className="text-sm font-medium">Loading board data...</span>
@@ -373,7 +388,7 @@ export default function Kanban() {
       ) : tasks.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-border/80 rounded-xl p-8 bg-card shadow-sm">
           <FolderKanban className="h-10 w-10 text-muted-foreground/60 mb-3" />
-          <h3 className="text-base font-bold text-foreground">No Tasks Available</h3>
+          <h2 className="text-base font-bold text-foreground">No Tasks Available</h2>
           <p className="text-sm text-muted-foreground max-w-sm mt-1">
             This project has no tasks or activities added yet. Go to the Work Program view to populate tasks.
           </p>
@@ -394,10 +409,13 @@ export default function Kanban() {
                   isDraggedOver ? 'bg-primary/5 border-primary/40' : '',
                 ].join(' ')}
               >
-                {/* Column Header */}
-                <div className={`p-3 border-t-4 ${column.color} rounded-t-xl flex items-center justify-between border-b border-border/40 bg-card`}>
+                {/* Column Header — near-opaque glass (90%) since the task
+                    count here is real information, not decorative; kept
+                    conservative per the glassmorphism review's risk flag on
+                    this dense, long-dwell-time surface. */}
+                <div className={`p-3 border-t-4 ${column.color} rounded-t-xl flex items-center justify-between border-b border-border/40 bg-card/90 backdrop-blur-md`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-foreground">{column.label}</span>
+                    <h2 className="font-bold text-sm text-foreground">{column.label}</h2>
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-bold">
                       {columnTasks.length}
                     </span>
@@ -415,8 +433,17 @@ export default function Kanban() {
                         draggable
                         onDragStart={(e) => handleDragStart(e, task.id)}
                         onClick={() => setSelectedTask({ ...task })}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setSelectedTask({ ...task })
+                          }
+                        }}
+                        aria-label={`Open task: ${task.name}`}
                         className={[
-                          'p-3 rounded-lg border border-border/60 bg-card text-foreground cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border/80 transition-all duration-150 relative group',
+                          'p-3 rounded-lg border border-border/60 bg-card text-foreground cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border/80 transition-all duration-150 relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           taskOverdue ? 'border-l-4 border-l-destructive' : '',
                         ].join(' ')}
                       >
@@ -461,9 +488,9 @@ export default function Kanban() {
                         </div>
 
                         {/* Title */}
-                        <h4 className="text-xs font-bold leading-normal text-foreground group-hover:text-primary transition-colors pr-4 mb-2">
+                        <h3 className="text-xs font-bold leading-normal text-foreground group-hover:text-primary transition-colors pr-4 mb-2">
                           {task.name}
-                        </h4>
+                        </h3>
 
                         {/* Middle metadata: Dates, Overdue indicator */}
                         <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -474,7 +501,7 @@ export default function Kanban() {
                                 : 'bg-muted text-muted-foreground'
                             }`}>
                               <Calendar className="h-3 w-3" />
-                              <span>{task.plan_end_date.substring(5)}</span>
+                              <span>{formatDate(task.plan_end_date)}</span>
                             </div>
                           )}
                           
@@ -500,7 +527,7 @@ export default function Kanban() {
                         <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[10px]">
                           {/* Assignee */}
                           <div className="flex items-center gap-1 text-muted-foreground truncate max-w-[60%]">
-                            <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-bold text-primary border border-primary/20 shrink-0">
+                            <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary border border-primary/20 shrink-0">
                               {task.responsible ? task.responsible.substring(0, 2).toUpperCase() : <User className="h-2.5 w-2.5" />}
                             </div>
                             <span className="truncate">{task.responsible || 'Unassigned'}</span>

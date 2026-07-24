@@ -14,6 +14,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -32,15 +33,20 @@ import {
   updateTeamMember,
   deleteTeamMember,
 } from '@/lib/api'
-import { Search, Plus, Edit, Trash2, Users, Mail, Phone } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Users, Mail, Phone, AlertTriangle, RefreshCw } from 'lucide-react'
 
 export default function Team() {
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingMember, setEditingMember] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteError, setDeleteError] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -51,6 +57,7 @@ export default function Team() {
 
   const fetchMembers = () => {
     setLoading(true)
+    setError(null)
     fetchTeamMembers()
       .then(res => {
         setMembers(res.data.data || res.data)
@@ -58,6 +65,7 @@ export default function Team() {
       })
       .catch(err => {
         console.error('Failed to fetch team members:', err)
+        setError('Failed to load team members.')
         setLoading(false)
       })
   }
@@ -69,6 +77,8 @@ export default function Team() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setSubmitting(true)
+    setFormError(null)
     try {
       if (editingMember) {
         await updateTeamMember(editingMember.id, formData)
@@ -81,6 +91,9 @@ export default function Team() {
       fetchMembers()
     } catch (err) {
       console.error('Failed to save member:', err)
+      setFormError(err.response?.data?.message || 'Failed to save member.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -96,14 +109,15 @@ export default function Team() {
     setIsAddOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this team member?')) {
-      try {
-        await deleteTeamMember(id)
-        fetchMembers()
-      } catch (err) {
-        console.error('Failed to delete member:', err)
-      }
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteTeamMember(deleteTarget.id)
+      setDeleteTarget(null)
+      fetchMembers()
+    } catch (err) {
+      console.error('Failed to delete member:', err)
+      setDeleteError('Failed to delete member.')
     }
   }
 
@@ -134,17 +148,30 @@ export default function Team() {
     return 'secondary'
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <p className="text-sm text-destructive font-medium">{error}</p>
+        <button onClick={fetchMembers} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity">
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading team members...</div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-muted-foreground">
+        <RefreshCw className="h-7 w-7 animate-spin" />
+        <span className="text-sm">Loading team members...</span>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Team</h1>
           <p className="text-muted-foreground mt-1">
@@ -221,15 +248,23 @@ export default function Team() {
                   placeholder="Enter phone"
                 />
               </div>
+              {formError && (
+                <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                  {formError}
+                </div>
+              )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => {
                   setIsAddOpen(false)
                   setEditingMember(null)
                   setFormData({ name: '', role: '', organization: '', email: '', phone: '' })
+                  setFormError(null)
                 }}>
                   Cancel
                 </Button>
-                <Button type="submit">{editingMember ? 'Update' : 'Create'}</Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving...' : editingMember ? 'Update' : 'Create'}
+                </Button>
               </div>
             </form>
           </DialogContent>
@@ -240,7 +275,7 @@ export default function Team() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Members</CardTitle>
+            <CardTitle as="h2" className="text-sm font-medium">Total Members</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -249,7 +284,7 @@ export default function Team() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vendor</CardTitle>
+            <CardTitle as="h2" className="text-sm font-medium">Vendor</CardTitle>
             <Users className="h-4 w-4 text-info" />
           </CardHeader>
           <CardContent>
@@ -260,7 +295,7 @@ export default function Team() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Client</CardTitle>
+            <CardTitle as="h2" className="text-sm font-medium">Client</CardTitle>
             <Users className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
@@ -274,7 +309,7 @@ export default function Team() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -285,7 +320,7 @@ export default function Team() {
               />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-50">
                 <SelectValue placeholder="Filter by role" />
               </SelectTrigger>
               <SelectContent>
@@ -315,7 +350,7 @@ export default function Team() {
           {Object.entries(groupedMembers).map(([role, roleMembers]) => (
             <Card key={role}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle as="h2" className="flex items-center gap-2">
                   <Badge variant={getRoleBadgeVariant(role)}>{role}</Badge>
                   <span className="text-sm font-normal text-muted-foreground">
                     {roleMembers.length} member{roleMembers.length !== 1 ? 's' : ''}
@@ -356,10 +391,10 @@ export default function Team() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => handleEdit(member)}>
+                            <Button size="sm" variant="ghost" onClick={() => handleEdit(member)} aria-label={`Edit ${member.name}`}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDelete(member.id)}>
+                            <Button size="sm" variant="ghost" onClick={() => { setDeleteTarget(member); setDeleteError(null) }} aria-label={`Delete ${member.name}`}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
@@ -373,6 +408,31 @@ export default function Team() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-destructive">Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deleteTarget?.name}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+              {deleteError}
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

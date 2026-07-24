@@ -419,8 +419,15 @@ export default function Dashboard() {
       </div>
 
       {/* ── 2. Overall Progress Hero ── */}
-      <Card className="overflow-hidden border-0 shadow-md bg-gradient-to-br from-primary/5 via-background to-background">
-        <CardContent className="p-6">
+      <div className="relative">
+        {/* Decorative background — gives the glass card below something to
+            actually blur; purely aesthetic, aria-hidden. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+          <div className="absolute -top-16 left-1/4 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+          <div className="absolute -bottom-20 right-1/4 h-64 w-64 rounded-full bg-success/10 blur-3xl" />
+        </div>
+        <Card className="relative overflow-hidden border border-border/60 shadow-md bg-card/70 backdrop-blur-xl">
+          <CardContent className="p-6">
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             {/* Radial progress ring */}
             <div className="flex items-center gap-5 shrink-0">
@@ -483,7 +490,8 @@ export default function Dashboard() {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
 
       {/* ── 3. Needs Attention Banner ── */}
       {needsAttention && (
@@ -579,10 +587,12 @@ export default function Dashboard() {
           </div>
 
           {/* Status filter tabs */}
-          <div className="flex items-center gap-1 mt-4 overflow-x-auto pb-1">
+          <div role="tablist" aria-label="Filter by status" className="flex items-center gap-1 mt-4 overflow-x-auto pb-1">
             {STATUS_TABS.map(tab => (
               <button
                 key={tab.key}
+                role="tab"
+                aria-selected={activityTab === tab.key}
                 onClick={() => setActivityTab(tab.key)}
                 className={[
                   'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-all',

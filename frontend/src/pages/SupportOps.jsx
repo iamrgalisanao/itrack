@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
 const EMPTY_INTAKE_FORM = {
   name: '',
@@ -92,6 +93,7 @@ export default function SupportOps() {
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [issues, setIssues] = useState([])
   const [loading, setLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState(null)
   const [draggedOverColumn, setDraggedOverColumn] = useState(null)
   const [toast, setToast] = useState(null)
 
@@ -128,7 +130,8 @@ export default function SupportOps() {
   }
 
   // Load projects initially
-  useEffect(() => {
+  const loadProjects = () => {
+    setProjectsError(null)
     fetchProjects()
       .then((res) => {
         const list = res.data.data || res.data
@@ -141,9 +144,13 @@ export default function SupportOps() {
       })
       .catch((err) => {
         console.error('Failed to fetch projects:', err)
+        setProjectsError('Failed to load projects.')
         setLoading(false)
       })
-  }, [])
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+  useEffect(() => { loadProjects() }, [])
 
   // Load support issues for the selected project. `learning` controls the
   // server-side fetch scope (FR-012) — separate from the client-side
@@ -387,7 +394,7 @@ export default function SupportOps() {
     <div className="space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
+        <div role="status" aria-live="polite" className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
           toast.type === 'error'
             ? 'bg-destructive/15 border-destructive text-destructive'
             : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
@@ -489,7 +496,15 @@ export default function SupportOps() {
       </div>
 
       {/* Board */}
-      {loading ? (
+      {projectsError ? (
+        <div className="flex flex-col items-center justify-center min-h-100 gap-4">
+          <AlertTriangle className="h-10 w-10 text-destructive" />
+          <p className="text-sm text-destructive font-medium">{projectsError}</p>
+          <button onClick={loadProjects} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity">
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
         <div className="flex flex-col items-center justify-center min-h-100 gap-3 text-muted-foreground">
           <Clock className="h-8 w-8 animate-spin text-primary" />
           <span className="text-sm font-medium">Loading support issues...</span>
@@ -512,7 +527,7 @@ export default function SupportOps() {
               >
                 <div className={`p-3 border-t-4 ${column.color} rounded-t-xl flex items-center justify-between border-b border-border/40 bg-card`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-foreground">{column.label}</span>
+                    <h2 className="font-bold text-sm text-foreground">{column.label}</h2>
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-bold">
                       {columnIssues.length}
                     </span>
@@ -531,8 +546,17 @@ export default function SupportOps() {
                           draggable
                           onDragStart={(e) => handleDragStart(e, issue.id)}
                           onClick={() => openIssueDetail(issue)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              openIssueDetail(issue)
+                            }
+                          }}
+                          aria-label={`Open issue: ${issue.name}`}
                           className={[
-                            'p-3 rounded-lg border bg-card text-foreground cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-150',
+                            'p-3 rounded-lg border bg-card text-foreground cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                             staleness === 'stale'
                               ? 'border-destructive/60 border-l-4'
                               : 'border-border/60 hover:border-border/80',
@@ -579,18 +603,25 @@ export default function SupportOps() {
       {/* Quick Intake Modal — same chrome/field styling as TaskDetailModal
           (Kanban's Task Detail view), per explicit design-consistency request. */}
       {isIntakeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <Dialog open={isIntakeOpen} onOpenChange={(open) => !open && setIsIntakeOpen(false)}>
+          <DialogContent
+            showCloseButton={false}
+            className="sm:max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0"
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-primary">New Support Issue</span>
-                <h3 className="text-base font-bold text-foreground truncate max-w-lg mt-0.5">
+                <DialogTitle className="text-base font-bold text-foreground truncate max-w-lg mt-0.5 leading-none tracking-normal">
                   {projects.find((p) => p.id === Number(selectedProjectId))?.name}
-                </h3>
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Create a new support issue for the selected project.
+                </DialogDescription>
               </div>
               <button
                 onClick={() => setIsIntakeOpen(false)}
+                aria-label="Close"
                 className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -599,8 +630,9 @@ export default function SupportOps() {
 
             <form onSubmit={handleIntakeSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Issue title *</label>
+                <label htmlFor="intake-name" className="text-xs font-bold text-foreground">Issue title *</label>
                 <input
+                  id="intake-name"
                   type="text"
                   value={intakeForm.name}
                   onChange={(e) => updateIntakeField('name', e.target.value)}
@@ -611,8 +643,9 @@ export default function SupportOps() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Client *</label>
+                  <label htmlFor="intake-client-name" className="text-xs font-bold text-foreground">Client *</label>
                   <input
+                    id="intake-client-name"
                     type="text"
                     value={intakeForm.client_name}
                     onChange={(e) => updateIntakeField('client_name', e.target.value)}
@@ -622,8 +655,9 @@ export default function SupportOps() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Tenant</label>
+                  <label htmlFor="intake-tenant-name" className="text-xs font-bold text-foreground">Tenant</label>
                   <input
+                    id="intake-tenant-name"
                     type="text"
                     value={intakeForm.tenant_name}
                     onChange={(e) => updateIntakeField('tenant_name', e.target.value)}
@@ -632,8 +666,9 @@ export default function SupportOps() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Channel</label>
+                  <label htmlFor="intake-channel" className="text-xs font-bold text-foreground">Channel</label>
                   <input
+                    id="intake-channel"
                     type="text"
                     placeholder="e.g. Viber — Ops group"
                     value={intakeForm.channel}
@@ -643,8 +678,9 @@ export default function SupportOps() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Priority *</label>
+                  <label htmlFor="intake-priority" className="text-xs font-bold text-foreground">Priority *</label>
                   <select
+                    id="intake-priority"
                     value={intakeForm.client_priority}
                     onChange={(e) => updateIntakeField('client_priority', e.target.value)}
                     className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -658,8 +694,9 @@ export default function SupportOps() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Timestamp</label>
+                  <label htmlFor="intake-timestamp" className="text-xs font-bold text-foreground">Timestamp</label>
                   <input
+                    id="intake-timestamp"
                     type="date"
                     value={intakeForm.timestamp}
                     onChange={(e) => updateIntakeField('timestamp', e.target.value)}
@@ -669,8 +706,9 @@ export default function SupportOps() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Area or workflow affected</label>
+                <label htmlFor="intake-affected-area" className="text-xs font-bold text-foreground">Area or workflow affected</label>
                 <input
+                  id="intake-affected-area"
                   type="text"
                   placeholder="e.g. Checkout screen, onboarding process, invoice printing"
                   value={intakeForm.affected_area}
@@ -680,8 +718,9 @@ export default function SupportOps() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Expected behavior</label>
+                <label htmlFor="intake-expected-behavior" className="text-xs font-bold text-foreground">Expected behavior</label>
                 <textarea
+                  id="intake-expected-behavior"
                   rows="2"
                   value={intakeForm.expected_behavior}
                   onChange={(e) => updateIntakeField('expected_behavior', e.target.value)}
@@ -690,8 +729,9 @@ export default function SupportOps() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Actual behavior</label>
+                <label htmlFor="intake-actual-behavior" className="text-xs font-bold text-foreground">Actual behavior</label>
                 <textarea
+                  id="intake-actual-behavior"
                   rows="2"
                   value={intakeForm.actual_behavior}
                   onChange={(e) => updateIntakeField('actual_behavior', e.target.value)}
@@ -700,8 +740,9 @@ export default function SupportOps() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Evidence</label>
+                <label htmlFor="intake-evidence" className="text-xs font-bold text-foreground">Evidence</label>
                 <textarea
+                  id="intake-evidence"
                   rows="2"
                   placeholder="Timestamp, payload, screenshot summary, log reference"
                   value={intakeForm.evidence}
@@ -711,8 +752,9 @@ export default function SupportOps() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Next action</label>
+                <label htmlFor="intake-next-action" className="text-xs font-bold text-foreground">Next action</label>
                 <textarea
+                  id="intake-next-action"
                   rows="2"
                   value={intakeForm.next_action}
                   onChange={(e) => updateIntakeField('next_action', e.target.value)}
@@ -738,8 +780,8 @@ export default function SupportOps() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Issue Detail Modal — shared with Kanban, see TaskDetailModal.jsx */}

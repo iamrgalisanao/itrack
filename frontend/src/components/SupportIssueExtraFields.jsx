@@ -28,6 +28,10 @@ function hasUnsavedFieldChange(form, issue, fields) {
  * another form section that gets saved with the issue.
  */
 function GeneratorPanel({ title, controls, hint, dirtyWarning, text, onTextChange, onCopy, copyStatus, monospace, textareaRows = 4, generatedAt }) {
+  // Derived from `title` (always unique per generator instance) rather than a
+  // new required prop, so this stays a drop-in id/htmlFor pair without
+  // changing the component's API.
+  const textareaId = `generator-text-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
   return (
     <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/3 p-4">
       <p className="text-xs font-bold uppercase tracking-widest text-foreground">{title}</p>
@@ -50,10 +54,11 @@ function GeneratorPanel({ title, controls, hint, dirtyWarning, text, onTextChang
 
       {text && (
         <div className="space-y-2">
-          <label className="text-[11px] font-semibold text-muted-foreground">
+          <label htmlFor={textareaId} className="text-[11px] font-semibold text-muted-foreground">
             Generated message — editable before copying
           </label>
           <textarea
+            id={textareaId}
             rows={textareaRows}
             value={text}
             onChange={(e) => onTextChange(e.target.value)}
@@ -242,8 +247,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-foreground">Client</label>
+          <label htmlFor="support-client-name" className="text-xs font-bold text-foreground">Client</label>
           <input
+            id="support-client-name"
             type="text"
             value={form.client_name || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, client_name: e.target.value }))}
@@ -251,8 +257,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-foreground">Tenant</label>
+          <label htmlFor="support-tenant-name" className="text-xs font-bold text-foreground">Tenant</label>
           <input
+            id="support-tenant-name"
             type="text"
             value={form.tenant_name || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, tenant_name: e.target.value }))}
@@ -260,8 +267,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-foreground">Channel</label>
+          <label htmlFor="support-channel" className="text-xs font-bold text-foreground">Channel</label>
           <input
+            id="support-channel"
             type="text"
             value={form.channel || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, channel: e.target.value }))}
@@ -269,8 +277,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-foreground">Client Priority</label>
+          <label htmlFor="support-client-priority" className="text-xs font-bold text-foreground">Client Priority</label>
           <select
+            id="support-client-priority"
             value={form.client_priority || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, client_priority: e.target.value || null }))}
             className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -393,8 +402,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-foreground">Next Action</label>
+        <label htmlFor="support-next-action" className="text-xs font-bold text-foreground">Next Action</label>
         <textarea
+          id="support-next-action"
           rows="2"
           value={form.next_action || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, next_action: e.target.value }))}
@@ -403,8 +413,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-foreground">Evidence</label>
+        <label htmlFor="support-evidence" className="text-xs font-bold text-foreground">Evidence</label>
         <textarea
+          id="support-evidence"
           rows="2"
           value={form.evidence || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, evidence: e.target.value }))}
@@ -413,8 +424,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-foreground">Root Cause</label>
+        <label htmlFor="support-root-cause" className="text-xs font-bold text-foreground">Root Cause</label>
         <textarea
+          id="support-root-cause"
           rows="2"
           value={form.root_cause || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, root_cause: e.target.value }))}
@@ -423,8 +435,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-foreground">Resolution</label>
+        <label htmlFor="support-resolution" className="text-xs font-bold text-foreground">Resolution</label>
         <textarea
+          id="support-resolution"
           rows="2"
           value={form.resolution || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, resolution: e.target.value }))}

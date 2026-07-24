@@ -5,12 +5,15 @@
 :root {
   --border: #e5e4e7;
   --input: #e5e4e7;
-  --ring: #aa3bff;
+  /* --ring/--primary darkened ~2% lightness from the original #aa3bff — same
+     hue/saturation, crosses WCAG AA (4.5:1) for white text at 4.66:1 where
+     the original sat at 4.39:1. Visually indistinguishable. */
+  --ring: #a631ff;
   --background: #ffffff;
   --foreground: #08060d;
   --card: #ffffff;
   --card-foreground: #08060d;
-  --primary: #aa3bff;
+  --primary: #a631ff;
   --primary-foreground: #ffffff;
   --secondary: #f4f3ec;
   --secondary-foreground: #08060d;
@@ -18,13 +21,17 @@
   --muted-foreground: #6b6375;
   --accent: #f4f3ec;
   --accent-foreground: #08060d;
-  --destructive: #ef4444;
+  /* destructive/success/warning/info below are one Tailwind shade darker than
+     the original 500-weight values (which read fine as swatches but fail
+     WCAG AA 4.5:1 against white text — e.g. old success #22c55e was 2.28:1).
+     Same hue family, just deep enough for solid-fill + white text to pass. */
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #22c55e;
+  --success: #15803d;
   --success-foreground: #ffffff;
-  --warning: #f59e0b;
+  --warning: #b45309;
   --warning-foreground: #ffffff;
-  --info: #3b82f6;
+  --info: #2563eb;
   --info-foreground: #ffffff;
 }
 
@@ -44,13 +51,13 @@
   --muted-foreground: #9ca3af;
   --accent: #1f2028;
   --accent-foreground: #f3f4f6;
-  --destructive: #ef4444;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #22c55e;
+  --success: #15803d;
   --success-foreground: #ffffff;
-  --warning: #f59e0b;
-  --warning-foreground: #16171d;
-  --info: #3b82f6;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
+  --info: #2563eb;
   --info-foreground: #ffffff;
 }
 
@@ -110,6 +117,19 @@ body {
 
 .dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+}
+
+/* Codebase-wide reduced-motion support — required before any glassmorphism
+   entrance animation or blur transition ships, not just a per-component
+   nicety. Neutralizes Tailwind's animate-in/animate-pulse/transition
+   utilities globally for users who've asked the OS not to animate. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @media print {

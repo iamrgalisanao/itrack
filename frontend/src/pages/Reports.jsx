@@ -242,7 +242,7 @@ export default function Reports() {
     <div className="space-y-6 print-report">
       {/* Toast Notification */}
       {healthFeedback && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
+        <div role="status" aria-live="polite" className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
           healthFeedback.type === 'error' 
             ? 'bg-destructive/15 border-destructive text-destructive' 
             : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
@@ -298,8 +298,9 @@ export default function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-card p-4 rounded-xl border border-border/60 shadow-sm no-print">
         {/* Project Filter */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase font-bold text-muted-foreground">Project</label>
+          <label htmlFor="report-filter-project" className="text-[10px] uppercase font-bold text-muted-foreground">Project</label>
           <select
+            id="report-filter-project"
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
             className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none"
@@ -314,8 +315,9 @@ export default function Reports() {
         {/* Department Filter (Hidden from Department Head) */}
         {userRole !== 'Department Head' && (
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase font-bold text-muted-foreground">Department</label>
+            <label htmlFor="report-filter-department" className="text-[10px] uppercase font-bold text-muted-foreground">Department</label>
             <select
+              id="report-filter-department"
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
               className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none"
@@ -330,8 +332,9 @@ export default function Reports() {
 
         {/* Project Health Filter */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase font-bold text-muted-foreground">Project Health</label>
+          <label htmlFor="report-filter-health" className="text-[10px] uppercase font-bold text-muted-foreground">Project Health</label>
           <select
+            id="report-filter-health"
             value={selectedHealth}
             onChange={(e) => setSelectedHealth(e.target.value)}
             className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none"
@@ -347,8 +350,9 @@ export default function Reports() {
 
         {/* Project Status Filter */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase font-bold text-muted-foreground">Project Status</label>
+          <label htmlFor="report-filter-status" className="text-[10px] uppercase font-bold text-muted-foreground">Project Status</label>
           <select
+            id="report-filter-status"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none"
@@ -365,8 +369,9 @@ export default function Reports() {
 
         {/* Date Filters (Overdue/Milestones due limits) */}
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase font-bold text-muted-foreground">Date Start</label>
+          <label htmlFor="report-filter-date-start" className="text-[10px] uppercase font-bold text-muted-foreground">Date Start</label>
           <input
+            id="report-filter-date-start"
             type="date"
             value={dateStart}
             onChange={(e) => setDateStart(e.target.value)}
@@ -375,8 +380,9 @@ export default function Reports() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase font-bold text-muted-foreground">Date End</label>
+          <label htmlFor="report-filter-date-end" className="text-[10px] uppercase font-bold text-muted-foreground">Date End</label>
           <input
+            id="report-filter-date-end"
             type="date"
             value={dateEnd}
             onChange={(e) => setDateEnd(e.target.value)}
@@ -387,8 +393,9 @@ export default function Reports() {
         {/* Assignee Filter (Hidden from Client) */}
         {!isClient && (
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase font-bold text-muted-foreground">Task Assignee</label>
+            <label htmlFor="report-filter-assignee" className="text-[10px] uppercase font-bold text-muted-foreground">Task Assignee</label>
             <select
+              id="report-filter-assignee"
               value={selectedAssignee}
               onChange={(e) => setSelectedAssignee(e.target.value)}
               className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none"
@@ -404,8 +411,9 @@ export default function Reports() {
         {/* Task Status Filter (Hidden from Client) */}
         {!isClient && (
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase font-bold text-muted-foreground">Task Status</label>
+            <label htmlFor="report-filter-task-status" className="text-[10px] uppercase font-bold text-muted-foreground">Task Status</label>
             <select
+              id="report-filter-task-status"
               value={taskStatusFilter}
               onChange={(e) => setTaskStatusFilter(e.target.value)}
               className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none"
@@ -440,7 +448,7 @@ export default function Reports() {
       ) : projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[300px] text-center border border-dashed rounded-xl bg-card p-8">
           <FileText className="h-10 w-10 text-muted-foreground/60 mb-2" />
-          <h3 className="text-base font-bold text-foreground">No reports found</h3>
+          <h2 className="text-base font-bold text-foreground">No reports found</h2>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
             No project report data matches the selected filters.
           </p>
@@ -520,7 +528,7 @@ export default function Reports() {
           {editingHealthProjectId && isPMorAdmin && (
             <Card className="border-border/80 bg-card shadow-sm no-print">
               <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/20">
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <CardTitle as="h2" className="text-sm font-bold flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" /> Manage Project Health
                 </CardTitle>
                 <CardDescription className="text-[10px] mt-0.5">
@@ -531,8 +539,9 @@ export default function Reports() {
                 <form onSubmit={handleHealthSave} className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-[10px] font-bold text-foreground">Health Status</label>
+                      <label htmlFor="report-health-status" className="text-[10px] font-bold text-foreground">Health Status</label>
                       <select
+                        id="report-health-status"
                         value={editHealthValue}
                         onChange={(e) => setEditHealthValue(e.target.value)}
                         className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none"
@@ -546,8 +555,9 @@ export default function Reports() {
                     </div>
 
                     <div className="flex flex-col gap-1.5 sm:col-span-2">
-                      <label className="text-[10px] font-bold text-foreground">Health Note</label>
+                      <label htmlFor="report-health-note" className="text-[10px] font-bold text-foreground">Health Note</label>
                       <textarea
+                        id="report-health-note"
                         rows="1"
                         value={editHealthNote}
                         onChange={(e) => setEditHealthNote(e.target.value)}
@@ -650,7 +660,7 @@ export default function Reports() {
                         {project.status_breakdown && (
                           <div className="p-3 rounded-lg border border-border/50 bg-muted/20 space-y-2 sm:col-span-2">
                             <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Task Breakdown</span>
-                            <div className="grid grid-cols-6 gap-1 px-1 pt-1.5 h-16 items-end border-b border-border/60">
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 px-1 pt-1.5 h-16 items-end border-b border-border/60">
                               {Object.entries(project.status_breakdown).map(([status, count]) => {
                                 const maxVal = Math.max(...Object.values(project.status_breakdown), 1)
                                 const pct = (count / maxVal) * 100
@@ -665,7 +675,7 @@ export default function Reports() {
                                       className={`w-full rounded-t ${barColorClass}`}
                                       style={{ height: `${pct}%` }}
                                     />
-                                    <span className="text-[7px] text-muted-foreground truncate w-full text-center capitalize font-semibold">
+                                    <span className="text-[10px] text-muted-foreground truncate w-full text-center capitalize font-semibold">
                                       {status.replace('_', ' ')}
                                     </span>
                                   </div>

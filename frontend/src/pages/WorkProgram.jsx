@@ -72,6 +72,7 @@ import {
   RefreshCw,
   SearchX,
   Layers,
+  AlertTriangle,
 } from 'lucide-react'
 
 export default function WorkProgram() {
@@ -86,6 +87,7 @@ export default function WorkProgram() {
   const [subActivities, setSubActivities] = useState({})
   const [detailedActivities, setDetailedActivities] = useState({})
   const [loading, setLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [viewMode, setViewMode] = useState(() => {
@@ -924,7 +926,9 @@ export default function WorkProgram() {
     }
   }
 
-  useEffect(() => {
+  const loadProjects = () => {
+    setLoading(true)
+    setProjectsError(null)
     fetchProjects()
       .then(res => {
         setProjects(res.data.data || res.data)
@@ -936,9 +940,13 @@ export default function WorkProgram() {
       })
       .catch(err => {
         console.error('Failed to fetch projects:', err)
+        setProjectsError('Failed to load projects.')
         setLoading(false)
       })
-  }, [])
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+  useEffect(() => { loadProjects() }, [])
 
   useEffect(() => {
     if (selectedProject) {
@@ -1047,10 +1055,23 @@ export default function WorkProgram() {
     })
   }
 
+  if (projectsError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <p className="text-sm text-destructive font-medium">{projectsError}</p>
+        <button onClick={loadProjects} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity">
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading work program...</div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-muted-foreground">
+        <RefreshCw className="h-7 w-7 animate-spin" />
+        <span className="text-sm">Loading work program...</span>
       </div>
     )
   }
@@ -1322,8 +1343,17 @@ export default function WorkProgram() {
             <>
             <Card key={module.id}>
               <CardHeader
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className="cursor-pointer hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 onClick={() => toggleModule(module.id)}
+                role="button"
+                tabIndex={0}
+                aria-expanded={!!expandedModules[module.id]}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggleModule(module.id)
+                  }
+                }}
               >
                 <div className="flex items-center gap-3">
                   {expandedModules[module.id] ? (
@@ -1332,7 +1362,7 @@ export default function WorkProgram() {
                     <ChevronRight className="h-5 w-5" />
                   )}
                   <div className="flex-1">
-                    <CardTitle className="text-lg">
+                    <CardTitle as="h2" className="text-lg">
                       {module.code && <span className="text-muted-foreground mr-2">{module.code}</span>}
                       {module.name}
                     </CardTitle>
@@ -1356,6 +1386,7 @@ export default function WorkProgram() {
                         variant="ghost"
                         className="h-8 w-8 p-0"
                         onClick={() => openFormModal('module', 'edit', {}, module)}
+                        aria-label={`Edit module: ${module.name}`}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -1367,6 +1398,7 @@ export default function WorkProgram() {
                           setDeleteTarget({ level: 'module', id: module.id })
                           setDeleteConfirmOpen(true)
                         }}
+                        aria-label={`Delete module: ${module.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -1389,8 +1421,17 @@ export default function WorkProgram() {
                     {filterActivities(activities[module.id]).map(activity => (
                       <Card key={activity.id} className="border-l-4 border-l-primary">
                         <CardHeader
-                          className="cursor-pointer hover:bg-muted/50 transition-colors py-3"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() => toggleActivity(activity.id, module.id)}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={!!expandedActivities[`${module.id}-${activity.id}`]}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              toggleActivity(activity.id, module.id)
+                            }
+                          }}
                         >
                           <div className="flex items-center gap-3">
                             {expandedActivities[`${module.id}-${activity.id}`] ? (
@@ -1414,6 +1455,7 @@ export default function WorkProgram() {
                                   variant="ghost"
                                   className="h-8 w-8 p-0"
                                   onClick={() => openFormModal('activity', 'edit', { moduleId: module.id }, activity)}
+                                  aria-label={`Edit activity: ${activity.name}`}
                                 >
                                   <Edit className="h-3.5 w-3.5" />
                                 </Button>
@@ -1425,6 +1467,7 @@ export default function WorkProgram() {
                                     setDeleteTarget({ level: 'activity', id: activity.id, context: { moduleId: module.id } })
                                     setDeleteConfirmOpen(true)
                                   }}
+                                  aria-label={`Delete activity: ${activity.name}`}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -1447,8 +1490,17 @@ export default function WorkProgram() {
                               {filterActivities(subActivities[`${module.id}-${activity.id}`]).map(subActivity => (
                                 <Card key={subActivity.id} className="border-l-4 border-l-secondary">
                                   <CardHeader
-                                    className="cursor-pointer hover:bg-muted/50 transition-colors py-3"
+                                    className="cursor-pointer hover:bg-muted/50 transition-colors py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     onClick={() => toggleSubActivity(subActivity.id, activity.id, module.id)}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-expanded={!!expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`]}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        toggleSubActivity(subActivity.id, activity.id, module.id)
+                                      }
+                                    }}
                                   >
                                     <div className="flex items-center gap-3">
                                       {expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`] ? (
@@ -1470,6 +1522,7 @@ export default function WorkProgram() {
                                             variant="ghost"
                                             className="h-8 w-8 p-0"
                                             onClick={() => openFormModal('sub-activity', 'edit', { moduleId: module.id, activityId: activity.id }, subActivity)}
+                                            aria-label={`Edit sub-activity: ${subActivity.name}`}
                                           >
                                             <Edit className="h-3.5 w-3.5" />
                                           </Button>
@@ -1481,6 +1534,7 @@ export default function WorkProgram() {
                                               setDeleteTarget({ level: 'sub-activity', id: subActivity.id, context: { moduleId: module.id, activityId: activity.id } })
                                               setDeleteConfirmOpen(true)
                                             }}
+                                            aria-label={`Delete sub-activity: ${subActivity.name}`}
                                           >
                                             <Trash2 className="h-3.5 w-3.5" />
                                           </Button>
@@ -1595,10 +1649,10 @@ export default function WorkProgram() {
                                               <TableCell>
                                                 {editingId === detail.id ? (
                                                   <div className="flex gap-1">
-                                                    <Button size="sm" variant="success" onClick={() => saveEdit(detail.id)}>
+                                                    <Button size="sm" variant="success" onClick={() => saveEdit(detail.id)} aria-label="Save">
                                                       <Save className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                                                    <Button size="sm" variant="ghost" onClick={cancelEdit} aria-label="Cancel">
                                                       <X className="h-4 w-4" />
                                                     </Button>
                                                   </div>
@@ -1606,7 +1660,7 @@ export default function WorkProgram() {
                                                   <div className="flex items-center gap-1">
                                                     {userRole !== 'Client' && (
                                                       <>
-                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(detail)} title="Quick Status Edit">
+                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(detail)} title="Quick Status Edit" aria-label="Quick Status Edit">
                                                           <Edit className="h-4 w-4" />
                                                         </Button>
                                                         <Button
@@ -1615,6 +1669,7 @@ export default function WorkProgram() {
                                                           className="h-8 w-8 p-0 text-blue-500"
                                                           onClick={() => openFormModal('task', 'edit', { moduleId: module.id, activityId: activity.id, subActivityId: subActivity.id }, detail)}
                                                           title="Full Edit"
+                                                          aria-label={`Full edit: ${detail.name}`}
                                                         >
                                                           <Edit className="h-4 w-4" />
                                                         </Button>
@@ -1634,6 +1689,7 @@ export default function WorkProgram() {
                                                           setDeleteConfirmOpen(true)
                                                         }}
                                                         title="Delete"
+                                                        aria-label={`Delete task: ${detail.name}`}
                                                       >
                                                         <Trash2 className="h-4 w-4" />
                                                       </Button>
@@ -1739,6 +1795,7 @@ export default function WorkProgram() {
                 className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                 onClick={handleZoomOut}
                 title="Zoom Out — see more of the timeline"
+                aria-label="Zoom out"
               >
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
@@ -1751,6 +1808,7 @@ export default function WorkProgram() {
                 className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                 onClick={handleZoomIn}
                 title="Zoom In — see daily detail"
+                aria-label="Zoom in"
               >
                 <ZoomIn className="h-3.5 w-3.5" />
               </Button>
@@ -1882,6 +1940,7 @@ export default function WorkProgram() {
                           }
                         }}
                         title="Edit Item"
+                        aria-label={`Edit: ${row.item.name}`}
                       >
                         <Edit className="h-3.5 w-3.5" />
                       </Button>
@@ -1946,7 +2005,7 @@ export default function WorkProgram() {
                             style={{ width: `${colWidth}px` }}
                           >
                             {colWidth >= 14 && <span>{day.getDate()}</span>}
-                            {colWidth >= 20 && <span className="text-[7px] scale-90 uppercase opacity-75">{day.toLocaleDateString('default', { weekday: 'narrow' })}</span>}
+                            {colWidth >= 20 && <span className="text-[10px] uppercase opacity-75">{day.toLocaleDateString('default', { weekday: 'narrow' })}</span>}
                           </div>
                         )
                       })}
@@ -2255,6 +2314,7 @@ export default function WorkProgram() {
                           })
                         }}
                         title="Edit Project"
+                        aria-label={`Edit project: ${proj.name}`}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -2264,6 +2324,7 @@ export default function WorkProgram() {
                         className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
                         onClick={() => handleProjectDelete(proj.id)}
                         title="Delete Project"
+                        aria-label={`Delete project: ${proj.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -2288,7 +2349,7 @@ export default function WorkProgram() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="code">Code</Label>
                 <Input
@@ -2328,7 +2389,7 @@ export default function WorkProgram() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="responsible">Responsible</Label>
                 <Input
@@ -2349,7 +2410,7 @@ export default function WorkProgram() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="plan_start_date">Planned Start Date</Label>
                 <Input
@@ -2370,7 +2431,7 @@ export default function WorkProgram() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="duration_months">Duration (Months)</Label>
                 <Input
@@ -2417,7 +2478,7 @@ export default function WorkProgram() {
 
             {modalLevel === 'task' && (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
                     <Select
@@ -2448,7 +2509,7 @@ export default function WorkProgram() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="actual_start_date">Actual Start Date</Label>
                     <Input

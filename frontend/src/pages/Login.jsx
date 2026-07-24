@@ -40,8 +40,16 @@ export default function Login() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background px-4">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-sm p-8 space-y-6">
+    <div className="relative flex items-center justify-center min-h-screen bg-background px-4 overflow-hidden">
+      {/* Decorative background — purely aesthetic, gives the glass card below
+          something to actually blur. aria-hidden since it carries no content. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-primary/30 blur-3xl" />
+        <div className="absolute -bottom-24 -right-16 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute top-1/3 right-1/4 h-64 w-64 rounded-full bg-info/15 blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md rounded-xl border border-border/60 bg-card/80 backdrop-blur-xl shadow-xl p-8 space-y-6">
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary">
             <span className="text-base font-black text-primary-foreground">i</span>

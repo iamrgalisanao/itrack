@@ -22,6 +22,7 @@ import {
   Paperclip,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
 
@@ -38,6 +39,7 @@ export default function Schedule() {
   
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState(null)
   
   const [viewMode, setViewMode] = useState('month') // 'month' | 'week' | 'timeline'
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -59,16 +61,17 @@ export default function Schedule() {
   }
 
   // Fetch projects initially
-  useEffect(() => {
+  const loadProjects = () => {
+    setProjectsError(null)
     fetchProjects()
       .then((res) => {
         let list = res.data.data || res.data
-        
+
         // Scope projects for Department Head
         if (userRole === 'Department Head' && userDept) {
           list = list.filter(p => p.department?.toLowerCase() === userDept.toLowerCase())
         }
-        
+
         setProjects(list)
         if (list.length > 0) {
           // If department head, default to their department
@@ -77,8 +80,14 @@ export default function Schedule() {
           }
         }
       })
-      .catch((err) => console.error('Failed to load projects:', err))
-  }, [userRole, userDept])
+      .catch((err) => {
+        console.error('Failed to load projects:', err)
+        setProjectsError('Failed to load projects.')
+      })
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- established data-load-on-mount idiom used throughout this codebase; loadProjects is recreated every render, including it would loop
+  useEffect(() => { loadProjects() }, [userRole, userDept])
 
   // Fetch all tasks for selected projects
   const loadTasks = async () => {
@@ -271,7 +280,8 @@ export default function Schedule() {
     const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
     return (
-      <div className="border border-border/80 rounded-xl overflow-hidden shadow-sm bg-card">
+      <div className="overflow-x-auto">
+      <div className="border border-border/80 rounded-xl overflow-hidden shadow-sm bg-card min-w-175">
         {/* Days Header */}
         <div className="grid grid-cols-7 border-b border-border/60 bg-muted/30">
           {weekdays.map(d => (
@@ -280,7 +290,7 @@ export default function Schedule() {
             </div>
           ))}
         </div>
-        
+
         {/* Grid Cells */}
         <div className="grid grid-cols-7 grid-rows-5 divide-x divide-y divide-border/60 border-l border-t border-border/10">
           {days.map((day, idx) => {
@@ -332,9 +342,21 @@ export default function Schedule() {
                           setFileCount(0)
                           setIsEditModalOpen(true)
                         }}
-                        className={`text-[9px] px-1.5 py-0.5 rounded border leading-tight font-medium cursor-pointer truncate transition-all ${
-                          isTaskMilestone 
-                            ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400 font-bold' 
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            setSelectedTask({ ...t })
+                            setModalTab('details')
+                            setCommentCount(t.comments_count ?? 0)
+                            setFileCount(0)
+                            setIsEditModalOpen(true)
+                          }
+                        }}
+                        className={`text-[9px] px-1.5 py-0.5 rounded border leading-tight font-medium cursor-pointer truncate transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                          isTaskMilestone
+                            ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400 font-bold'
                             : taskOverdue
                             ? 'bg-red-500/10 border-red-500/30 text-red-500 font-bold'
                             : t.status === 'completed'
@@ -352,6 +374,7 @@ export default function Schedule() {
             )
           })}
         </div>
+      </div>
       </div>
     )
   }
@@ -418,7 +441,19 @@ export default function Schedule() {
                         setFileCount(0)
                         setIsEditModalOpen(true)
                       }}
-                      className={`p-2.5 rounded-lg border text-xs leading-normal cursor-pointer transition-all hover:shadow-sm ${
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setSelectedTask({ ...t })
+                          setModalTab('details')
+                          setCommentCount(t.comments_count ?? 0)
+                          setFileCount(0)
+                          setIsEditModalOpen(true)
+                        }
+                      }}
+                      className={`p-2.5 rounded-lg border text-xs leading-normal cursor-pointer transition-all hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                         isTaskMilestone
                           ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400 font-bold'
                           : taskOverdue
@@ -490,14 +525,14 @@ export default function Schedule() {
                   : 'bg-card border-muted-foreground'
               }`}>
                 {isTaskMilestone ? (
-                  <span className="text-[7px] font-black">M</span>
+                  <span className="text-[9px] font-black">M</span>
                 ) : t.status === 'completed' ? (
                   <CheckCircle2 className="h-2 w-2 text-white" />
                 ) : null}
               </span>
 
               {/* Card Container */}
-              <div 
+              <div
                 onClick={() => {
                   setSelectedTask({ ...t })
                   setModalTab('details')
@@ -505,7 +540,19 @@ export default function Schedule() {
                   setFileCount(0)
                   setIsEditModalOpen(true)
                 }}
-                className={`p-4 rounded-xl border border-border/60 bg-card hover:shadow-md hover:border-border transition-all cursor-pointer ${
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setSelectedTask({ ...t })
+                    setModalTab('details')
+                    setCommentCount(t.comments_count ?? 0)
+                    setFileCount(0)
+                    setIsEditModalOpen(true)
+                  }
+                }}
+                className={`p-4 rounded-xl border border-border/60 bg-card hover:shadow-md hover:border-border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                   taskOverdue ? 'border-l-4 border-l-destructive' : ''
                 }`}
               >
@@ -580,7 +627,7 @@ export default function Schedule() {
     <div className="space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
+        <div role="status" aria-live="polite" className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
           toast.type === 'error' 
             ? 'bg-destructive/15 border-destructive text-destructive' 
             : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
@@ -617,11 +664,12 @@ export default function Schedule() {
           <div className="flex items-center gap-3">
             <button
               onClick={prevPeriod}
+              aria-label="Previous period"
               className="h-9 w-9 rounded-lg border border-border flex items-center justify-center hover:bg-muted text-foreground transition-colors"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            
+
             <h2 className="text-sm font-bold text-foreground min-w-[120px] text-center">
               {viewMode === 'month' ? (
                 currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
@@ -629,9 +677,10 @@ export default function Schedule() {
                 `Week of ${new Date(currentDate.setDate(currentDate.getDate() - currentDate.getDay())).getDate()} ${currentDate.toLocaleDateString('en-US', { month: 'short' })}`
               )}
             </h2>
-            
+
             <button
               onClick={nextPeriod}
+              aria-label="Next period"
               className="h-9 w-9 rounded-lg border border-border flex items-center justify-center hover:bg-muted text-foreground transition-colors"
             >
               <ChevronRight className="h-4 w-4" />
@@ -702,7 +751,7 @@ export default function Schedule() {
           </div>
 
           {/* View Mode Switcher Pills */}
-          <div className="flex items-center rounded-lg bg-muted p-1">
+          <div role="group" aria-label="View mode" className="flex items-center rounded-lg bg-muted p-1">
             {[
               { id: 'month', label: 'Month', icon: Grid },
               { id: 'week', label: 'Week', icon: CalendarIcon },
@@ -714,6 +763,7 @@ export default function Schedule() {
                 <button
                   key={mode.id}
                   onClick={() => setViewMode(mode.id)}
+                  aria-pressed={isActive}
                   className={[
                     'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all',
                     isActive 
@@ -731,7 +781,15 @@ export default function Schedule() {
       </div>
 
       {/* Main Calendar Render */}
-      {loading ? (
+      {projectsError ? (
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+          <AlertTriangle className="h-10 w-10 text-destructive" />
+          <p className="text-sm text-destructive font-medium">{projectsError}</p>
+          <button onClick={loadProjects} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity">
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-muted-foreground">
           <Clock className="h-8 w-8 animate-spin text-primary" />
           <span className="text-sm font-medium">Loading schedule events...</span>
@@ -754,16 +812,25 @@ export default function Schedule() {
 
       {/* Task Details / Editing Dialog Modal */}
       {isEditModalOpen && selectedTask && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+        <Dialog open={isEditModalOpen} onOpenChange={(open) => !open && setIsEditModalOpen(false)}>
+          <DialogContent
+            showCloseButton={false}
+            className="sm:max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0"
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-primary">Task Detail</span>
-                <h3 className="text-base font-bold text-foreground truncate max-w-lg mt-0.5">{selectedTask.name}</h3>
+                <DialogTitle className="text-base font-bold text-foreground truncate max-w-lg mt-0.5 leading-none tracking-normal">
+                  {selectedTask.name}
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Edit task details, or view its comments and files.
+                </DialogDescription>
               </div>
               <button
                 onClick={() => setIsEditModalOpen(false)}
+                aria-label="Close"
                 className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -771,8 +838,10 @@ export default function Schedule() {
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-border/60 px-6">
+            <div role="tablist" aria-label="Task detail sections" className="flex border-b border-border/60 px-6">
               <button
+                role="tab"
+                aria-selected={modalTab === 'details'}
                 onClick={() => setModalTab('details')}
                 className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
                   modalTab === 'details'
@@ -783,6 +852,8 @@ export default function Schedule() {
                 Details
               </button>
               <button
+                role="tab"
+                aria-selected={modalTab === 'comments'}
                 onClick={() => setModalTab('comments')}
                 className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
                   modalTab === 'comments'
@@ -799,6 +870,8 @@ export default function Schedule() {
                 )}
               </button>
               <button
+                role="tab"
+                aria-selected={modalTab === 'files'}
                 onClick={() => setModalTab('files')}
                 className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
                   modalTab === 'files'
@@ -821,8 +894,9 @@ export default function Schedule() {
             <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
               {/* Task Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Task Title</label>
+                <label htmlFor="task-title" className="text-xs font-bold text-foreground">Task Title</label>
                 <input
+                  id="task-title"
                   type="text"
                   required
                   disabled={userRole === 'Client'}
@@ -835,8 +909,9 @@ export default function Schedule() {
               {/* Status and Progress */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Status</label>
+                  <label htmlFor="task-status" className="text-xs font-bold text-foreground">Status</label>
                   <select
+                    id="task-status"
                     disabled={userRole === 'Client'}
                     value={selectedTask.status}
                     onChange={(e) => {
@@ -857,8 +932,9 @@ export default function Schedule() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Progress (%)</label>
+                  <label htmlFor="task-progress" className="text-xs font-bold text-foreground">Progress (%)</label>
                   <input
+                    id="task-progress"
                     type="number"
                     min="0"
                     max="100"
@@ -873,8 +949,9 @@ export default function Schedule() {
               {/* Responsible & Priority */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
+                  <label htmlFor="task-responsible" className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
                   <input
+                    id="task-responsible"
                     type="text"
                     disabled={userRole === 'Client'}
                     value={selectedTask.responsible || ''}
@@ -885,8 +962,9 @@ export default function Schedule() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Priority</label>
+                  <label htmlFor="task-priority" className="text-xs font-bold text-foreground">Priority</label>
                   <select
+                    id="task-priority"
                     disabled={userRole === 'Client'}
                     value={selectedTask.type || ''}
                     onChange={(e) => setSelectedTask(prev => ({ ...prev, type: e.target.value }))}
@@ -904,8 +982,9 @@ export default function Schedule() {
               {/* Planned Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Planned Start Date</label>
+                  <label htmlFor="task-plan-start" className="text-xs font-bold text-foreground">Planned Start Date</label>
                   <input
+                    id="task-plan-start"
                     type="date"
                     disabled={userRole === 'Client'}
                     value={selectedTask.plan_start_date ? selectedTask.plan_start_date.substring(0, 10) : ''}
@@ -915,8 +994,9 @@ export default function Schedule() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-foreground">Planned End Date</label>
+                  <label htmlFor="task-plan-end" className="text-xs font-bold text-foreground">Planned End Date</label>
                   <input
+                    id="task-plan-end"
                     type="date"
                     disabled={userRole === 'Client'}
                     value={selectedTask.plan_end_date ? selectedTask.plan_end_date.substring(0, 10) : ''}
@@ -928,8 +1008,9 @@ export default function Schedule() {
 
               {/* Description */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Description</label>
+                <label htmlFor="task-description" className="text-xs font-bold text-foreground">Description</label>
                 <textarea
+                  id="task-description"
                   rows="3"
                   disabled={userRole === 'Client'}
                   value={selectedTask.description || ''}
@@ -940,8 +1021,9 @@ export default function Schedule() {
 
               {/* Notes */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Notes</label>
+                <label htmlFor="task-notes" className="text-xs font-bold text-foreground">Notes</label>
                 <textarea
+                  id="task-notes"
                   rows="2"
                   disabled={userRole === 'Client'}
                   value={selectedTask.notes || ''}
@@ -987,8 +1069,8 @@ export default function Schedule() {
               />
             </div>
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

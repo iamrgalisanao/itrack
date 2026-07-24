@@ -14,17 +14,19 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { fetchGlossaryTerms, createGlossaryTerm, updateGlossaryTerm, deleteGlossaryTerm } from '@/lib/api'
-import { Search, Plus, Edit, Trash2, BookOpen } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, BookOpen, AlertTriangle, RefreshCw } from 'lucide-react'
 
 export default function Glossary() {
   const [terms, setTerms] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingTerm, setEditingTerm] = useState(null)
@@ -33,9 +35,14 @@ export default function Glossary() {
     definition: '',
     category: '',
   })
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteError, setDeleteError] = useState(null)
 
   const fetchTerms = () => {
     setLoading(true)
+    setError(null)
     fetchGlossaryTerms()
       .then(res => {
         setTerms(res.data.data || res.data)
@@ -43,6 +50,7 @@ export default function Glossary() {
       })
       .catch(err => {
         console.error('Failed to fetch glossary terms:', err)
+        setError('Failed to load glossary terms.')
         setLoading(false)
       })
   }
@@ -54,6 +62,8 @@ export default function Glossary() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setSubmitting(true)
+    setFormError(null)
     try {
       if (editingTerm) {
         await updateGlossaryTerm(editingTerm.id, formData)
@@ -66,6 +76,9 @@ export default function Glossary() {
       fetchTerms()
     } catch (err) {
       console.error('Failed to save term:', err)
+      setFormError(err.response?.data?.message || 'Failed to save term.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -79,14 +92,15 @@ export default function Glossary() {
     setIsAddOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this term?')) {
-      try {
-        await deleteGlossaryTerm(id)
-        fetchTerms()
-      } catch (err) {
-        console.error('Failed to delete term:', err)
-      }
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      await deleteGlossaryTerm(deleteTarget.id)
+      setDeleteTarget(null)
+      fetchTerms()
+    } catch (err) {
+      console.error('Failed to delete term:', err)
+      setDeleteError('Failed to delete term.')
     }
   }
 
@@ -108,10 +122,23 @@ export default function Glossary() {
     return acc
   }, {})
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <p className="text-sm text-destructive font-medium">{error}</p>
+        <button onClick={fetchTerms} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 transition-opacity">
+          Try again
+        </button>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading glossary...</div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-muted-foreground">
+        <RefreshCw className="h-7 w-7 animate-spin" />
+        <span className="text-sm">Loading glossary...</span>
       </div>
     )
   }
@@ -170,15 +197,23 @@ export default function Glossary() {
                   placeholder="Enter category (optional)"
                 />
               </div>
+              {formError && (
+                <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                  {formError}
+                </div>
+              )}
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => {
                   setIsAddOpen(false)
                   setEditingTerm(null)
                   setFormData({ term: '', definition: '', category: '' })
+                  setFormError(null)
                 }}>
                   Cancel
                 </Button>
-                <Button type="submit">{editingTerm ? 'Update' : 'Create'}</Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving...' : editingTerm ? 'Update' : 'Create'}
+                </Button>
               </div>
             </form>
           </DialogContent>
@@ -213,7 +248,7 @@ export default function Glossary() {
           {Object.entries(groupedTerms).map(([category, categoryTerms]) => (
             <Card key={category}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle as="h2" className="flex items-center gap-2">
                   <Badge variant="secondary">{category}</Badge>
                   <span className="text-sm font-normal text-muted-foreground">
                     {categoryTerms.length} term{categoryTerms.length !== 1 ? 's' : ''}
@@ -236,10 +271,10 @@ export default function Glossary() {
                         <TableCell className="text-muted-foreground">{term.definition}</TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" onClick={() => handleEdit(term)}>
+                            <Button size="sm" variant="ghost" onClick={() => handleEdit(term)} aria-label={`Edit ${term.term}`}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDelete(term.id)}>
+                            <Button size="sm" variant="ghost" onClick={() => { setDeleteTarget(term); setDeleteError(null) }} aria-label={`Delete ${term.term}`}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
@@ -253,6 +288,31 @@ export default function Glossary() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-destructive">Confirm Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deleteTarget?.term}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+              {deleteError}
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -131,7 +131,7 @@ export default function TodayDashboard() {
     <div className="space-y-6">
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
+        <div role="status" aria-live="polite" className={`fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg px-4 py-3 shadow-lg border text-sm font-semibold transition-all duration-300 ${
           toast.type === 'error'
             ? 'bg-destructive/15 border-destructive text-destructive'
             : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
@@ -181,7 +181,7 @@ export default function TodayDashboard() {
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-foreground" />
-                    <span className="font-bold text-sm text-foreground">{section.title}</span>
+                    <h2 className="font-bold text-sm text-foreground">{section.title}</h2>
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-bold">
                       {items.length}
                     </span>
@@ -198,7 +198,16 @@ export default function TodayDashboard() {
                         <div
                           key={issue.id}
                           onClick={() => openIssueDetail(issue)}
-                          className="p-3 rounded-lg border border-border/60 bg-background text-foreground cursor-pointer hover:shadow-md hover:border-border/80 transition-all duration-150"
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              openIssueDetail(issue)
+                            }
+                          }}
+                          aria-label={`Open issue: ${issue.name}`}
+                          className="p-3 rounded-lg border border-border/60 bg-background text-foreground cursor-pointer hover:shadow-md hover:border-border/80 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <div className="flex items-center gap-1.5">

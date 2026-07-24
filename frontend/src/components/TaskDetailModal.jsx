@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, MessageSquare, Paperclip } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
 
@@ -56,16 +57,25 @@ export default function TaskDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+    <Dialog open={!!task} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0"
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-primary">{eyebrowLabel}</span>
-            <h3 className="text-base font-bold text-foreground truncate max-w-lg mt-0.5">{form.name}</h3>
+            <DialogTitle className="text-base font-bold text-foreground truncate max-w-lg mt-0.5 leading-none tracking-normal">
+              {form.name}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Edit task details, or view its comments and files.
+            </DialogDescription>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors"
           >
             <X className="h-5 w-5" />
@@ -73,8 +83,10 @@ export default function TaskDetailModal({
         </div>
 
         {/* Tabs: Details | Comments | Files */}
-        <div className="flex border-b border-border/60 px-6">
+        <div role="tablist" aria-label="Task detail sections" className="flex border-b border-border/60 px-6">
           <button
+            role="tab"
+            aria-selected={modalTab === 'details'}
             onClick={() => setModalTab('details')}
             className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
               modalTab === 'details'
@@ -85,6 +97,8 @@ export default function TaskDetailModal({
             Details
           </button>
           <button
+            role="tab"
+            aria-selected={modalTab === 'comments'}
             onClick={() => setModalTab('comments')}
             className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
               modalTab === 'comments'
@@ -101,6 +115,8 @@ export default function TaskDetailModal({
             )}
           </button>
           <button
+            role="tab"
+            aria-selected={modalTab === 'files'}
             onClick={() => setModalTab('files')}
             className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
               modalTab === 'files'
@@ -123,8 +139,9 @@ export default function TaskDetailModal({
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
             {/* Task Name */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">Task Title</label>
+              <label htmlFor="modal-task-title" className="text-xs font-bold text-foreground">Task Title</label>
               <input
+                id="modal-task-title"
                 type="text"
                 required
                 value={form.name}
@@ -136,8 +153,9 @@ export default function TaskDetailModal({
             {/* Status and Progress */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Status</label>
+                <label htmlFor="modal-task-status" className="text-xs font-bold text-foreground">Status</label>
                 <select
+                  id="modal-task-status"
                   value={form.status}
                   onChange={(e) => {
                     const statusVal = e.target.value
@@ -157,8 +175,9 @@ export default function TaskDetailModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Progress (%)</label>
+                <label htmlFor="modal-task-progress" className="text-xs font-bold text-foreground">Progress (%)</label>
                 <input
+                  id="modal-task-progress"
                   type="number"
                   min="0"
                   max="100"
@@ -172,8 +191,9 @@ export default function TaskDetailModal({
             {/* Responsible & Priority */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
+                <label htmlFor="modal-task-responsible" className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
                 <input
+                  id="modal-task-responsible"
                   type="text"
                   value={form.responsible || ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, responsible: e.target.value }))}
@@ -183,8 +203,9 @@ export default function TaskDetailModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Priority</label>
+                <label htmlFor="modal-task-priority" className="text-xs font-bold text-foreground">Priority</label>
                 <select
+                  id="modal-task-priority"
                   value={form.type || ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
                   className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -201,8 +222,9 @@ export default function TaskDetailModal({
             {/* Planned Dates */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Planned Start Date</label>
+                <label htmlFor="modal-task-plan-start" className="text-xs font-bold text-foreground">Planned Start Date</label>
                 <input
+                  id="modal-task-plan-start"
                   type="date"
                   value={form.plan_start_date ? form.plan_start_date.substring(0, 10) : ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, plan_start_date: e.target.value || null }))}
@@ -211,8 +233,9 @@ export default function TaskDetailModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground">Planned End Date</label>
+                <label htmlFor="modal-task-plan-end" className="text-xs font-bold text-foreground">Planned End Date</label>
                 <input
+                  id="modal-task-plan-end"
                   type="date"
                   value={form.plan_end_date ? form.plan_end_date.substring(0, 10) : ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, plan_end_date: e.target.value || null }))}
@@ -223,8 +246,9 @@ export default function TaskDetailModal({
 
             {/* Description */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">Description</label>
+              <label htmlFor="modal-task-description" className="text-xs font-bold text-foreground">Description</label>
               <textarea
+                id="modal-task-description"
                 rows="3"
                 value={form.description || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
@@ -234,8 +258,9 @@ export default function TaskDetailModal({
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground">Notes</label>
+              <label htmlFor="modal-task-notes" className="text-xs font-bold text-foreground">Notes</label>
               <textarea
+                id="modal-task-notes"
                 rows="2"
                 value={form.notes || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
@@ -281,7 +306,7 @@ export default function TaskDetailModal({
             />
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

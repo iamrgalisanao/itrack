@@ -584,8 +584,9 @@ export default function Admin() {
               </DialogHeader>
               <form onSubmit={handleMemberSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Role Title</label>
+                  <label htmlFor="member-role" className="text-xs font-semibold">Role Title</label>
                   <Input
+                    id="member-role"
                     placeholder="e.g. Lead System Engineer"
                     value={memberForm.role}
                     onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
@@ -594,8 +595,9 @@ export default function Admin() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Side</label>
+                    <label htmlFor="member-side" className="text-xs font-semibold">Side</label>
                     <select
+                      id="member-side"
                       value={memberForm.side}
                       onChange={(e) => setMemberForm({ ...memberForm, side: e.target.value })}
                       className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -605,8 +607,9 @@ export default function Admin() {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Abbreviation</label>
+                    <label htmlFor="member-abbreviation" className="text-xs font-semibold">Abbreviation</label>
                     <Input
+                      id="member-abbreviation"
                       placeholder="e.g. LSE"
                       value={memberForm.abbreviation}
                       onChange={(e) => setMemberForm({ ...memberForm, abbreviation: e.target.value })}
@@ -614,8 +617,9 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Responsibility Description</label>
+                  <label htmlFor="member-description" className="text-xs font-semibold">Responsibility Description</label>
                   <textarea
+                    id="member-description"
                     placeholder="Describe their primary tasks..."
                     value={memberForm.description}
                     onChange={(e) => setMemberForm({ ...memberForm, description: e.target.value })}
@@ -667,10 +671,11 @@ export default function Admin() {
             <CardContent className="space-y-4">
               <div className="grid gap-3 grid-cols-2 md:grid-cols-4 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
                 <div className="space-y-1 md:col-span-2">
-                  <label className="font-semibold">Search</label>
+                  <label htmlFor="user-search" className="font-semibold">Search</label>
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
+                      id="user-search"
                       placeholder="Name or email..."
                       value={userFilters.search}
                       onChange={(e) => handleUserFilterChange('search', e.target.value)}
@@ -679,8 +684,9 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold">Role</label>
+                  <label htmlFor="user-filter-role" className="font-semibold">Role</label>
                   <select
+                    id="user-filter-role"
                     value={userFilters.role}
                     onChange={(e) => handleUserFilterChange('role', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -692,8 +698,9 @@ export default function Admin() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold">Department</label>
+                  <label htmlFor="user-filter-department" className="font-semibold">Department</label>
                   <select
+                    id="user-filter-department"
                     value={userFilters.department}
                     onChange={(e) => handleUserFilterChange('department', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -705,8 +712,9 @@ export default function Admin() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold">Status</label>
+                  <label htmlFor="user-filter-status" className="font-semibold">Status</label>
                   <select
+                    id="user-filter-status"
                     value={userFilters.status}
                     onChange={(e) => handleUserFilterChange('status', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -849,16 +857,18 @@ export default function Admin() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Name</label>
+                  <label htmlFor="user-name" className="text-xs font-semibold">Name</label>
                   <Input
+                    id="user-name"
                     value={userForm.name}
                     onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
                     required
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Email</label>
+                  <label htmlFor="user-email" className="text-xs font-semibold">Email</label>
                   <Input
+                    id="user-email"
                     type="email"
                     value={userForm.email}
                     onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
@@ -868,8 +878,9 @@ export default function Admin() {
                 {!editingUser && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold">Password</label>
+                      <label htmlFor="user-password" className="text-xs font-semibold">Password</label>
                       <Input
+                        id="user-password"
                         type="password"
                         value={userForm.password}
                         onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
@@ -878,8 +889,9 @@ export default function Admin() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold">Confirm Password</label>
+                      <label htmlFor="user-password-confirmation" className="text-xs font-semibold">Confirm Password</label>
                       <Input
+                        id="user-password-confirmation"
                         type="password"
                         value={userForm.password_confirmation}
                         onChange={(e) => setUserForm({ ...userForm, password_confirmation: e.target.value })}
@@ -891,8 +903,9 @@ export default function Admin() {
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">Role</label>
+                    <label htmlFor="user-role" className="text-xs font-semibold">Role</label>
                     <select
+                      id="user-role"
                       value={userForm.role}
                       onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
                       className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -903,10 +916,11 @@ export default function Admin() {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold">
+                    <label htmlFor="user-department" className="text-xs font-semibold">
                       Department{DEPARTMENT_REQUIRED_ROLES.includes(userForm.role) ? '' : ' (optional)'}
                     </label>
                     <select
+                      id="user-department"
                       value={userForm.department}
                       onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
                       className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -950,8 +964,9 @@ export default function Admin() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">New Password</label>
+                  <label htmlFor="reset-password" className="text-xs font-semibold">New Password</label>
                   <Input
+                    id="reset-password"
                     type="password"
                     value={resetPasswordForm.password}
                     onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, password: e.target.value })}
@@ -960,8 +975,9 @@ export default function Admin() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Confirm New Password</label>
+                  <label htmlFor="reset-password-confirmation" className="text-xs font-semibold">Confirm New Password</label>
                   <Input
+                    id="reset-password-confirmation"
                     type="password"
                     value={resetPasswordForm.password_confirmation}
                     onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, password_confirmation: e.target.value })}
@@ -1095,8 +1111,9 @@ export default function Admin() {
               </DialogHeader>
               <form onSubmit={handleGrantSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Grantee Persona Role</label>
+                  <label htmlFor="grant-role" className="text-xs font-semibold">Grantee Persona Role</label>
                   <select
+                    id="grant-role"
                     value={grantForm.grantee_role}
                     onChange={(e) => setGrantForm({ ...grantForm, grantee_role: e.target.value })}
                     className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -1108,8 +1125,9 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Who is requestor (Grantee Department)</label>
+                  <label htmlFor="grant-grantee-department" className="text-xs font-semibold">Who is requestor (Grantee Department)</label>
                   <select
+                    id="grant-grantee-department"
                     value={grantForm.grantee_department}
                     onChange={(e) => setGrantForm({ ...grantForm, grantee_department: e.target.value })}
                     className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -1126,8 +1144,9 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold">Target Department to Reveal</label>
+                  <label htmlFor="grant-granted-department" className="text-xs font-semibold">Target Department to Reveal</label>
                   <select
+                    id="grant-granted-department"
                     value={grantForm.granted_department}
                     onChange={(e) => setGrantForm({ ...grantForm, granted_department: e.target.value })}
                     className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -1175,8 +1194,9 @@ export default function Admin() {
               {/* Filter Row */}
               <div className="grid gap-3 grid-cols-2 md:grid-cols-6 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
                 <div className="space-y-1">
-                  <label className="font-semibold">Action</label>
+                  <label htmlFor="log-filter-action" className="font-semibold">Action</label>
                   <select
+                    id="log-filter-action"
                     value={logFilters.action}
                     onChange={(e) => handleLogFilterChange('action', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -1200,8 +1220,9 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold">Entity Type</label>
+                  <label htmlFor="log-filter-entity-type" className="font-semibold">Entity Type</label>
                   <select
+                    id="log-filter-entity-type"
                     value={logFilters.entity_type}
                     onChange={(e) => handleLogFilterChange('entity_type', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -1215,8 +1236,9 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold">Actor Role</label>
+                  <label htmlFor="log-filter-actor-role" className="font-semibold">Actor Role</label>
                   <select
+                    id="log-filter-actor-role"
                     value={logFilters.actor_role}
                     onChange={(e) => handleLogFilterChange('actor_role', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -1231,8 +1253,9 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold">Actor Dept</label>
+                  <label htmlFor="log-filter-actor-dept" className="font-semibold">Actor Dept</label>
                   <select
+                    id="log-filter-actor-dept"
                     value={logFilters.actor_dept}
                     onChange={(e) => handleLogFilterChange('actor_dept', e.target.value)}
                     className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
@@ -1246,8 +1269,9 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-semibold">From Date</label>
+                  <label htmlFor="log-filter-date-from" className="font-semibold">From Date</label>
                   <Input
+                    id="log-filter-date-from"
                     type="date"
                     value={logFilters.date_from}
                     onChange={(e) => handleLogFilterChange('date_from', e.target.value)}
@@ -1257,8 +1281,9 @@ export default function Admin() {
 
                 <div className="space-y-1 flex gap-2">
                   <div className="flex-1 space-y-1">
-                    <label className="font-semibold">To Date</label>
+                    <label htmlFor="log-filter-date-to" className="font-semibold">To Date</label>
                     <Input
+                      id="log-filter-date-to"
                       type="date"
                       value={logFilters.date_to}
                       onChange={(e) => handleLogFilterChange('date_to', e.target.value)}

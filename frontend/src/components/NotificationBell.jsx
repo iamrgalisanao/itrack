@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchNotifications,
@@ -26,7 +27,12 @@ export default function NotificationBell({ userRole }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  const dropdownRef = useRef(null)
+  // Two refs, not one: the dropdown panel is portaled to document.body (see
+  // below) so click-outside detection has to check both the trigger button
+  // and the portaled panel separately — they're no longer DOM siblings.
+  const anchorRef = useRef(null)
+  const panelRef = useRef(null)
+  const [panelPosition, setPanelPosition] = useState(null)
   const navigate = useNavigate()
 
   const loadNotifications = async () => {
@@ -93,16 +99,37 @@ export default function NotificationBell({ userRole }) {
     }
   }, [userRole])
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside — checks both the trigger button and the
+  // portaled panel, since they're no longer DOM siblings.
   useEffect(() => {
     function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      const clickedAnchor = anchorRef.current?.contains(event.target)
+      const clickedPanel = panelRef.current?.contains(event.target)
+      if (!clickedAnchor && !clickedPanel) {
         setIsOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Position the portaled panel against the trigger button's actual screen
+  // position, and close on scroll rather than continuously repositioning —
+  // simpler and avoids any jank from a stale position mid-scroll.
+  useEffect(() => {
+    if (!isOpen) return
+    const rect = anchorRef.current?.getBoundingClientRect()
+    if (rect) {
+      setPanelPosition({ top: rect.bottom + 10, right: window.innerWidth - rect.right })
+    }
+    const closeOnScroll = () => setIsOpen(false)
+    window.addEventListener('scroll', closeOnScroll, true)
+    window.addEventListener('resize', closeOnScroll)
+    return () => {
+      window.removeEventListener('scroll', closeOnScroll, true)
+      window.removeEventListener('resize', closeOnScroll)
+    }
+  }, [isOpen])
 
   const handleMarkAsRead = async (e, notification) => {
     e.stopPropagation() // Prevent triggering click on the notification card itself
@@ -189,7 +216,7 @@ export default function NotificationBell({ userRole }) {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative" ref={anchorRef}>
       {/* Bell Trigger Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -209,9 +236,24 @@ export default function NotificationBell({ userRole }) {
         )}
       </button>
 
-      {/* Notifications Dropdown Card (Glassmorphism & premium UI styling) */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2.5 z-50 w-80 rounded-xl border border-border bg-card/95 backdrop-blur-md shadow-xl overflow-hidden animate-in fade-in-50 slide-in-from-top-1">
+      {/* Notifications Dropdown Card — reference glassmorphism pattern for this
+          app: bg-card/75 + backdrop-blur-xl + a real border for a non-blur
+          contrast edge. (Was /95 + blur-md — too subtle to read as glass at
+          all against a mostly-flat header; /75 + blur-xl is the floor where
+          the effect is actually visible without risking legibility on this
+          short-dwell, transient surface.)
+          Portaled to document.body — backdrop-filter compositing through
+          nested overflow/flex ancestors (this button sits inside App.jsx's
+          `overflow-hidden` shell wrapper) is unreliable, especially in
+          Safari. Rendering outside that ancestor chain entirely, the same
+          way Radix's Dialog already does via its own Portal, is what
+          actually fixes it — not a higher opacity value. */}
+      {isOpen && panelPosition && createPortal(
+        <div
+          ref={panelRef}
+          style={{ position: 'fixed', top: panelPosition.top, right: panelPosition.right }}
+          className="z-50 w-80 rounded-xl border border-border bg-card/75 backdrop-blur-xl shadow-xl overflow-hidden animate-in fade-in-50 slide-in-from-top-1"
+        >
           {/* Dropdown Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/40">
             <span className="text-xs font-bold text-foreground">Notifications</span>
@@ -300,7 +342,8 @@ export default function NotificationBell({ userRole }) {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
