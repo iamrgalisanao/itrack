@@ -255,8 +255,16 @@ function SidebarNavGroups({ collapsed, userRole }) {
 /* ─── Sidebar (desktop persistent + icon-only rail) ────────────────────────── */
 function Sidebar({ collapsed, onToggleCollapsed }) {
   const { theme, setTheme, toggleTheme } = useTheme()
-  const { user, logout } = useAuth()
-  const userRole = user?.role
+  // 007-permission-hardening: two distinct identities are needed here on
+  // purpose — do not collapse them. authUser is the real signed-in Admin,
+  // used ONLY for "Signed in as" + Sign Out, and must never reflect the
+  // previewed target. effectiveUser is the previewed target while
+  // previewing (else authUser) — drives nav visibility so it matches what
+  // KanbanGuard/AdminGuard/SupportOpsGuard actually allow. See
+  // useEffectiveUser() in context/PreviewContext.jsx.
+  const { user: authUser, logout } = useAuth()
+  const effectiveUser = useEffectiveUser()
+  const userRole = effectiveUser?.role
 
   return (
     <aside
@@ -307,13 +315,13 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
       )}
 
       {/* Account */}
-      {!collapsed && user && (
+      {!collapsed && authUser && (
         <div className="border-t border-border/60 py-3 px-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
             Signed in as
           </p>
-          <p className="text-xs font-medium text-foreground truncate">{user.name}</p>
-          <p className="text-[10px] text-muted-foreground truncate">{user.role}</p>
+          <p className="text-xs font-medium text-foreground truncate">{authUser.name}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{authUser.role}</p>
         </div>
       )}
 
@@ -414,8 +422,12 @@ function MobileBar() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const { theme, setTheme } = useTheme()
-  const { user, logout } = useAuth()
-  const userRole = user?.role
+  // 007-permission-hardening: same split as Sidebar above — authUser is
+  // the real signed-in Admin (ONLY for "Signed in as" + Sign Out);
+  // effectiveUser drives nav visibility during preview.
+  const { user: authUser, logout } = useAuth()
+  const effectiveUser = useEffectiveUser()
+  const userRole = effectiveUser?.role
 
   // Close drawer on route change
   // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs local UI state to router location, not a data load
@@ -496,13 +508,13 @@ function MobileBar() {
 
         {/* Drawer footer */}
         <div className="border-t border-border/60 py-3 px-3 space-y-3">
-          {user && (
+          {authUser && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
                 Signed in as
               </p>
-              <p className="text-xs font-medium text-foreground truncate">{user.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{user.role}</p>
+              <p className="text-xs font-medium text-foreground truncate">{authUser.name}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{authUser.role}</p>
             </div>
           )}
 
@@ -605,8 +617,9 @@ function SupportOpsGuard({ children }) {
 
 /* ─── Root App ──────────────────────────────────────────────────────────────── */
 function AppShell() {
-  const { user } = useAuth()
-  const userRole = user?.role
+  // 007-permission-hardening: NotificationBell's polling should restart
+  // against the previewed target, matching the sidebar's nav visibility.
+  const userRole = useEffectiveUser()?.role
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebarCollapsed') === 'true')
 
   useEffect(() => {
