@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { fetchDashboard } from '@/lib/api'
 import { getStatusColor, getStatusLabel } from '@/lib/utils'
+import AccessDenied from '@/components/AccessDenied'
 import {
   FolderKanban,
   Layers,
@@ -355,14 +356,28 @@ export default function Dashboard() {
   const [data, setData]               = useState(null)
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [activityTab, setActivityTab] = useState('all')
 
   const load = () => {
     setLoading(true)
     setError(null)
+    setAccessDenied(false)
     fetchDashboard()
       .then(res => { setData(res.data); setLoading(false) })
-      .catch(() => { setError('Failed to load dashboard data'); setLoading(false) })
+      .catch((err) => {
+        // 007-permission-hardening (FR-010): a 403 mid-session (an
+        // assignment revoked, or a preview session ending) is a genuine
+        // access-denied state, not a transient failure — show the same
+        // AccessDenied experience every other entry point uses, not a
+        // generic "try again" error (retrying wouldn't help).
+        if (err.response?.status === 403) {
+          setAccessDenied(true)
+        } else {
+          setError('Failed to load dashboard data')
+        }
+        setLoading(false)
+      })
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
@@ -375,6 +390,10 @@ export default function Dashboard() {
         <p className="text-sm">Loading dashboard…</p>
       </div>
     )
+  }
+
+  if (accessDenied) {
+    return <AccessDenied message="You do not have access to this resource." />
   }
 
   if (error) {

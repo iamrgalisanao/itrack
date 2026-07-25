@@ -15,7 +15,6 @@ import {
   Sun,
   Moon,
   Calendar,
-  ShieldAlert,
   BarChart3,
   ShieldCheck,
   LogOut,
@@ -40,8 +39,9 @@ import Login from './pages/Login'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { PreviewProvider } from './context/PreviewContext'
+import { PreviewProvider, useEffectiveUser } from './context/PreviewContext'
 import PreviewBanner from './components/PreviewBanner'
+import AccessDenied from './components/AccessDenied'
 
 const ThemeContext = createContext()
 
@@ -564,25 +564,11 @@ function MobileBar() {
 const KANBAN_INTERNAL_ROLES = ['Admin', 'Project Manager', 'Department Head', 'Team Member']
 
 function KanbanGuard({ children }) {
-  const { user } = useAuth()
+  const user = useEffectiveUser()
 
   if (!KANBAN_INTERNAL_ROLES.includes(user?.role)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] border border-border/85 rounded-xl p-8 text-center bg-card shadow-sm max-w-lg mx-auto mt-12">
-        <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-4">
-          <ShieldAlert className="h-6 w-6" />
-        </div>
-        <h3 className="text-lg font-bold text-foreground mb-2">Access Denied</h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          The Kanban Board is restricted to internal team members. Client accounts do not have access to view internal operational task flows.
-        </p>
-        <Link
-          to="/"
-          className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
-        >
-          Return to Dashboard
-        </Link>
-      </div>
+      <AccessDenied message="The Kanban Board is restricted to internal team members. Client accounts do not have access to view internal operational task flows." />
     )
   }
 
@@ -591,26 +577,10 @@ function KanbanGuard({ children }) {
 
 /* ─── Admin Guard for Role-based Access ─── */
 function AdminGuard({ children }) {
-  const { user } = useAuth()
+  const user = useEffectiveUser()
 
   if (user?.role !== 'Admin') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] border border-border/85 rounded-xl p-8 text-center bg-card shadow-sm max-w-lg mx-auto mt-12">
-        <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-4">
-          <ShieldAlert className="h-6 w-6" />
-        </div>
-        <h3 className="text-lg font-bold text-foreground mb-2">Access Denied</h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          The Admin Panel is restricted to administrators only.
-        </p>
-        <Link
-          to="/"
-          className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
-        >
-          Return to Dashboard
-        </Link>
-      </div>
-    )
+    return <AccessDenied message="The Admin Panel is restricted to administrators only." />
   }
 
   return children
@@ -622,25 +592,11 @@ function AdminGuard({ children }) {
    or editing an issue) is further restricted to canWrite() roles server-side;
    this guard only covers whether the board is reachable at all. */
 function SupportOpsGuard({ children }) {
-  const { user } = useAuth()
+  const user = useEffectiveUser()
 
   if (!KANBAN_INTERNAL_ROLES.includes(user?.role)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] border border-border/85 rounded-xl p-8 text-center bg-card shadow-sm max-w-lg mx-auto mt-12">
-        <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-4">
-          <ShieldAlert className="h-6 w-6" />
-        </div>
-        <h3 className="text-lg font-bold text-foreground mb-2">Access Denied</h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          Support Ops is restricted to internal team members. Client accounts do not have access to view internal support and troubleshooting work.
-        </p>
-        <Link
-          to="/"
-          className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-colors"
-        >
-          Return to Dashboard
-        </Link>
-      </div>
+      <AccessDenied message="Support Ops is restricted to internal team members. Client accounts do not have access to view internal support and troubleshooting work." />
     )
   }
 

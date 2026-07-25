@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useAuth } from '@/context/AuthContext'
+import AccessDenied from '@/components/AccessDenied'
 import {
   Select,
   SelectContent,
@@ -88,6 +89,7 @@ export default function WorkProgram() {
   const [detailedActivities, setDetailedActivities] = useState({})
   const [loading, setLoading] = useState(true)
   const [projectsError, setProjectsError] = useState(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [viewMode, setViewMode] = useState(() => {
@@ -952,6 +954,7 @@ export default function WorkProgram() {
     if (selectedProject) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
       setGanttDataLoading(true)
+      setAccessDenied(false)
       fetchModules(selectedProject)
         .then(res => {
           const mods = res.data.data || res.data
@@ -960,6 +963,11 @@ export default function WorkProgram() {
         })
         .catch(err => {
           console.error('Failed to fetch modules:', err)
+          // 007-permission-hardening (FR-010): a 403 here means the
+          // selected project's assignment was revoked mid-session.
+          if (err.response?.status === 403) {
+            setAccessDenied(true)
+          }
           setGanttDataLoading(false)
         })
     }
@@ -975,6 +983,13 @@ export default function WorkProgram() {
         setActivities(prev => ({ ...prev, [moduleId]: res.data.data || res.data }))
       } catch (err) {
         console.error('Failed to fetch activities:', err)
+        // 007-permission-hardening (FR-010): a 403 here means project
+        // access was revoked mid-session — every row's data is now stale,
+        // so this reuses the same page-level AccessDenied state as the
+        // top-level module fetch, not a silently-stuck expanded row.
+        if (err.response?.status === 403) {
+          setAccessDenied(true)
+        }
       }
     }
   }
@@ -990,6 +1005,9 @@ export default function WorkProgram() {
         setSubActivities(prev => ({ ...prev, [key]: res.data.data || res.data }))
       } catch (err) {
         console.error('Failed to fetch sub-activities:', err)
+        if (err.response?.status === 403) {
+          setAccessDenied(true)
+        }
       }
     }
   }
@@ -1006,6 +1024,9 @@ export default function WorkProgram() {
         setDetailedActivities(prev => ({ ...prev, [fullKey]: res.data.data || res.data }))
       } catch (err) {
         console.error('Failed to fetch detailed activities:', err)
+        if (err.response?.status === 403) {
+          setAccessDenied(true)
+        }
       }
     }
   }
@@ -1065,6 +1086,10 @@ export default function WorkProgram() {
         </button>
       </div>
     )
+  }
+
+  if (accessDenied) {
+    return <AccessDenied message="You do not have access to this resource." />
   }
 
   if (loading) {

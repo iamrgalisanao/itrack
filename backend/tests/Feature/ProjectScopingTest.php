@@ -569,9 +569,7 @@ class ProjectScopingTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'preview.started', 'actor_user_id' => $admin->id]);
 
-        $this->actingAs($admin, 'sanctum')
-            ->withHeaders(['X-Preview-Session' => $token])
-            ->deleteJson('/api/preview-sessions/current')
+        $this->callJsonPreviewing($admin, $token, 'DELETE', '/api/preview-sessions/current')
             ->assertStatus(204);
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'preview.ended', 'actor_user_id' => $admin->id]);
@@ -622,5 +620,40 @@ class ProjectScopingTest extends TestCase
         $this->assertTrue($session->started_at->copy()->addHours(2)->equalTo($session->expires_at));
 
         Carbon::setTestNow();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // User Story 3: consistent access-denied experience and audit trail
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─── T050: the audit trail from US1/US2 is visible end-to-end through
+    // the same Admin Audit Logs viewer already in use — not new audit-
+    // writing code, just verifying the already-built mechanism (see this
+    // file's class docblock and tasks.md's note on audit tasks).
+
+    public function test_assignment_and_preview_audit_entries_are_visible_via_audit_logs_endpoint(): void
+    {
+        $admin = $this->createUser('Admin');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $tm = $this->createUser('Team Member', 'IT');
+
+        $created = $this->callJson($admin, 'POST', '/api/project-assignments', [
+            'user_id' => $tm->id, 'project_id' => $project->id,
+        ])->assertStatus(201);
+        $assignmentId = $created->json('data.id');
+        $this->callJson($admin, 'DELETE', "/api/project-assignments/{$assignmentId}")->assertStatus(204);
+
+        $token = $this->startPreview($admin, $tm);
+        $this->callJsonPreviewing($admin, $token, 'DELETE', '/api/preview-sessions/current')
+            ->assertStatus(204);
+
+        $res = $this->callJson($admin, 'GET', '/api/audit-logs');
+        $res->assertStatus(200);
+
+        $actions = collect($res->json('data') ?? $res->json())->pluck('action')->all();
+        $this->assertContains('project_assignment.created', $actions);
+        $this->assertContains('project_assignment.deleted', $actions);
+        $this->assertContains('preview.started', $actions);
+        $this->assertContains('preview.ended', $actions);
     }
 }

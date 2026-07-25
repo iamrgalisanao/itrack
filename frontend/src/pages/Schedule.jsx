@@ -25,6 +25,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
+import AccessDenied from '@/components/AccessDenied'
 
 export default function Schedule() {
   const { user } = useAuth()
@@ -40,6 +41,7 @@ export default function Schedule() {
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [projectsError, setProjectsError] = useState(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   
   const [viewMode, setViewMode] = useState('month') // 'month' | 'week' | 'timeline'
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -92,6 +94,7 @@ export default function Schedule() {
   // Fetch all tasks for selected projects
   const loadTasks = async () => {
     setLoading(true)
+    setAccessDenied(false)
     try {
       const allTasks = []
       
@@ -130,7 +133,14 @@ export default function Schedule() {
       setTasks(allTasks)
     } catch (err) {
       console.error('Failed to load tasks for Schedule:', err)
-      showToast('Error loading schedule events', 'error')
+      // 007-permission-hardening (FR-010): a 403 here means a project
+      // assignment was revoked mid-session — a genuine access-denied
+      // state, not a transient failure a toast-and-retry fits.
+      if (err.response?.status === 403) {
+        setAccessDenied(true)
+      } else {
+        showToast('Error loading schedule events', 'error')
+      }
     } finally {
       setLoading(false)
     }
@@ -621,6 +631,10 @@ export default function Schedule() {
         })}
       </div>
     )
+  }
+
+  if (accessDenied) {
+    return <AccessDenied message="You do not have access to this resource." />
   }
 
   return (

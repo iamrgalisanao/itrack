@@ -5,7 +5,7 @@ import {
   updateProjectHealth,
   downloadReportCsv,
 } from '@/lib/api'
-import { useAuth } from '@/context/AuthContext'
+import { useEffectiveUser } from '@/context/PreviewContext'
 import {
   BarChart3,
   AlertTriangle,
@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 
 export default function Reports() {
-  const { user } = useAuth()
+  const user = useEffectiveUser()
   const userRole = user?.role
   const userDept = user?.department
 

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { startPreview as apiStartPreview, endPreview as apiEndPreview, setPreviewEndedHandler } from '@/lib/api'
 import { getPreviewSession, setPreviewSession, clearPreviewSession } from '@/lib/previewSession'
+import { useAuth } from './AuthContext'
 
 const PreviewContext = createContext(null)
 
@@ -68,4 +69,20 @@ export function usePreview() {
   const ctx = useContext(PreviewContext)
   if (!ctx) throw new Error('usePreview must be used within PreviewProvider')
   return ctx
+}
+
+/**
+ * 007-permission-hardening: the frontend counterpart to the backend's
+ * AccessContext — every role/department-conditional UI decision (route
+ * guards, which buttons/filters render) must read the previewed target's
+ * identity while previewing, not the real Admin's own, or "the Admin sees
+ * exactly what the target sees" (FR-006) only holds for data, not for
+ * which controls are shown. Falls back to the real authenticated user
+ * when no preview is active.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- hook colocated with its PreviewProvider, standard React context convention
+export function useEffectiveUser() {
+  const { user } = useAuth()
+  const { isPreviewing, target } = usePreview()
+  return isPreviewing ? target : user
 }
