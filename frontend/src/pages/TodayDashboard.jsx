@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/context/AuthContext'
+import { useEffectiveUser } from '@/context/PreviewContext'
 import { fetchTodayDashboard, updateDetailedActivity } from '@/lib/api'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import SupportIssueExtraFields from '@/components/SupportIssueExtraFields'
@@ -52,7 +52,10 @@ const SECTIONS = [
 ]
 
 export default function TodayDashboard() {
-  const { user } = useAuth()
+  // 007-permission-hardening: reflects the previewed target during an
+  // active preview, not the real Admin — see useEffectiveUser() in
+  // context/PreviewContext.jsx.
+  const user = useEffectiveUser()
   const userRole = user?.role
 
   const [data, setData] = useState(null)

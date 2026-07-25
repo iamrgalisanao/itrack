@@ -21,14 +21,17 @@ import {
   MessageSquare,
   Paperclip,
 } from 'lucide-react'
-import { useAuth } from '@/context/AuthContext'
+import { useEffectiveUser } from '@/context/PreviewContext'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
 import AccessDenied from '@/components/AccessDenied'
 
 export default function Schedule() {
-  const { user } = useAuth()
+  // 007-permission-hardening: reflects the previewed target during an
+  // active preview, not the real Admin — see useEffectiveUser() in
+  // context/PreviewContext.jsx.
+  const user = useEffectiveUser()
   const userRole = user?.role
   const userDept = user?.department
   

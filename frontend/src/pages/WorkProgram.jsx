@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useAuth } from '@/context/AuthContext'
+import { useEffectiveUser } from '@/context/PreviewContext'
 import AccessDenied from '@/components/AccessDenied'
 import {
   Select,
@@ -77,7 +77,10 @@ import {
 } from 'lucide-react'
 
 export default function WorkProgram() {
-  const { user } = useAuth()
+  // 007-permission-hardening: reflects the previewed target during an
+  // active preview, not the real Admin — see useEffectiveUser() in
+  // context/PreviewContext.jsx.
+  const user = useEffectiveUser()
   const userRole = user?.role
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)

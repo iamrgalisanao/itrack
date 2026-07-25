@@ -15,7 +15,7 @@ import {
   MoreVertical,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useAuth } from '@/context/AuthContext'
+import { useEffectiveUser } from '@/context/PreviewContext'
 import { formatDate } from '@/lib/utils'
 import TaskDetailModal from '@/components/TaskDetailModal'
 
@@ -29,7 +29,10 @@ const COLUMNS = [
 ]
 
 export default function Kanban() {
-  const { user } = useAuth()
+  // 007-permission-hardening: reflects the previewed target during an
+  // active preview, not the real Admin — see useEffectiveUser() in
+  // context/PreviewContext.jsx.
+  const user = useEffectiveUser()
   const userRole = user?.role
   
   const [projects, setProjects] = useState([])

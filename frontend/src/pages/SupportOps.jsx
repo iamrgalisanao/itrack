@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/context/AuthContext'
+import { useEffectiveUser } from '@/context/PreviewContext'
 import {
   fetchProjects,
   fetchSupportIssues,
@@ -86,7 +86,10 @@ function getStalenessState(issue, now = new Date()) {
 }
 
 export default function SupportOps() {
-  const { user } = useAuth()
+  // 007-permission-hardening: reflects the previewed target during an
+  // active preview, not the real Admin — see useEffectiveUser() in
+  // context/PreviewContext.jsx.
+  const user = useEffectiveUser()
   const userRole = user?.role
 
   const [projects, setProjects] = useState([])
