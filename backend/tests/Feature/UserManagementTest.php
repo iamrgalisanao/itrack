@@ -240,8 +240,17 @@ class UserManagementTest extends TestCase
 
     public function test_editing_a_users_department_takes_effect_on_their_very_next_request(): void
     {
+        // 007-permission-hardening: Team Member/Client project visibility is
+        // now scoped to explicit project_assignments, not department — a
+        // department edit no longer changes what they see at all, by
+        // design (FR-001-FR-003). Department Head is used here instead,
+        // since its department-based scoping (department + DepartmentGrant)
+        // is explicitly unchanged by that feature (FR-004) — this keeps
+        // testing 006's actual concern (an edit takes effect on the very
+        // next request, no re-login) on a role where department still
+        // governs visibility.
         $admin = $this->createUser('Admin');
-        $target = $this->createUser('Team Member', 'IT');
+        $target = $this->createUser('Department Head', 'IT');
         Project::factory()->create(['department' => 'Finance']);
 
         $before = $this->actingAs($target, 'sanctum')->getJson('/api/projects');

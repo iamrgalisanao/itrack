@@ -6,17 +6,19 @@ use App\Models\Module;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 
 class ModuleController extends Controller
 {
     // ─── Role Helpers ────────────────────────────────────────────────────────
-    // Reads role/department from the authenticated Sanctum user (real auth).
-    // Null role → fail-safe unauthorized (see HasRole trait).
+    // Resolves the acting user via AccessContext (007-permission-hardening)
+    // so every check below is preview-aware, not just $request->user()'s
+    // real Sanctum identity. Null role → fail-safe unauthorized (HasRole trait).
 
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 
     // ─── GET /api/projects/{project}/modules ────────────────────────────────
@@ -24,6 +26,10 @@ class ModuleController extends Controller
     public function index(Request $request, Project $project)
     {
         $user = $this->user($request);
+
+        if (!(Project::query()->accessibleTo($user)->whereKey($project->id)->exists())) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         // Client sees only client-visible tasks with client-visible comment counts
         $isClient = $user->isClient();
@@ -49,6 +55,10 @@ class ModuleController extends Controller
     public function store(Request $request, Project $project)
     {
         $user = $this->user($request);
+
+        if (!(Project::query()->accessibleTo($user)->whereKey($project->id)->exists())) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->canWrite()) {
             AuditLogger::denied($request, 'module.create', 'module');
@@ -76,14 +86,19 @@ class ModuleController extends Controller
             'module.created',
             'module',
             $module->id,
+            null,
             $module->toArray()
         );
 
         return $module;
     }
 
-    public function show(Module $module)
+    public function show(Request $request, Module $module)
     {
+        if (!($module->isAccessibleTo($this->user($request)))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         return $module->load('activities');
     }
 
@@ -92,6 +107,10 @@ class ModuleController extends Controller
     public function update(Request $request, Module $module)
     {
         $user = $this->user($request);
+
+        if (!($module->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->canWrite()) {
             AuditLogger::denied($request, 'module.update', 'module', $module->id);
@@ -119,6 +138,7 @@ class ModuleController extends Controller
             'module.updated',
             'module',
             $module->id,
+            null,
             $module->getChanges()
         );
 
@@ -130,6 +150,10 @@ class ModuleController extends Controller
     public function destroy(Request $request, Module $module)
     {
         $user = $this->user($request);
+
+        if (!($module->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->isPmOrAdmin()) {
             AuditLogger::denied($request, 'module.delete', 'module', $module->id);
@@ -144,6 +168,7 @@ class ModuleController extends Controller
             'module.deleted',
             'module',
             $moduleId,
+            null,
             ['id' => $moduleId]
         );
 

@@ -146,6 +146,13 @@ export const disableUser = (id) => api.post(`/users/${id}/disable`)
 export const reactivateUser = (id) => api.post(`/users/${id}/reactivate`)
 export const resetUserPassword = (id, data) => api.post(`/users/${id}/reset-password`, data)
 
+// Project Assignments (007-permission-hardening, Admin/PM only) — scopes a
+// Team Member/Client's visibility to specific projects instead of their
+// whole department.
+export const fetchProjectAssignments = (params) => api.get('/project-assignments', { params })
+export const createProjectAssignment = (data) => api.post('/project-assignments', data)
+export const deleteProjectAssignment = (id) => api.delete(`/project-assignments/${id}`)
+
 // Support Ops
 export const fetchSupportIssues = (projectId, workTypes = 'support') =>
   api.get('/support-ops', { params: { project_id: projectId, work_types: workTypes } })

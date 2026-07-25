@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToProject;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class DetailedActivity extends Model
 {
     use HasFactory;
+    use BelongsToProject;
 
     protected $fillable = [
         'sub_activity_id',
@@ -73,5 +75,10 @@ class DetailedActivity extends Model
     public function dependents()
     {
         return $this->belongsToMany(DetailedActivity::class, 'task_dependencies', 'predecessor_id', 'task_id')->withTimestamps();
+    }
+
+    public function resolveProjectId(): int
+    {
+        return $this->subActivity->activity->module->project_id;
     }
 }

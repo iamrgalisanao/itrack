@@ -6,23 +6,29 @@ use App\Models\SubActivity;
 use App\Models\Activity;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 
 class SubActivityController extends Controller
 {
     // ─── Role Helpers ────────────────────────────────────────────────────────
-    // Reads role/department from the authenticated Sanctum user (real auth).
-    // Null role → fail-safe unauthorized (see HasRole trait).
+    // Resolves the acting user via AccessContext (007-permission-hardening)
+    // so every check below is preview-aware, not just $request->user()'s
+    // real Sanctum identity. Null role → fail-safe unauthorized (HasRole trait).
 
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 
     // ─── GET /api/activities/{activity}/sub-activities ────────────────────
 
-    public function index(Activity $activity)
+    public function index(Request $request, Activity $activity)
     {
+        if (!($activity->isAccessibleTo($this->user($request)))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         return $activity->subActivities()->with('detailedActivities')->get();
     }
 
@@ -31,6 +37,10 @@ class SubActivityController extends Controller
     public function store(Request $request, Activity $activity)
     {
         $user = $this->user($request);
+
+        if (!($activity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->canWrite()) {
             AuditLogger::denied($request, 'sub_activity.create', 'sub_activity');
@@ -59,6 +69,7 @@ class SubActivityController extends Controller
             'sub_activity.created',
             'sub_activity',
             $subActivity->id,
+            null,
             $subActivity->toArray()
         );
 
@@ -67,8 +78,12 @@ class SubActivityController extends Controller
 
     // ─── GET /api/sub-activities/{subActivity} ──────────────────────────────
 
-    public function show(SubActivity $subActivity)
+    public function show(Request $request, SubActivity $subActivity)
     {
+        if (!($subActivity->isAccessibleTo($this->user($request)))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         return $subActivity->load('detailedActivities');
     }
 
@@ -77,6 +92,10 @@ class SubActivityController extends Controller
     public function update(Request $request, SubActivity $subActivity)
     {
         $user = $this->user($request);
+
+        if (!($subActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->canWrite()) {
             AuditLogger::denied($request, 'sub_activity.update', 'sub_activity', $subActivity->id);
@@ -105,6 +124,7 @@ class SubActivityController extends Controller
             'sub_activity.updated',
             'sub_activity',
             $subActivity->id,
+            null,
             $subActivity->getChanges()
         );
 
@@ -116,6 +136,10 @@ class SubActivityController extends Controller
     public function destroy(Request $request, SubActivity $subActivity)
     {
         $user = $this->user($request);
+
+        if (!($subActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->isPmOrAdmin()) {
             AuditLogger::denied($request, 'sub_activity.delete', 'sub_activity', $subActivity->id);
@@ -130,6 +154,7 @@ class SubActivityController extends Controller
             'sub_activity.deleted',
             'sub_activity',
             $subActivityId,
+            null,
             ['id' => $subActivityId]
         );
 

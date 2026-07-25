@@ -101,4 +101,9 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class])->group(function (
     Route::get('department-grants', [App\Http\Controllers\DepartmentGrantController::class, 'index'])->name('department-grants.index');
     Route::post('department-grants', [App\Http\Controllers\DepartmentGrantController::class, 'store'])->name('department-grants.store');
     Route::delete('department-grants/{departmentGrant}', [App\Http\Controllers\DepartmentGrantController::class, 'destroy'])->name('department-grants.destroy');
+
+    // Project Assignments (007-permission-hardening — Admin/PM CRUD)
+    Route::get('project-assignments', [App\Http\Controllers\ProjectAssignmentController::class, 'index'])->name('project-assignments.index');
+    Route::post('project-assignments', [App\Http\Controllers\ProjectAssignmentController::class, 'store'])->name('project-assignments.store');
+    Route::delete('project-assignments/{projectAssignment}', [App\Http\Controllers\ProjectAssignmentController::class, 'destroy'])->name('project-assignments.destroy');
 });

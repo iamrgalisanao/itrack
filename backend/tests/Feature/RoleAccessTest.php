@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\Module;
 use App\Models\SubActivity;
 use App\Models\Activity;
@@ -28,18 +29,42 @@ class RoleAccessTest extends TestCase
         ]);
     }
 
+    /**
+     * 007-permission-hardening: Team Member/Client visibility is now scoped
+     * to explicit project_assignments rows, not whole-department membership
+     * — tests exercising role behavior (not project-scoping itself) for
+     * these two roles must assign the acting user to the project under
+     * test, or every request is denied by the new project-level gate
+     * before the role check it's actually meant to exercise ever runs.
+     */
+    private function assignToProject(User $user, Project $project): ProjectAssignment
+    {
+        return ProjectAssignment::create([
+            'user_id'             => $user->id,
+            'project_id'          => $project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
+        ]);
+    }
+
     private function makeTask(array $overrides = []): DetailedActivity
+    {
+        return $this->makeTaskWithProject($overrides)['task'];
+    }
+
+    private function makeTaskWithProject(array $overrides = []): array
     {
         $project     = Project::factory()->create(['department' => 'IT']);
         $module      = Module::factory()->create(['project_id' => $project->id]);
         $activity    = Activity::factory()->create(['module_id' => $module->id]);
         $subActivity = SubActivity::factory()->create(['activity_id' => $activity->id]);
 
-        return DetailedActivity::factory()->create([
+        $task = DetailedActivity::factory()->create([
             'sub_activity_id' => $subActivity->id,
             'client_visible'  => false,
             ...$overrides,
         ]);
+
+        return ['task' => $task, 'project' => $project];
     }
 
     // ─── Project Write Guards ─────────────────────────────────────────────────
@@ -101,7 +126,10 @@ class RoleAccessTest extends TestCase
         $activity    = Activity::factory()->create(['module_id' => $module->id]);
         $subActivity = SubActivity::factory()->create(['activity_id' => $activity->id]);
 
-        $res = $this->actingAs($this->createUser('Client'), 'sanctum')
+        $client = $this->createUser('Client');
+        $this->assignToProject($client, $project);
+
+        $res = $this->actingAs($client, 'sanctum')
             ->postJson("/api/sub-activities/{$subActivity->id}/detailed-activities", ['name' => 'Client Task']);
         $res->assertStatus(403);
         $this->assertDatabaseHas('audit_logs', ['action' => 'permission.denied', 'entity_type' => 'detailed_activity']);
@@ -126,7 +154,10 @@ class RoleAccessTest extends TestCase
         $activity    = Activity::factory()->create(['module_id' => $module->id]);
         $subActivity = SubActivity::factory()->create(['activity_id' => $activity->id]);
 
-        $res = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        $teamMember = $this->createUser('Team Member');
+        $this->assignToProject($teamMember, $project);
+
+        $res = $this->actingAs($teamMember, 'sanctum')
             ->postJson("/api/sub-activities/{$subActivity->id}/detailed-activities", [
                 'name' => 'TM Task', 'status' => 'not_started', 'progress' => 0,
             ]);
@@ -152,8 +183,11 @@ class RoleAccessTest extends TestCase
 
     public function test_team_member_can_update_allowed_fields(): void
     {
-        $task = $this->makeTask(['status' => 'not_started']);
-        $res  = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        ['task' => $task, 'project' => $project] = $this->makeTaskWithProject(['status' => 'not_started']);
+        $teamMember = $this->createUser('Team Member');
+        $this->assignToProject($teamMember, $project);
+
+        $res = $this->actingAs($teamMember, 'sanctum')
             ->putJson("/api/detailed-activities/{$task->id}", ['status' => 'in_progress']);
         $res->assertStatus(200)->assertJsonPath('status', 'in_progress');
         $this->assertDatabaseHas('audit_logs', ['action' => 'task.status_changed', 'entity_id' => $task->id]);
@@ -161,8 +195,11 @@ class RoleAccessTest extends TestCase
 
     public function test_team_member_cannot_set_client_visible(): void
     {
-        $task = $this->makeTask(['client_visible' => false]);
-        $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        ['task' => $task, 'project' => $project] = $this->makeTaskWithProject(['client_visible' => false]);
+        $teamMember = $this->createUser('Team Member');
+        $this->assignToProject($teamMember, $project);
+
+        $this->actingAs($teamMember, 'sanctum')
             ->putJson("/api/detailed-activities/{$task->id}", ['client_visible' => true]);
         $task->refresh();
         $this->assertFalse($task->client_visible, 'Team Member should not be able to set client_visible');
@@ -187,7 +224,10 @@ class RoleAccessTest extends TestCase
         DetailedActivity::factory()->create(['sub_activity_id' => $subActivity->id, 'client_visible' => false, 'name' => 'Internal Task']);
         DetailedActivity::factory()->create(['sub_activity_id' => $subActivity->id, 'client_visible' => true,  'name' => 'Shared Task']);
 
-        $res = $this->actingAs($this->createUser('Client'), 'sanctum')
+        $client = $this->createUser('Client');
+        $this->assignToProject($client, $project);
+
+        $res = $this->actingAs($client, 'sanctum')
             ->getJson("/api/sub-activities/{$subActivity->id}/detailed-activities");
         $res->assertStatus(200);
         $data = $res->json();

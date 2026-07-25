@@ -34,6 +34,10 @@ import {
   disableUser,
   reactivateUser,
   resetUserPassword,
+  fetchProjects,
+  fetchProjectAssignments,
+  createProjectAssignment,
+  deleteProjectAssignment,
 } from '@/lib/api'
 import {
   ShieldCheck,
@@ -52,6 +56,7 @@ import {
   Ban,
   UserCheck,
   KeyRound,
+  FolderKanban,
 } from 'lucide-react'
 
 // Mirrors User::validRoles() and UserManagementController::DEPARTMENT_REQUIRED_ROLES.
@@ -119,6 +124,15 @@ export default function Admin() {
     granted_department: 'IT',
   })
 
+  // --- Project Assignments State (007-permission-hardening) ---
+  const [assignments, setAssignments] = useState([])
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false)
+  const [assignableProjects, setAssignableProjects] = useState([])
+  const [assignableUsers, setAssignableUsers] = useState([])
+  const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false)
+  const [assignmentForm, setAssignmentForm] = useState({ user_id: '', project_id: '' })
+  const [assignmentError, setAssignmentError] = useState('')
+
   // --- Audit Logs State ---
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
@@ -158,6 +172,28 @@ export default function Admin() {
         console.error('Failed to load department grants:', err)
         setGrantsLoading(false)
       })
+  }
+
+  const loadAssignments = () => {
+    setAssignmentsLoading(true)
+    fetchProjectAssignments()
+      .then((res) => {
+        setAssignments(res.data.data || res.data || [])
+        setAssignmentsLoading(false)
+      })
+      .catch((err) => {
+        console.error('Failed to load project assignments:', err)
+        setAssignmentsLoading(false)
+      })
+    fetchProjects()
+      .then((res) => setAssignableProjects(res.data || []))
+      .catch((err) => console.error('Failed to load projects:', err))
+    fetchUsers({ per_page: 100 })
+      .then((res) => {
+        const rows = res.data.data || res.data || []
+        setAssignableUsers(rows.filter((u) => ['Team Member', 'Client'].includes(u.role) && u.is_active))
+      })
+      .catch((err) => console.error('Failed to load users:', err))
   }
 
   const loadLogs = (filtersToUse = logFilters) => {
@@ -213,6 +249,7 @@ export default function Admin() {
     if (activeTab === 'members') loadMembers()
     else if (activeTab === 'user-accounts') loadUserAccounts()
     else if (activeTab === 'grants') loadGrants()
+    else if (activeTab === 'project-assignments') loadAssignments()
     else if (activeTab === 'logs') loadLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load* functions are recreated every render; including them would loop
   }, [activeTab])
@@ -415,6 +452,37 @@ export default function Admin() {
     }
   }
 
+  // --- Project Assignment Actions (007-permission-hardening) ---
+  const handleOpenAssignmentAdd = () => {
+    setAssignmentForm({ user_id: '', project_id: '' })
+    setAssignmentError('')
+    setIsAssignmentDialogOpen(true)
+  }
+
+  const handleAssignmentSubmit = async (e) => {
+    e.preventDefault()
+    setAssignmentError('')
+    try {
+      await createProjectAssignment(assignmentForm)
+      setIsAssignmentDialogOpen(false)
+      loadAssignments()
+    } catch (err) {
+      console.error('Failed to create project assignment:', err)
+      setAssignmentError(err.response?.data?.message || 'Failed to assign user to project.')
+    }
+  }
+
+  const handleAssignmentDelete = async (id) => {
+    if (confirm('Remove this project assignment?')) {
+      try {
+        await deleteProjectAssignment(id)
+        loadAssignments()
+      } catch (err) {
+        console.error('Failed to remove project assignment:', err)
+      }
+    }
+  }
+
   // --- Audit Log Filters & Pagination ---
   const handleLogFilterChange = (key, value) => {
     const updated = { ...logFilters, [key]: value, page: 1 }
@@ -469,7 +537,7 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 max-w-155">
+        <TabsList className="grid w-full grid-cols-5 max-w-195">
           <TabsTrigger value="members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Members
@@ -481,6 +549,10 @@ export default function Admin() {
           <TabsTrigger value="grants" className="flex items-center gap-2">
             <Share2 className="h-4 w-4" />
             Department Grants
+          </TabsTrigger>
+          <TabsTrigger value="project-assignments" className="flex items-center gap-2">
+            <FolderKanban className="h-4 w-4" />
+            Project Assignments
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -1169,6 +1241,132 @@ export default function Admin() {
                   <Button type="submit">
                     Create Grant
                   </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        {/* ────────────────── PROJECT ASSIGNMENTS PANEL ────────────────── */}
+        <TabsContent value="project-assignments" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">Project Assignments</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Assign Team Members and Clients to the specific projects they may access
+              </p>
+            </div>
+            <Button onClick={handleOpenAssignmentAdd}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Assignment
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Project Assignments</CardTitle>
+              <CardDescription>
+                Every explicit grant of a Team Member or Client to a specific project
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {assignmentsLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                  Loading assignments...
+                </div>
+              ) : assignments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No project assignments have been created yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Assigned By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {assignments.map((assignment) => (
+                      <TableRow key={assignment.id}>
+                        <TableCell className="font-medium">{assignment.user.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{assignment.user.role}</Badge>
+                        </TableCell>
+                        <TableCell>{assignment.project.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{assignment.assigned_by.name}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleAssignmentDelete(assignment.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Project Assignment Dialog */}
+          <Dialog open={isAssignmentDialogOpen} onOpenChange={setIsAssignmentDialogOpen}>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle>Assign User to Project</DialogTitle>
+                <DialogDescription>
+                  Grant a Team Member or Client access to exactly one project.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAssignmentSubmit} className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="assignment-user" className="text-xs font-semibold">User</label>
+                  <select
+                    id="assignment-user"
+                    required
+                    value={assignmentForm.user_id}
+                    onChange={(e) => setAssignmentForm({ ...assignmentForm, user_id: e.target.value })}
+                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>Select a Team Member or Client</option>
+                    {assignableUsers.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="assignment-project" className="text-xs font-semibold">Project</label>
+                  <select
+                    id="assignment-project"
+                    required
+                    value={assignmentForm.project_id}
+                    onChange={(e) => setAssignmentForm({ ...assignmentForm, project_id: e.target.value })}
+                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>Select a project</option>
+                    {assignableProjects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {assignmentError && (
+                  <p className="text-xs text-destructive">{assignmentError}</p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setIsAssignmentDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Assign</Button>
                 </div>
               </form>
             </DialogContent>

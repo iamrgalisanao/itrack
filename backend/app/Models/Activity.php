@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToProject;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Activity extends Model
 {
     use HasFactory;
+    use BelongsToProject;
 
     protected $fillable = [
         'module_id',
@@ -38,5 +40,10 @@ class Activity extends Model
     public function subActivities()
     {
         return $this->hasMany(SubActivity::class)->orderBy('sort_order');
+    }
+
+    public function resolveProjectId(): int
+    {
+        return $this->module->project_id;
     }
 }

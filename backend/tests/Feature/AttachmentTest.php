@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Attachment;
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -14,6 +15,7 @@ class AttachmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    private $project;
     private $detailedActivity;
 
     protected function setUp(): void
@@ -28,6 +30,7 @@ class AttachmentTest extends TestCase
         $module = $project->modules()->create(['name' => 'Test Module']);
         $activity = $module->activities()->create(['name' => 'Test Activity']);
         $subActivity = $activity->subActivities()->create(['name' => 'Test Sub Activity']);
+        $this->project = $project;
         $this->detailedActivity = $subActivity->detailedActivities()->create(['name' => 'Test Task']);
     }
 
@@ -40,6 +43,22 @@ class AttachmentTest extends TestCase
             'name' => $role,
             'role' => $role,
             'department' => $dept,
+        ]);
+    }
+
+    /**
+     * 007-permission-hardening: Team Member/Client visibility is scoped to
+     * explicit project_assignments rows now, not whole-department
+     * membership — assign the acting user to $this->project so tests
+     * exercising role/visibility behavior (not project-scoping itself)
+     * still reach that behavior.
+     */
+    private function assignToProject(User $user): ProjectAssignment
+    {
+        return ProjectAssignment::create([
+            'user_id'             => $user->id,
+            'project_id'          => $this->project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
         ]);
     }
 
@@ -86,7 +105,9 @@ class AttachmentTest extends TestCase
         $responsePM->assertJsonMissingPath('0.path');
 
         // 3. Fetch as Client
-        $responseClient = $this->actingAs($this->createUser('Client'), 'sanctum')
+        $client = $this->createUser('Client');
+        $this->assignToProject($client);
+        $responseClient = $this->actingAs($client, 'sanctum')
             ->getJson(route('detailed-activities.attachments.index', $this->detailedActivity));
 
         $responseClient->assertStatus(200);
@@ -207,7 +228,9 @@ class AttachmentTest extends TestCase
         // Place file mock on disk
         Storage::disk('local')->put($attachment->path, 'file-contents');
 
-        $response = $this->actingAs($this->createUser('Client'), 'sanctum')
+        $client = $this->createUser('Client');
+        $this->assignToProject($client);
+        $response = $this->actingAs($client, 'sanctum')
             ->get(route('attachments.download', $attachment));
 
         $response->assertStatus(200);
@@ -258,6 +281,7 @@ class AttachmentTest extends TestCase
 
         // 3. Team Member CAN delete their own file
         $teamMember = $this->createUser('Team Member');
+        $this->assignToProject($teamMember);
         $attachmentMemberFile = $this->createAttachmentRecord([
             'uploader_role' => 'Team Member',
             'uploaded_by_user_id' => $teamMember->id,

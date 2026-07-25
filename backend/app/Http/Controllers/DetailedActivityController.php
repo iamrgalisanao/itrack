@@ -6,17 +6,20 @@ use App\Models\DetailedActivity;
 use App\Models\SubActivity;
 use App\Services\AuditLogger;
 use App\Models\User;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 
 class DetailedActivityController extends Controller
 {
     // ─── Role Helpers ────────────────────────────────────────────────────────
-    // Reads role from the authenticated Sanctum user (real auth).
+    // Resolves the acting user via AccessContext (007-permission-hardening)
+    // so every check below — including the client_visible filter — is
+    // preview-aware, not just $request->user()'s real Sanctum identity.
     // Null role → fail-safe unauthorized (see HasRole trait).
 
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 
     // ─── GET /sub-activities/{subActivity}/detailed-activities ───────────────
@@ -24,6 +27,11 @@ class DetailedActivityController extends Controller
     public function index(Request $request, SubActivity $subActivity)
     {
         $user = $this->user($request);
+
+        if (!($subActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         $query = $subActivity->detailedActivities();
 
         // Client sees only explicitly shared tasks (role scope applied first)
@@ -39,6 +47,10 @@ class DetailedActivityController extends Controller
     public function store(Request $request, SubActivity $subActivity)
     {
         $user = $this->user($request);
+
+        if (!($subActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->canWrite()) {
             AuditLogger::denied($request, 'task.create', 'detailed_activity');
@@ -109,6 +121,10 @@ class DetailedActivityController extends Controller
     {
         $user = $this->user($request);
 
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         // Client can only see client_visible tasks
         if ($user->isClient() && !$detailedActivity->client_visible) {
             return response()->json(['message' => 'Access denied.'], 403);
@@ -122,6 +138,10 @@ class DetailedActivityController extends Controller
     public function update(Request $request, DetailedActivity $detailedActivity)
     {
         $user = $this->user($request);
+
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->canWrite()) {
             AuditLogger::denied($request, 'task.update', 'detailed_activity', $detailedActivity->id);
@@ -268,6 +288,10 @@ class DetailedActivityController extends Controller
     public function destroy(Request $request, DetailedActivity $detailedActivity)
     {
         $user = $this->user($request);
+
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if (!$user->isPmOrAdmin()) {
             AuditLogger::denied($request, 'task.delete', 'detailed_activity', $detailedActivity->id);

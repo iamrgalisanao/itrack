@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Comment;
 use App\Models\DetailedActivity;
 use App\Models\User;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 
 class CommentController extends Controller
@@ -32,6 +33,10 @@ class CommentController extends Controller
     {
         $user = $this->user($request);
 
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         $query = $detailedActivity->comments()->orderBy('created_at', 'asc');
 
         if ($user->isClient()) {
@@ -50,6 +55,10 @@ class CommentController extends Controller
     public function store(Request $request, DetailedActivity $detailedActivity)
     {
         $user = $this->user($request);
+
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if ($user->isClient()) {
             return response()->json(['message' => 'Clients are not permitted to post comments.'], 403);
@@ -86,6 +95,10 @@ class CommentController extends Controller
     {
         $user = $this->user($request);
 
+        if (!($comment->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         if ($user->isClient() || $user->isDepartmentHead()) {
             return response()->json(['message' => 'You are not permitted to delete comments.'], 403);
         }
@@ -101,6 +114,6 @@ class CommentController extends Controller
 
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 }

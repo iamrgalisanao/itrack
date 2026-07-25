@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Project;
+use App\Models\ProjectAssignment;
 use App\Models\Module;
 use App\Models\Activity;
 use App\Models\SubActivity;
@@ -18,6 +19,19 @@ class SupportOpsControllerTest extends TestCase
     private function createUser(?string $role = 'Team Member'): User
     {
         return User::factory()->create(['role' => $role]);
+    }
+
+    /**
+     * 007-permission-hardening: Team Member/Client Support Ops access is
+     * scoped to explicit project_assignments now, not role alone.
+     */
+    private function assignToProject(User $user, Project $project): ProjectAssignment
+    {
+        return ProjectAssignment::create([
+            'user_id'             => $user->id,
+            'project_id'          => $project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
+        ]);
     }
 
     private function makeTask(int $projectId, array $overrides = []): DetailedActivity
@@ -116,12 +130,45 @@ class SupportOpsControllerTest extends TestCase
     {
         $project = Project::factory()->create();
 
-        foreach (['Admin', 'Project Manager', 'Team Member'] as $role) {
+        foreach (['Admin', 'Project Manager'] as $role) {
             $res = $this->actingAs($this->createUser($role), 'sanctum')
                 ->getJson("/api/support-ops?project_id={$project->id}");
 
             $res->assertOk();
         }
+
+        // Team Member visibility is scoped to explicit assignment (007).
+        $teamMember = $this->createUser('Team Member');
+        $this->assignToProject($teamMember, $project);
+        $this->actingAs($teamMember, 'sanctum')
+            ->getJson("/api/support-ops?project_id={$project->id}")
+            ->assertOk();
+    }
+
+    public function test_unassigned_team_member_is_denied(): void
+    {
+        $project = Project::factory()->create();
+
+        $res = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+            ->getJson("/api/support-ops?project_id={$project->id}");
+
+        $res->assertStatus(403);
+    }
+
+    public function test_nonexistent_project_id_produces_identical_403_to_unassigned_existing_project(): void
+    {
+        $project = Project::factory()->create();
+        $teamMember = $this->createUser('Team Member');
+
+        $unassigned = $this->actingAs($teamMember, 'sanctum')
+            ->getJson("/api/support-ops?project_id={$project->id}");
+
+        $nonexistent = $this->actingAs($teamMember, 'sanctum')
+            ->getJson('/api/support-ops?project_id=999999');
+
+        $unassigned->assertStatus(403);
+        $nonexistent->assertStatus(403);
+        $this->assertSame($unassigned->getContent(), $nonexistent->getContent());
     }
 
     // ─── Quick intake (store) ───────────────────────────────────────────────
@@ -148,8 +195,10 @@ class SupportOpsControllerTest extends TestCase
     public function test_store_creates_issue_with_correct_defaults_and_composed_description(): void
     {
         $project = Project::factory()->create();
+        $teamMember = $this->createUser('Team Member');
+        $this->assignToProject($teamMember, $project);
 
-        $res = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        $res = $this->actingAs($teamMember, 'sanctum')
             ->postJson('/api/support-ops', $this->intakePayload($project->id));
 
         $res->assertCreated();
@@ -177,6 +226,7 @@ class SupportOpsControllerTest extends TestCase
     {
         $project = Project::factory()->create();
         $user = $this->createUser('Team Member');
+        $this->assignToProject($user, $project);
 
         $this->actingAs($user, 'sanctum')->postJson('/api/support-ops', $this->intakePayload($project->id, ['name' => 'Issue 1']));
         $this->actingAs($user, 'sanctum')->postJson('/api/support-ops', $this->intakePayload($project->id, ['name' => 'Issue 2']));
@@ -189,6 +239,33 @@ class SupportOpsControllerTest extends TestCase
         $this->assertDatabaseCount('activities', 1);
         $this->assertDatabaseCount('sub_activities', 1);
         $this->assertDatabaseCount('detailed_activities', 2);
+    }
+
+    public function test_unassigned_team_member_cannot_create_issue(): void
+    {
+        $project = Project::factory()->create();
+
+        $res = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+            ->postJson('/api/support-ops', $this->intakePayload($project->id));
+
+        $res->assertStatus(403);
+        $this->assertDatabaseCount('detailed_activities', 0);
+    }
+
+    public function test_store_nonexistent_project_id_produces_identical_403_to_unassigned_existing_project(): void
+    {
+        $project = Project::factory()->create();
+        $teamMember = $this->createUser('Team Member');
+
+        $unassigned = $this->actingAs($teamMember, 'sanctum')
+            ->postJson('/api/support-ops', $this->intakePayload($project->id));
+
+        $nonexistent = $this->actingAs($teamMember, 'sanctum')
+            ->postJson('/api/support-ops', $this->intakePayload(999999));
+
+        $unassigned->assertStatus(403);
+        $nonexistent->assertStatus(403);
+        $this->assertSame($unassigned->getContent(), $nonexistent->getContent());
     }
 
     public function test_store_denies_department_head_and_client(): void
@@ -220,7 +297,14 @@ class SupportOpsControllerTest extends TestCase
         $project = Project::factory()->create();
         $issue = $this->makeTask($project->id, ['work_type' => 'support']);
 
-        $res = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        $teamMember = $this->createUser('Team Member');
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $teamMember->id,
+            'project_id' => $project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
+        ]);
+
+        $res = $this->actingAs($teamMember, 'sanctum')
             ->putJson("/api/detailed-activities/{$issue->id}", [
                 'next_action'     => 'Confirm with the client',
                 'client_priority' => 'P2',

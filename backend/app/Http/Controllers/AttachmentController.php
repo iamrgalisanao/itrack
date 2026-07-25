@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Attachment;
 use App\Models\DetailedActivity;
 use App\Models\User;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -53,6 +54,10 @@ class AttachmentController extends Controller
     {
         $user = $this->user($request);
 
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         $query = $detailedActivity->attachments()->orderBy('created_at', 'asc');
 
         if ($user->isClient()) {
@@ -72,6 +77,10 @@ class AttachmentController extends Controller
     public function store(Request $request, DetailedActivity $detailedActivity)
     {
         $user = $this->user($request);
+
+        if (!($detailedActivity->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
 
         if ($user->isClient()) {
             return response()->json(['message' => 'Clients are not permitted to upload files.'], 403);
@@ -128,6 +137,10 @@ class AttachmentController extends Controller
     {
         $user = $this->user($request);
 
+        if (!($attachment->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         // Client can only download client_visible files
         if ($user->isClient() && $attachment->visibility !== Attachment::VISIBILITY_CLIENT_VISIBLE) {
             return response()->json(['message' => 'Access denied.'], 403);
@@ -156,6 +169,10 @@ class AttachmentController extends Controller
     {
         $user = $this->user($request);
 
+        if (!($attachment->isAccessibleTo($user))) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         if ($user->isClient() || $user->isDepartmentHead()) {
             return response()->json(['message' => 'You are not permitted to delete files.'], 403);
         }
@@ -175,6 +192,6 @@ class AttachmentController extends Controller
 
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 }

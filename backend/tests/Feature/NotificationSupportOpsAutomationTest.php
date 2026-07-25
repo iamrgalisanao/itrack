@@ -177,6 +177,18 @@ class NotificationSupportOpsAutomationTest extends TestCase
         $wrongRoleTm = $this->createUser('Department Head', 'IT'); // access, but role doesn't match responsible
         $wrongDeptTm = $this->createUser('Team Member', 'Finance'); // role matches, but no project access
 
+        // 007-permission-hardening: Team Member project access is now an
+        // explicit assignment, not department membership — assign
+        // $matchingTm so this test still exercises "role matches AND has
+        // project access," not project-scoping itself. $wrongDeptTm stays
+        // unassigned — still correctly ineligible for "no project access,"
+        // just via assignment now instead of department.
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $matchingTm->id,
+            'project_id' => $project->id,
+            'assigned_by_user_id' => $admin->id,
+        ]);
+
         foreach ([$admin, $pm, $matchingTm] as $eligible) {
             $res = $this->actingAs($eligible, 'sanctum')->getJson($this->endpoint());
             $res->assertOk();
@@ -332,6 +344,11 @@ class NotificationSupportOpsAutomationTest extends TestCase
 
         $itTm = $this->createUser('Team Member', 'IT');
         $financeTm = $this->createUser('Team Member', 'Finance');
+        $admin = $this->createUser('Admin');
+        // 007-permission-hardening: project access is now an explicit
+        // assignment, not department membership.
+        \App\Models\ProjectAssignment::create(['user_id' => $itTm->id, 'project_id' => $itProject->id, 'assigned_by_user_id' => $admin->id]);
+        \App\Models\ProjectAssignment::create(['user_id' => $financeTm->id, 'project_id' => $financeProject->id, 'assigned_by_user_id' => $admin->id]);
 
         $itRes = $this->actingAs($itTm, 'sanctum')->getJson($this->endpoint());
         $itSummary = collect($itRes->json('notifications'))->firstWhere('type', 'support_daily_summary');
@@ -420,6 +437,11 @@ class NotificationSupportOpsAutomationTest extends TestCase
 
         $itTm = $this->createUser('Team Member', 'IT');
         $financeTm = $this->createUser('Team Member', 'Finance');
+        $admin = $this->createUser('Admin');
+        // 007-permission-hardening: project access is now an explicit
+        // assignment, not department membership.
+        \App\Models\ProjectAssignment::create(['user_id' => $itTm->id, 'project_id' => $itProject->id, 'assigned_by_user_id' => $admin->id]);
+        \App\Models\ProjectAssignment::create(['user_id' => $financeTm->id, 'project_id' => $financeProject->id, 'assigned_by_user_id' => $admin->id]);
 
         $itRes = $this->actingAs($itTm, 'sanctum')->getJson($this->endpoint());
         $itReport = collect($itRes->json('notifications'))->firstWhere('type', 'support_weekly_report');

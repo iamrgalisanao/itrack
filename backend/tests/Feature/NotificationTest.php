@@ -284,7 +284,13 @@ class NotificationTest extends TestCase
     {
         // 1. Create task via controller as Team Member, assigned to PM
         $subActivity = $this->detailedActivity->subActivity;
-        $response = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        $teamMember = $this->createUser('Team Member');
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $teamMember->id,
+            'project_id' => $this->project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
+        ]);
+        $response = $this->actingAs($teamMember, 'sanctum')
             ->postJson(route('sub-activities.detailed-activities.store', $subActivity), [
                 'name' => 'New Assigned Task',
                 'responsible' => 'PPM',
@@ -317,8 +323,15 @@ class NotificationTest extends TestCase
      */
     public function test_blocked_task_status_alerts_project_manager(): void
     {
+        $teamMember = $this->createUser('Team Member');
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $teamMember->id,
+            'project_id' => $this->project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
+        ]);
+
         // Update task status to blocked
-        $response = $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        $response = $this->actingAs($teamMember, 'sanctum')
             ->putJson(route('detailed-activities.update', $this->detailedActivity), [
                 'status' => 'blocked',
             ]);
@@ -332,7 +345,7 @@ class NotificationTest extends TestCase
         ]);
 
         // Save again without changing status
-        $this->actingAs($this->createUser('Team Member'), 'sanctum')
+        $this->actingAs($teamMember, 'sanctum')
             ->putJson(route('detailed-activities.update', $this->detailedActivity), [
                 'notes' => 'Some extra notes',
             ]);

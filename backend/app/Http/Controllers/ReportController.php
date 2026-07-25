@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DetailedActivity;
 use App\Models\Project;
 use App\Models\User;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -182,8 +183,11 @@ class ReportController extends Controller
         };
     }
 
+    // Resolves the acting user via AccessContext (007-permission-hardening)
+    // so the Client export-denial check above is preview-aware, not just
+    // $request->user()'s real Sanctum identity.
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 }

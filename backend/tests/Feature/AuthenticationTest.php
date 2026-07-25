@@ -188,8 +188,18 @@ class AuthenticationTest extends TestCase
     {
         $teamMember = $this->createUser('Team Member', 'IT');
 
-        Project::factory()->create(['department' => 'IT', 'name' => 'IT Project']);
+        $itProject = Project::factory()->create(['department' => 'IT', 'name' => 'IT Project']);
         Project::factory()->create(['department' => 'Finance', 'name' => 'Finance Project']);
+
+        // 007-permission-hardening: Team Member visibility is now scoped to
+        // explicit project_assignments, not whole-department membership —
+        // assign to their own project so this test still exercises "can a
+        // mock header widen scope," not project-scoping itself.
+        \App\Models\ProjectAssignment::create([
+            'user_id'             => $teamMember->id,
+            'project_id'          => $itProject->id,
+            'assigned_by_user_id' => $this->createUser('Admin', 'IT')->id,
+        ]);
 
         // Team Member in IT tries to see Finance projects via mock header
         $response = $this->actingAs($teamMember, 'sanctum')

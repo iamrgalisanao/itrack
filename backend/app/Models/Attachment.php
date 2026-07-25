@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToProject;
 use Illuminate\Database\Eloquent\Model;
 
 class Attachment extends Model
 {
+    use BelongsToProject;
+
     /**
      * Visibility constants — mirrors the Comment model pattern.
      */
@@ -35,6 +38,11 @@ class Attachment extends Model
     public function detailedActivity()
     {
         return $this->belongsTo(DetailedActivity::class);
+    }
+
+    public function resolveProjectId(): int
+    {
+        return $this->detailedActivity->subActivity->activity->module->project_id;
     }
 
     /**

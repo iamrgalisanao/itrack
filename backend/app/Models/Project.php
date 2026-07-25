@@ -37,12 +37,19 @@ class Project extends Model
         return $this->hasMany(Module::class)->orderBy('sort_order');
     }
 
+    public function assignments()
+    {
+        return $this->hasMany(ProjectAssignment::class);
+    }
+
     /**
      * Scope: projects the given user is allowed to see.
      *
      * - Admin / Project Manager: all projects
      * - Department Head: own department + any department granted via DepartmentGrant
-     * - Team Member / Client: only projects in their own department
+     * - Team Member / Client: only projects they are explicitly assigned to
+     *   (007-permission-hardening — narrowed from "whole department" to
+     *   per-user ProjectAssignment rows; see spec.md FR-001-FR-003)
      * - Unknown role: no projects (fail-safe)
      */
     public function scopeAccessibleTo(Builder $query, User $user): Builder
@@ -57,7 +64,7 @@ class Project extends Model
         }
 
         if ($user->isTeamMember() || $user->isClient()) {
-            return $query->where('department', $user->department);
+            return $query->whereHas('assignments', fn (Builder $q) => $q->where('user_id', $user->id));
         }
 
         // Unknown / null role — deny by returning an impossible match

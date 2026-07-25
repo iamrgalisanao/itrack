@@ -11,17 +11,19 @@ use App\Models\GlossaryTerm;
 use App\Models\DepartmentGrant;
 use App\Services\AuditLogger;
 use App\Models\User;
+use App\Support\AccessContext;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
     // ─── Role Helpers ────────────────────────────────────────────────────────
-    // Reads role/department from the authenticated Sanctum user (real auth).
-    // Null role → fail-safe unauthorized (see HasRole trait).
+    // Resolves the acting user via AccessContext (007-permission-hardening)
+    // so every check below is preview-aware, not just $request->user()'s
+    // real Sanctum identity. Null role → fail-safe unauthorized (HasRole trait).
 
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 
     private function accessibleDepartments(User $user): array
@@ -92,7 +94,12 @@ class ProjectController extends Controller
 
         if (! Project::whereKey($project->id)->accessibleTo($user)->exists()) {
             AuditLogger::denied($request, 'project.view', 'project', $project->id);
-            return response()->json(['message' => 'Unauthorized department access.'], 403);
+            // 007-permission-hardening: this message must match the
+            // exception handler's wording (bootstrap/app.php) byte-for-byte
+            // — a Team Member/Client requesting a project ID that exists
+            // but isn't theirs (this branch) and one that doesn't exist at
+            // all (that handler) must be indistinguishable (FR-005/FR-011).
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
         return $project->load('modules');

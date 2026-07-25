@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToProject;
 use Illuminate\Database\Eloquent\Model;
 
 class Comment extends Model
 {
+    use BelongsToProject;
+
     /**
      * Visibility constants — use these everywhere to avoid typos.
      */
@@ -23,5 +26,10 @@ class Comment extends Model
     public function detailedActivity()
     {
         return $this->belongsTo(DetailedActivity::class);
+    }
+
+    public function resolveProjectId(): int
+    {
+        return $this->detailedActivity->subActivity->activity->module->project_id;
     }
 }

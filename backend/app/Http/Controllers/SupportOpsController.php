@@ -61,6 +61,17 @@ class SupportOpsController extends Controller
 
     // ─── GET /support-ops ──────────────────────────────────────────────────
 
+    /**
+     * 007-permission-hardening: canView() alone only gates by role — it
+     * never checked whether the acting user could see the specific
+     * `project_id` passed in, which let any Team Member read (and, in
+     * store() below, create) support issues for a project they aren't
+     * assigned to, simply by knowing its ID. The Team Member/Client branch
+     * below closes that gap, deliberately not touching `exists:projects,id`
+     * validation for other roles (FR-004 — no behavior change for Admin/PM/
+     * Department Head). Non-existent and inaccessible project IDs return
+     * the identical 403 for Team Member/Client (FR-005/FR-011).
+     */
     public function index(Request $request)
     {
         $user = $this->user($request);
@@ -70,11 +81,19 @@ class SupportOpsController extends Controller
         }
 
         $validated = $request->validate([
-            'project_id' => 'required|integer|exists:projects,id',
+            'project_id' => 'required|integer',
             'work_types' => 'nullable|string',
         ]);
 
-        $project = Project::findOrFail($validated['project_id']);
+        $project = Project::find($validated['project_id']);
+
+        if ($user->isTeamMember() || $user->isClient()) {
+            if (!$project || !Project::query()->accessibleTo($user)->whereKey($validated['project_id'])->exists()) {
+                return response()->json(['message' => 'You do not have access to this resource.'], 403);
+            }
+        } elseif (!$project) {
+            return response()->json(['message' => 'The selected project id is invalid.'], 422);
+        }
 
         $workTypes = isset($validated['work_types']) && $validated['work_types'] !== ''
             ? array_map('trim', explode(',', $validated['work_types']))
@@ -158,7 +177,7 @@ class SupportOpsController extends Controller
         }
 
         $validated = $request->validate([
-            'project_id'        => 'required|integer|exists:projects,id',
+            'project_id'        => 'required|integer',
             'name'              => 'required|string|max:255',
             'client_name'       => 'required|string|max:255',
             'client_priority'   => 'required|in:P1,P2,P3',
@@ -172,7 +191,17 @@ class SupportOpsController extends Controller
             'next_action'       => 'nullable|string',
         ]);
 
-        $project = Project::findOrFail($validated['project_id']);
+        // 007-permission-hardening — see index()'s docblock for why this
+        // check exists and why it's scoped to Team Member/Client only.
+        $project = Project::find($validated['project_id']);
+        if ($user->isTeamMember() || $user->isClient()) {
+            if (!$project || !Project::query()->accessibleTo($user)->whereKey($validated['project_id'])->exists()) {
+                return response()->json(['message' => 'You do not have access to this resource.'], 403);
+            }
+        } elseif (!$project) {
+            return response()->json(['message' => 'The selected project id is invalid.'], 422);
+        }
+
         $subActivity = $this->resolveSupportRequestsSubActivity($project);
 
         $issue = $subActivity->detailedActivities()->create([

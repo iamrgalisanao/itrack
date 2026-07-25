@@ -84,7 +84,14 @@ class SupportOpsTodayTest extends TestCase
             'last_client_update_at' => now()->subMinutes(5),
         ]);
 
-        $res = $this->actingAs($this->createUser('Team Member', 'IT'), 'sanctum')->getJson($this->endpoint());
+        $teamMember = $this->createUser('Team Member', 'IT');
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $teamMember->id,
+            'project_id' => $project->id,
+            'assigned_by_user_id' => $this->createUser('Admin', 'IT')->id,
+        ]);
+
+        $res = $this->actingAs($teamMember, 'sanctum')->getJson($this->endpoint());
 
         $res->assertOk();
         $this->assertTrue($this->idsIn($res, 'watch_closely')->contains($issue->id));
@@ -103,7 +110,14 @@ class SupportOpsTodayTest extends TestCase
             'last_client_update_at' => now()->subMinutes(5),
         ]);
 
-        $res = $this->actingAs($this->createUser('Team Member', 'IT'), 'sanctum')->getJson($this->endpoint());
+        $teamMember = $this->createUser('Team Member', 'IT');
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $teamMember->id,
+            'project_id' => $itProject->id,
+            'assigned_by_user_id' => $this->createUser('Admin', 'IT')->id,
+        ]);
+
+        $res = $this->actingAs($teamMember, 'sanctum')->getJson($this->endpoint());
 
         $res->assertOk();
         $ids = $this->idsIn($res, 'watch_closely');

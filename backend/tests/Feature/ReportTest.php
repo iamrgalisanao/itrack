@@ -128,7 +128,14 @@ class ReportTest extends TestCase
      */
     public function test_client_restricted_to_project_level_summaries_and_milestones(): void
     {
-        $response = $this->actingAs($this->createUser('Client', 'IT'), 'sanctum')
+        $client = $this->createUser('Client', 'IT');
+        \App\Models\ProjectAssignment::create([
+            'user_id' => $client->id,
+            'project_id' => $this->project1->id,
+            'assigned_by_user_id' => $this->createUser('Admin', 'IT')->id,
+        ]);
+
+        $response = $this->actingAs($client, 'sanctum')
             ->getJson(route('reports.index'));
 
         $response->assertStatus(200);
