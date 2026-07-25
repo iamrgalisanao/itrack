@@ -40,6 +40,8 @@ import Login from './pages/Login'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { PreviewProvider } from './context/PreviewContext'
+import PreviewBanner from './components/PreviewBanner'
 
 const ThemeContext = createContext()
 
@@ -663,6 +665,7 @@ function AppShell() {
 
       {/* Right side: header + scrollable content */}
       <div className="flex flex-col flex-1 overflow-hidden">
+        <PreviewBanner />
         {/* Desktop Header */}
         <header className="hidden md:flex items-center justify-between border-b border-border bg-card px-6 h-14 shrink-0">
           <div className="text-sm font-bold text-foreground">
@@ -700,7 +703,9 @@ function AppShell() {
 function ProtectedShell() {
   return (
     <RequireAuth>
-      <AppShell />
+      <PreviewProvider>
+        <AppShell />
+      </PreviewProvider>
     </RequireAuth>
   )
 }

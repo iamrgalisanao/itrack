@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getPreviewToken } from './previewSession'
 
 const api = axios.create({
   baseURL: '/api',
@@ -17,11 +18,34 @@ export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn
 }
 
+// 007-permission-hardening: lets PreviewContext react when the server
+// reports an active preview token is no longer valid (expired, target
+// disabled, target role changed) — reads the reason straight off the 409
+// body ResolvePreviewSession returns. Registered by PreviewContext on mount.
+let onPreviewEnded = null
+export function setPreviewEndedHandler(fn) {
+  onPreviewEnded = fn
+}
+
+// Attaches the active preview token (if any) to every outgoing request —
+// the one seam that makes every read reflect the previewed user's access
+// instead of the real Admin's own.
+api.interceptors.request.use((config) => {
+  const token = getPreviewToken()
+  if (token) {
+    config.headers['X-Preview-Session'] = token
+  }
+  return config
+})
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       onUnauthorized?.()
+    }
+    if (error.response?.headers?.['x-preview-ended']) {
+      onPreviewEnded?.(error.response.data?.reason)
     }
     return Promise.reject(error)
   }
@@ -152,6 +176,12 @@ export const resetUserPassword = (id, data) => api.post(`/users/${id}/reset-pass
 export const fetchProjectAssignments = (params) => api.get('/project-assignments', { params })
 export const createProjectAssignment = (data) => api.post('/project-assignments', data)
 export const deleteProjectAssignment = (id) => api.delete(`/project-assignments/${id}`)
+
+// Preview Sessions (007-permission-hardening, Admin only) — read-only
+// "preview as user" mode. startPreview's response includes `token` exactly
+// once; the caller is responsible for persisting it (see PreviewContext).
+export const startPreview = (targetUserId) => api.post('/preview-sessions', { target_user_id: targetUserId })
+export const endPreview = () => api.delete('/preview-sessions/current')
 
 // Support Ops
 export const fetchSupportIssues = (projectId, workTypes = 'support') =>

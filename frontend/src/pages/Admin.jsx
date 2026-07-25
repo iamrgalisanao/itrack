@@ -57,7 +57,9 @@ import {
   UserCheck,
   KeyRound,
   FolderKanban,
+  Eye,
 } from 'lucide-react'
+import { usePreview } from '@/context/PreviewContext'
 
 // Mirrors User::validRoles() and UserManagementController::DEPARTMENT_REQUIRED_ROLES.
 const USER_ROLES = ['Admin', 'Project Manager', 'Department Head', 'Team Member', 'Client']
@@ -65,6 +67,7 @@ const DEPARTMENT_REQUIRED_ROLES = ['Team Member', 'Department Head', 'Client']
 const DEPARTMENTS = ['IT', 'Engineering', 'Marketing', 'Finance']
 
 export default function Admin() {
+  const { startPreview } = usePreview()
   const [activeTab, setActiveTab] = useState('members')
 
   // --- User Accounts State (006-real-user-management) — real, login-capable
@@ -395,6 +398,15 @@ export default function Admin() {
     } catch (err) {
       console.error('Failed to reactivate user:', err)
       alert(err.response?.data?.message || 'Failed to reactivate user.')
+    }
+  }
+
+  const handlePreview = async (user) => {
+    try {
+      await startPreview(user)
+    } catch (err) {
+      console.error('Failed to start preview:', err)
+      alert(err.response?.data?.message || 'Failed to start preview session.')
     }
   }
 
@@ -870,6 +882,16 @@ export default function Admin() {
                                 >
                                   <KeyRound className="h-4 w-4" />
                                 </Button>
+                                {u.is_active && u.role !== 'Admin' && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handlePreview(u)}
+                                    title="Preview as this user"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

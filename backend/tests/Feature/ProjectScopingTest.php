@@ -3,12 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\AuditLog;
 use App\Models\DetailedActivity;
 use App\Models\Module;
+use App\Models\PreviewSession;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\SubActivity;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -113,6 +116,27 @@ class ProjectScopingTest extends TestCase
     private function callJson($actor, string $method, string $url, array $payload = [])
     {
         return $this->actingAs($actor, 'sanctum')->json($method, $url, $payload);
+    }
+
+    /**
+     * US2: same as callJson, but with an X-Preview-Session header attached
+     * to this request only — passed as json()'s own $headers argument
+     * rather than via withHeaders(), which mutates TestCase::$defaultHeaders
+     * and would otherwise leak the preview header into every later request
+     * in the same test method.
+     */
+    private function callJsonPreviewing($actor, string $token, string $method, string $url, array $payload = [])
+    {
+        return $this->actingAs($actor, 'sanctum')
+            ->json($method, $url, $payload, ['X-Preview-Session' => $token]);
+    }
+
+    /** US2: starts a preview session as $admin targeting $target, returns the raw token. */
+    private function startPreview(User $admin, User $target)
+    {
+        $res = $this->callJson($admin, 'POST', '/api/preview-sessions', ['target_user_id' => $target->id]);
+        $res->assertStatus(201);
+        return $res->json('data.token') ?? $res->json('token');
     }
 
     // ─── T006/T007: assignment scoping replaces whole-department visibility ──
@@ -344,5 +368,259 @@ class ProjectScopingTest extends TestCase
         $tm->update(['role' => 'Team Member']);
         // Demoted back down — original narrower access is restored automatically, no re-entry needed.
         $this->callJson($tm->fresh(), 'GET', "/api/projects/{$project->id}/modules")->assertStatus(200);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // User Story 2: Admin can preview the app as a specific user
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─── T029/T030: preview reflects the target's complete access ───────────
+
+    public function test_preview_as_team_member_shows_only_their_assignment_not_admins_full_access(): void
+    {
+        $admin = $this->createUser('Admin');
+        $projectA = Project::factory()->create(['department' => 'IT']);
+        $projectB = Project::factory()->create(['department' => 'Finance']);
+        $tm = $this->createUser('Team Member', 'IT');
+        $this->assign($tm, $projectA);
+
+        // Sanity: the Admin's own view sees both projects.
+        $adminIds = collect($this->callJson($admin, 'GET', '/api/projects')->json())->pluck('id')->all();
+        $this->assertContains($projectA->id, $adminIds);
+        $this->assertContains($projectB->id, $adminIds);
+
+        $token = $this->startPreview($admin, $tm);
+
+        $previewIds = collect($this->callJsonPreviewing($admin, $token, 'GET', '/api/projects')->json())->pluck('id')->all();
+        $this->assertEquals([$projectA->id], $previewIds);
+
+        $dashboard = $this->callJsonPreviewing($admin, $token, 'GET', '/api/dashboard');
+        $dashboard->assertStatus(200)->assertJsonPath('stats.projects', 1);
+    }
+
+    public function test_preview_as_client_hits_the_pre_existing_export_denial(): void
+    {
+        $admin = $this->createUser('Admin');
+        $client = $this->createUser('Client', 'IT');
+
+        // Sanity: the Admin's own export access works.
+        $this->callJson($admin, 'GET', '/api/reports/export-csv')->assertStatus(200);
+
+        $token = $this->startPreview($admin, $client);
+
+        $this->callJsonPreviewing($admin, $token, 'GET', '/api/reports/export-csv')->assertStatus(403);
+    }
+
+    // ─── T031/T032: writes are blocked while previewing, and audited ─────────
+
+    public function test_writes_are_blocked_while_previewing_and_never_apply(): void
+    {
+        $admin = $this->createUser('Admin');
+        $chain = $this->makeChain();
+        $target = $this->createUser('Team Member', 'IT');
+        $this->assign($target, $chain['project']);
+
+        $token = $this->startPreview($admin, $target);
+
+        foreach ($this->nestedSurfaces($chain) as $label => [$method, $url, $payload]) {
+            if ($method === 'GET') {
+                continue;
+            }
+            $res = $this->callJsonPreviewing($admin, $token, $method, $url, $payload ?? []);
+            $res->assertStatus(403, "Expected write {$label} to be blocked while previewing");
+        }
+
+        // Confirm nothing actually changed — the module's name is untouched.
+        $this->assertDatabaseHas('modules', ['id' => $chain['module']->id, 'name' => $chain['module']->name]);
+    }
+
+    public function test_blocked_write_is_audited(): void
+    {
+        $admin = $this->createUser('Admin');
+        $chain = $this->makeChain();
+        $target = $this->createUser('Team Member', 'IT');
+        $this->assign($target, $chain['project']);
+
+        $token = $this->startPreview($admin, $target);
+        $this->callJsonPreviewing($admin, $token, 'PATCH', "/api/modules/{$chain['module']->id}", ['name' => 'Blocked']);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'preview.write_blocked',
+            'actor_user_id' => $admin->id,
+        ]);
+        $entry = AuditLog::where('action', 'preview.write_blocked')->first();
+        $this->assertEquals($target->id, $entry->metadata['target_user_id']);
+        $this->assertEquals('PATCH', $entry->metadata['attempted_method']);
+        $this->assertStringContainsString("modules/{$chain['module']->id}", $entry->metadata['attempted_path']);
+    }
+
+    // ─── T033-T036: starting a preview session ───────────────────────────────
+
+    public function test_non_admin_cannot_start_preview(): void
+    {
+        $target = $this->createUser('Team Member');
+        foreach (['Project Manager', 'Department Head', 'Team Member', 'Client'] as $role) {
+            $actor = $this->createUser($role);
+            $this->callJson($actor, 'POST', '/api/preview-sessions', ['target_user_id' => $target->id])
+                ->assertStatus(403);
+        }
+    }
+
+    public function test_cannot_preview_as_another_admin(): void
+    {
+        $admin = $this->createUser('Admin');
+        $otherAdmin = $this->createUser('Admin');
+
+        $this->callJson($admin, 'POST', '/api/preview-sessions', ['target_user_id' => $otherAdmin->id])
+            ->assertStatus(422);
+    }
+
+    public function test_cannot_preview_as_disabled_account(): void
+    {
+        $admin = $this->createUser('Admin');
+        $disabled = $this->createUser('Team Member', 'IT', active: false);
+
+        $this->callJson($admin, 'POST', '/api/preview-sessions', ['target_user_id' => $disabled->id])
+            ->assertStatus(422);
+    }
+
+    public function test_starting_a_new_preview_replaces_the_active_one(): void
+    {
+        $admin = $this->createUser('Admin');
+        $firstTarget = $this->createUser('Team Member');
+        $secondTarget = $this->createUser('Client');
+
+        $firstToken = $this->startPreview($admin, $firstTarget);
+
+        // Presenting the still-active first token while starting a second preview
+        // must succeed, not be blocked by BlockWritesDuringPreview.
+        $res = $this->callJsonPreviewing($admin, $firstToken, 'POST', '/api/preview-sessions', [
+            'target_user_id' => $secondTarget->id,
+        ]);
+        $res->assertStatus(201);
+
+        $this->assertNotNull(PreviewSession::where('token', $firstToken)->first()->ended_at);
+    }
+
+    // ─── T037: invalid preview tokens short-circuit with 409, no domain data ─
+
+    public function test_expired_preview_token_returns_409_with_no_domain_data(): void
+    {
+        Carbon::setTestNow(Carbon::now());
+        $admin = $this->createUser('Admin');
+        $target = $this->createUser('Team Member');
+        $token = $this->startPreview($admin, $target);
+
+        Carbon::setTestNow(Carbon::now()->addHours(3));
+
+        $res = $this->callJsonPreviewing($admin, $token, 'GET', '/api/projects');
+        $res->assertStatus(409);
+        $res->assertHeader('X-Preview-Ended', '1');
+        $this->assertEquals(['message' => 'Preview session ended.', 'reason' => 'expired'], $res->json());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_disabled_target_preview_token_returns_409_with_no_domain_data(): void
+    {
+        $admin = $this->createUser('Admin');
+        $target = $this->createUser('Team Member');
+        $token = $this->startPreview($admin, $target);
+
+        $target->update(['is_active' => false]);
+
+        $res = $this->callJsonPreviewing($admin, $token, 'GET', '/api/projects');
+        $res->assertStatus(409);
+        $res->assertHeader('X-Preview-Ended', '1');
+        $this->assertEquals(['message' => 'Preview session ended.', 'reason' => 'target_disabled'], $res->json());
+    }
+
+    public function test_target_role_changed_preview_token_returns_409_with_no_domain_data(): void
+    {
+        $admin = $this->createUser('Admin');
+        $target = $this->createUser('Team Member');
+        $token = $this->startPreview($admin, $target);
+
+        $target->update(['role' => 'Project Manager']);
+
+        $res = $this->callJsonPreviewing($admin, $token, 'GET', '/api/projects');
+        $res->assertStatus(409);
+        $res->assertHeader('X-Preview-Ended', '1');
+        $this->assertEquals(['message' => 'Preview session ended.', 'reason' => 'target_role_changed'], $res->json());
+    }
+
+    public function test_unresolvable_preview_token_returns_409_with_no_domain_data(): void
+    {
+        $admin = $this->createUser('Admin');
+
+        $res = $this->callJsonPreviewing($admin, 'not-a-real-token', 'GET', '/api/projects');
+        $res->assertStatus(409);
+        $res->assertHeader('X-Preview-Ended', '1');
+        $this->assertEquals(['message' => 'Preview session ended.', 'reason' => 'not_found'], $res->json());
+    }
+
+    // ─── T038: preview.started / preview.ended audit trail ───────────────────
+
+    public function test_preview_started_and_manually_ended_are_audited(): void
+    {
+        $admin = $this->createUser('Admin');
+        $target = $this->createUser('Team Member');
+        $token = $this->startPreview($admin, $target);
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'preview.started', 'actor_user_id' => $admin->id]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->withHeaders(['X-Preview-Session' => $token])
+            ->deleteJson('/api/preview-sessions/current')
+            ->assertStatus(204);
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'preview.ended', 'actor_user_id' => $admin->id]);
+        $entry = AuditLog::where('action', 'preview.ended')->first();
+        $this->assertEquals('manual', $entry->metadata['reason']);
+    }
+
+    public function test_preview_ended_reasons_are_audited_for_each_invalidation_path(): void
+    {
+        // Expired
+        Carbon::setTestNow(Carbon::now());
+        $admin = $this->createUser('Admin');
+        $expiredTarget = $this->createUser('Team Member');
+        $expiredToken = $this->startPreview($admin, $expiredTarget);
+        Carbon::setTestNow(Carbon::now()->addHours(3));
+        $this->callJsonPreviewing($admin, $expiredToken, 'GET', '/api/projects');
+        Carbon::setTestNow();
+        $this->assertDatabaseHas('audit_logs', ['action' => 'preview.ended', 'entity_id' => PreviewSession::where('token', $expiredToken)->first()->id]);
+        $this->assertEquals('expired', AuditLog::where('action', 'preview.ended')->where('entity_id', PreviewSession::where('token', $expiredToken)->first()->id)->first()->metadata['reason']);
+
+        // Target disabled
+        $disabledTarget = $this->createUser('Team Member');
+        $disabledToken = $this->startPreview($admin, $disabledTarget);
+        $disabledTarget->update(['is_active' => false]);
+        $this->callJsonPreviewing($admin, $disabledToken, 'GET', '/api/projects');
+        $disabledSessionId = PreviewSession::where('token', $disabledToken)->first()->id;
+        $this->assertEquals('target_disabled', AuditLog::where('action', 'preview.ended')->where('entity_id', $disabledSessionId)->first()->metadata['reason']);
+
+        // Target role changed
+        $roleChangedTarget = $this->createUser('Team Member');
+        $roleChangedToken = $this->startPreview($admin, $roleChangedTarget);
+        $roleChangedTarget->update(['role' => 'Client']);
+        $this->callJsonPreviewing($admin, $roleChangedToken, 'GET', '/api/projects');
+        $roleChangedSessionId = PreviewSession::where('token', $roleChangedToken)->first()->id;
+        $this->assertEquals('target_role_changed', AuditLog::where('action', 'preview.ended')->where('entity_id', $roleChangedSessionId)->first()->metadata['reason']);
+    }
+
+    // ─── T039: bounded 2-hour preview lifetime ───────────────────────────────
+
+    public function test_preview_session_expires_at_is_exactly_two_hours_after_start(): void
+    {
+        Carbon::setTestNow(Carbon::create(2026, 7, 25, 10, 0, 0));
+        $admin = $this->createUser('Admin');
+        $target = $this->createUser('Team Member');
+        $this->startPreview($admin, $target);
+
+        $session = PreviewSession::first();
+        $this->assertTrue($session->started_at->copy()->addHours(2)->equalTo($session->expires_at));
+
+        Carbon::setTestNow();
     }
 }
