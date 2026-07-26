@@ -20,6 +20,7 @@ import {
   LogOut,
   MessagesSquare,
   Sunrise,
+  Library,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
@@ -35,6 +36,7 @@ import Reports from './pages/Reports'
 import Admin from './pages/Admin'
 import SupportOps from './pages/SupportOps'
 import TodayDashboard from './pages/TodayDashboard'
+import SupportOpsKnowledgeBase from './pages/SupportOpsKnowledgeBase'
 import Login from './pages/Login'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
@@ -87,8 +89,8 @@ export function useTheme() {
    - Workspace: the daily task-flow loop, visible to everyone.
    - Team Ops: internal execution views — invisible to Clients entirely, so
      the whole group disappears rather than leaving a partially-filtered list.
-     "Today" is a nested sub-view of Support Ops (route /support-ops/today),
-     rendered indented beneath it rather than as a flat peer.
+     "Today" and "Knowledge Base" are nested sub-views of Support Ops
+     (subItems, not flat peers), rendered indented beneath it.
    - Insights: read-heavy reference/reporting material, checked not worked in.
    - People & Admin: lowest-frequency, roster/account administration. */
 const NAV_GROUPS = [
@@ -106,7 +108,10 @@ const NAV_GROUPS = [
       { path: '/kanban',      label: 'Kanban Board', icon: Columns3, internalOnly: true },
       {
         path: '/support-ops', label: 'Support Ops', icon: MessagesSquare, internalOnly: true,
-        subItem: { path: '/support-ops/today', label: 'Today', icon: Sunrise },
+        subItems: [
+          { path: '/support-ops/today', label: 'Today', icon: Sunrise },
+          { path: '/support-ops/knowledge-base', label: 'Knowledge Base', icon: Library },
+        ],
       },
     ],
   },
@@ -239,9 +244,9 @@ function SidebarNavGroups({ collapsed, userRole }) {
               {items.map(item => (
                 <div key={item.path}>
                   <SidebarNavLink {...item} groupLabel={group.label} collapsed={collapsed} />
-                  {item.subItem && isNavItemVisible(item, userRole) && (
-                    <SidebarNavLink {...item.subItem} groupLabel={item.label} collapsed={collapsed} indent />
-                  )}
+                  {item.subItems && isNavItemVisible(item, userRole) && item.subItems.map((subItem) => (
+                    <SidebarNavLink key={subItem.path} {...subItem} groupLabel={item.label} collapsed={collapsed} indent />
+                  ))}
                 </div>
               ))}
             </div>
@@ -654,6 +659,7 @@ function AppShell() {
               <Route path="/kanban"       element={<KanbanGuard><Kanban /></KanbanGuard>} />
               <Route path="/support-ops"  element={<SupportOpsGuard><SupportOps /></SupportOpsGuard>} />
               <Route path="/support-ops/today" element={<SupportOpsGuard><TodayDashboard /></SupportOpsGuard>} />
+              <Route path="/support-ops/knowledge-base" element={<SupportOpsGuard><SupportOpsKnowledgeBase /></SupportOpsGuard>} />
               <Route path="/schedule"     element={<Schedule />} />
               <Route path="/reports"      element={<Reports />} />
               <Route path="/glossary"     element={<Glossary />} />

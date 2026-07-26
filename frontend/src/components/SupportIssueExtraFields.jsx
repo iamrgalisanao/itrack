@@ -106,8 +106,15 @@ function GeneratorPanel({ title, controls, hint, dirtyWarning, text, onTextChang
  * page's "update my own local list of issues" logic differs (SupportOps.jsx
  * patches one flat list; TodayDashboard.jsx must instead re-fetch and
  * re-classify, since which section an issue belongs to can change).
+ *
+ * `readOnly` (009-support-ops-knowledge-base) — additive, defaults to
+ * `false`. When `true`, every field here renders disabled, and the "Record
+ * client update now" button and all three Support Generators are not
+ * rendered at all: generating a client-facing message for an issue being
+ * viewed purely as historical reference isn't a coherent action here,
+ * independent of the mutation question.
  */
-export default function SupportIssueExtraFields({ form, setForm, selectedIssue, onRecordClientUpdate, showToast }) {
+export default function SupportIssueExtraFields({ form, setForm, selectedIssue, onRecordClientUpdate, showToast, readOnly = false }) {
   // Client message template generator (US1, 003-templates-prompt-generator).
   const [templateStage, setTemplateStage] = useState('acknowledgement')
   const [templateText, setTemplateText] = useState('')
@@ -251,9 +258,10 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           <input
             id="support-client-name"
             type="text"
+            disabled={readOnly}
             value={form.client_name || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, client_name: e.target.value }))}
-            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1.5">
@@ -261,9 +269,10 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           <input
             id="support-tenant-name"
             type="text"
+            disabled={readOnly}
             value={form.tenant_name || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, tenant_name: e.target.value }))}
-            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1.5">
@@ -271,9 +280,10 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           <input
             id="support-channel"
             type="text"
+            disabled={readOnly}
             value={form.channel || ''}
             onChange={(e) => setForm((prev) => ({ ...prev, channel: e.target.value }))}
-            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
           />
         </div>
         <div className="space-y-1.5">
@@ -281,8 +291,9 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           <select
             id="support-client-priority"
             value={form.client_priority || ''}
+            disabled={readOnly}
             onChange={(e) => setForm((prev) => ({ ...prev, client_priority: e.target.value || null }))}
-            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <option value="">Not set</option>
             <option value="P1">P1 — update within 1 hour</option>
@@ -295,13 +306,15 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-foreground">Last client update</label>
-          <button
-            type="button"
-            onClick={() => onRecordClientUpdate(form.id, setForm)}
-            className="text-xs font-semibold text-primary hover:underline"
-          >
-            Record client update now
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => onRecordClientUpdate(form.id, setForm)}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              Record client update now
+            </button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           {form.last_client_update_at
@@ -322,6 +335,7 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           edits) — FR-016. hasUnsavedFieldChange only decides
           whether to show a warning hint; it never changes what
           gets generated. */}
+      {!readOnly && (
       <div className="space-y-3">
         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Support Generators
@@ -400,15 +414,17 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
           generatedAt={freeformStartedAt}
         />
       </div>
+      )}
 
       <div className="space-y-1.5">
         <label htmlFor="support-next-action" className="text-xs font-bold text-foreground">Next Action</label>
         <textarea
           id="support-next-action"
           rows="2"
+          disabled={readOnly}
           value={form.next_action || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, next_action: e.target.value }))}
-          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -417,9 +433,10 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
         <textarea
           id="support-evidence"
           rows="2"
+          disabled={readOnly}
           value={form.evidence || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, evidence: e.target.value }))}
-          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -428,9 +445,10 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
         <textarea
           id="support-root-cause"
           rows="2"
+          disabled={readOnly}
           value={form.root_cause || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, root_cause: e.target.value }))}
-          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -439,14 +457,16 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
         <textarea
           id="support-resolution"
           rows="2"
+          disabled={readOnly}
           value={form.resolution || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, resolution: e.target.value }))}
-          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
       {/* Placed after Evidence/Root Cause/Resolution above, since the
           packet reads all three — fill those in first, then generate. */}
+      {!readOnly && (
       <GeneratorPanel
         title="Troubleshooting Packet"
         controls={
@@ -476,6 +496,7 @@ export default function SupportIssueExtraFields({ form, setForm, selectedIssue, 
         textareaRows={10}
         generatedAt={packetGeneratedAt}
       />
+      )}
     </div>
   )
 }

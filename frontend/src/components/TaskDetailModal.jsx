@@ -16,6 +16,15 @@ import TaskFiles from '@/components/TaskFiles'
  * success and closes the modal. The caller owns the actual API call, its own
  * list state, and toast/error messaging; this component owns only the form
  * UI and the Comments/Files tabs.
+ *
+ * `readOnly` (009-support-ops-knowledge-base) — additive, defaults to
+ * `false` so every existing caller is unaffected. When `true`: Details tab
+ * fields render disabled and "Save Changes" is not rendered (only "Close"
+ * remains); `extraFields` is invoked with a third `readOnly` argument;
+ * `TaskComments`/`TaskFiles` also receive `readOnly` to suppress their own
+ * add/upload/delete affordances. `handleSubmit` itself is guarded too, so
+ * the component never calls `onSave` in read-only mode even if a future
+ * edit misses disabling one field or a caller omits `onSave` entirely.
  */
 export default function TaskDetailModal({
   task,
@@ -24,6 +33,7 @@ export default function TaskDetailModal({
   userRole,
   eyebrowLabel = 'Task Detail',
   extraFields,
+  readOnly = false,
 }) {
   const [form, setForm] = useState(task)
   const [modalTab, setModalTab] = useState('details')
@@ -45,6 +55,7 @@ export default function TaskDetailModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (readOnly) return
     setIsSaving(true)
     try {
       const result = await onSave(form)
@@ -144,9 +155,10 @@ export default function TaskDetailModal({
                 id="modal-task-title"
                 type="text"
                 required
+                disabled={readOnly}
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -157,12 +169,13 @@ export default function TaskDetailModal({
                 <select
                   id="modal-task-status"
                   value={form.status}
+                  disabled={readOnly}
                   onChange={(e) => {
                     const statusVal = e.target.value
                     const progressVal = statusVal === 'completed' ? 100 : (statusVal === 'not_started' || statusVal === 'backlog') ? 0 : form.progress
                     setForm((prev) => ({ ...prev, status: statusVal, progress: progressVal }))
                   }}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="backlog">Backlog</option>
                   <option value="not_started">To Do</option>
@@ -181,9 +194,10 @@ export default function TaskDetailModal({
                   type="number"
                   min="0"
                   max="100"
+                  disabled={readOnly}
                   value={form.progress}
                   onChange={(e) => setForm((prev) => ({ ...prev, progress: parseInt(e.target.value, 10) || 0 }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -195,10 +209,11 @@ export default function TaskDetailModal({
                 <input
                   id="modal-task-responsible"
                   type="text"
+                  disabled={readOnly}
                   value={form.responsible || ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, responsible: e.target.value }))}
                   placeholder="Owner's name or role"
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -207,8 +222,9 @@ export default function TaskDetailModal({
                 <select
                   id="modal-task-priority"
                   value={form.type || ''}
+                  disabled={readOnly}
                   onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="">None</option>
                   <option value="Low">Low</option>
@@ -226,9 +242,10 @@ export default function TaskDetailModal({
                 <input
                   id="modal-task-plan-start"
                   type="date"
+                  disabled={readOnly}
                   value={form.plan_start_date ? form.plan_start_date.substring(0, 10) : ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, plan_start_date: e.target.value || null }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -237,9 +254,10 @@ export default function TaskDetailModal({
                 <input
                   id="modal-task-plan-end"
                   type="date"
+                  disabled={readOnly}
                   value={form.plan_end_date ? form.plan_end_date.substring(0, 10) : ''}
                   onChange={(e) => setForm((prev) => ({ ...prev, plan_end_date: e.target.value || null }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -250,9 +268,10 @@ export default function TaskDetailModal({
               <textarea
                 id="modal-task-description"
                 rows="3"
+                disabled={readOnly}
                 value={form.description || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -262,14 +281,15 @@ export default function TaskDetailModal({
               <textarea
                 id="modal-task-notes"
                 rows="2"
+                disabled={readOnly}
                 value={form.notes || ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
 
             {/* Caller-specific fields (e.g. Support Ops' client/priority/investigation fields) */}
-            {typeof extraFields === 'function' ? extraFields(form, setForm) : extraFields}
+            {typeof extraFields === 'function' ? extraFields(form, setForm, readOnly) : extraFields}
 
             {/* Modal Actions */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
@@ -278,15 +298,17 @@ export default function TaskDetailModal({
                 onClick={onClose}
                 className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted text-foreground transition-all"
               >
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/95 transition-all disabled:opacity-50"
-              >
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </button>
+              {!readOnly && (
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/95 transition-all disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
             </div>
           </form>
         ) : modalTab === 'comments' ? (
@@ -295,6 +317,7 @@ export default function TaskDetailModal({
               taskId={task.id}
               userRole={userRole}
               onCountChange={setCommentCount}
+              readOnly={readOnly}
             />
           </div>
         ) : (
@@ -303,6 +326,7 @@ export default function TaskDetailModal({
               taskId={task.id}
               userRole={userRole}
               onCountChange={setFileCount}
+              readOnly={readOnly}
             />
           </div>
         )}

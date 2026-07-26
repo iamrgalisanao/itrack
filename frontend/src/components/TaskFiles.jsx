@@ -33,8 +33,14 @@ const FileIcon = ({ mimeType, className = 'h-5 w-5' }) => {
  *   taskId        {number}    The detailed_activity_id to scope attachments to.
  *   userRole      {string}    Current mock role (e.g. 'Project Manager', 'Client').
  *   onCountChange {function}  Callback(count) invoked after load/upload/delete.
+ *   readOnly      {boolean}   009-support-ops-knowledge-base — additive, defaults
+ *                             to false. When true, the upload control is not
+ *                             rendered and no delete action is offered on any
+ *                             existing attachment, regardless of the viewing
+ *                             role's normal delete permission. Download remains
+ *                             available — it's a read action, not a mutation.
  */
-export default function TaskFiles({ taskId, userRole, onCountChange }) {
+export default function TaskFiles({ taskId, userRole, onCountChange, readOnly = false }) {
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -216,7 +222,7 @@ export default function TaskFiles({ taskId, userRole, onCountChange }) {
   }
 
   const canDeleteFile = (file) => {
-    if (isClient || userRole === 'Department Head') return false
+    if (readOnly || isClient || userRole === 'Department Head') return false
     if (userRole === 'Admin' || userRole === 'Project Manager') return true
     if (userRole === 'Team Member') return file.uploader_role === userRole
     return false
@@ -346,8 +352,14 @@ export default function TaskFiles({ taskId, userRole, onCountChange }) {
         )}
       </div>
 
-      {/* ── Upload Form (hidden for Clients) ───────────────────────────────── */}
-      {!isClient ? (
+      {/* ── Upload Form (hidden for Clients and in read-only mode) ─────────── */}
+      {readOnly ? (
+        <div className="border-t border-border/60 pt-4">
+          <p className="text-xs text-muted-foreground text-center italic">
+            This is a read-only reference view — files cannot be uploaded or removed here.
+          </p>
+        </div>
+      ) : !isClient ? (
         <div className="border-t border-border/60 pt-4 space-y-3">
 
           {/* Drag-and-drop zone */}

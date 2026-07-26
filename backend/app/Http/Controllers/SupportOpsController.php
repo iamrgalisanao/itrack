@@ -161,6 +161,79 @@ class SupportOpsController extends Controller
         ]);
     }
 
+    // ─── GET /support-ops/knowledge-base ─────────────────────────────────────
+
+    /**
+     * 009-support-ops-knowledge-base: a searchable, browsable, read-only view
+     * over resolved issues that already have both a root cause and a
+     * resolution recorded (DetailedActivity::scopeResolvedWithRecordedFix).
+     * Cross-project like today() — same canView() gate, same
+     * Project::accessibleTo() visibility, same TodaySupportIssueResource
+     * response shape.
+     */
+    public function knowledgeBase(Request $request)
+    {
+        $user = $this->user($request);
+
+        if (!$this->canView($user)) {
+            return response()->json(['message' => 'Unauthorized: Support Ops is restricted to internal team members.'], 403);
+        }
+
+        $validated = $request->validate([
+            'q'                => 'nullable|string',
+            'project_id'       => 'nullable|integer',
+            'client_name'      => 'nullable|string',
+            'tenant_name'      => 'nullable|string',
+            'client_priority'  => 'nullable|in:P1,P2,P3',
+            'per_page'         => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $projectIds = Project::query()->accessibleTo($user)->pluck('id');
+
+        $query = DetailedActivity::whereHas('subActivity.activity.module', function ($q) use ($projectIds) {
+                $q->whereIn('project_id', $projectIds);
+            })
+            ->resolvedWithRecordedFix()
+            ->with('subActivity.activity.module.project');
+
+        if (!empty($validated['project_id'])) {
+            $query->whereHas('subActivity.activity.module', fn ($q) => $q->where('project_id', $validated['project_id']));
+        }
+        if (!empty($validated['client_name'])) {
+            $query->where('client_name', $validated['client_name']);
+        }
+        if (!empty($validated['tenant_name'])) {
+            $query->where('tenant_name', $validated['tenant_name']);
+        }
+        if (!empty($validated['client_priority'])) {
+            $query->where('client_priority', $validated['client_priority']);
+        }
+        if (!empty($validated['q'])) {
+            // FR-001a: explicit LOWER() on both sides — case-insensitivity is
+            // a property of the query itself, not an assumption about the
+            // database's default column collation. `!` (not backslash) is
+            // used as the LIKE escape character: MySQL (prod/dev) and SQLite
+            // (this test suite's driver) disagree on how a literal backslash
+            // is written inside a SQL string literal, which made a
+            // backslash-based ESCAPE clause behave correctly on one engine
+            // and throw "ESCAPE expression must be a single character" on
+            // the other. `!` needs no special quoting in either engine's
+            // string-literal syntax, so the same clause is correct on both.
+            $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], strtolower($validated['q']));
+            $query->where(function ($q) use ($escaped) {
+                foreach (['name', 'client_name', 'tenant_name', 'root_cause', 'resolution'] as $column) {
+                    $q->orWhereRaw("LOWER({$column}) LIKE ? ESCAPE '!'", ["%{$escaped}%"]);
+                }
+            });
+        }
+
+        $perPage = $validated['per_page'] ?? 15;
+
+        $results = $query->orderByDesc('updated_at')->paginate($perPage);
+
+        return TodaySupportIssueResource::collection($results);
+    }
+
     // ─── POST /support-ops ──────────────────────────────────────────────────
 
     public function store(Request $request)

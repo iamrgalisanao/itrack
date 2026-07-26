@@ -18,8 +18,13 @@ import {
  *   userRole      {string}   Current mock role (e.g. 'Project Manager', 'Client').
  *   onCountChange {function} Callback(count) invoked after comment create/delete
  *                            so the parent tab badge can update.
+ *   readOnly      {boolean}  009-support-ops-knowledge-base — additive, defaults
+ *                            to false. When true, the add-comment form is not
+ *                            rendered and no delete action is offered on any
+ *                            existing comment, regardless of the viewing role's
+ *                            normal delete permission.
  */
-export default function TaskComments({ taskId, userRole, onCountChange }) {
+export default function TaskComments({ taskId, userRole, onCountChange, readOnly = false }) {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -235,7 +240,7 @@ export default function TaskComments({ taskId, userRole, onCountChange }) {
                 </div>
 
                 {/* Delete */}
-                {canDeleteThis && !isClient && (
+                {canDeleteThis && !isClient && !readOnly && (
                   <button
                     onClick={() => handleDelete(comment.id)}
                     disabled={isDeletingThis}
@@ -260,8 +265,14 @@ export default function TaskComments({ taskId, userRole, onCountChange }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* ── Comment Input Form (hidden for Clients) ───────────────────────── */}
-      {!isClient ? (
+      {/* ── Comment Input Form (hidden for Clients and in read-only mode) ─── */}
+      {readOnly ? (
+        <div className="border-t border-border/60 pt-4">
+          <p className="text-xs text-muted-foreground text-center italic">
+            This is a read-only reference view — comments cannot be added or removed here.
+          </p>
+        </div>
+      ) : !isClient ? (
         <form onSubmit={handleSubmit} className="border-t border-border/60 pt-4 space-y-3">
           {/* Textarea */}
           <div className="space-y-1">

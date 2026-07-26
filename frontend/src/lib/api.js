@@ -186,6 +186,13 @@ export const deleteProjectOwnership = (id) => api.delete(`/project-ownerships/${
 export const transferProjectOwnership = (id, newOwnerUserId) =>
   api.post(`/project-ownerships/${id}/transfer`, { new_owner_user_id: newOwnerUserId })
 
+// Support Ops Knowledge Base (009-support-ops-knowledge-base) — a read-only
+// search/browse view over resolved Support Ops issues that already have a
+// root cause and resolution recorded. Thin passthrough, not a per-field
+// whitelist, so it already accepts every filter param (project_id/
+// client_name/tenant_name/client_priority) alongside q/page/per_page.
+export const fetchSupportOpsKnowledgeBase = (params) => api.get('/support-ops/knowledge-base', { params })
+
 // Preview Sessions (007-permission-hardening, Admin only) — read-only
 // "preview as user" mode. startPreview's response includes `token` exactly
 // once; the caller is responsible for persisting it (see PreviewContext).

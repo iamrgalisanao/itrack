@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToProject;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -80,5 +81,22 @@ class DetailedActivity extends Model
     public function resolveProjectId(): int
     {
         return $this->subActivity->activity->module->project_id;
+    }
+
+    /**
+     * 009-support-ops-knowledge-base — FR-003/FR-004's inclusion rule: an
+     * eligible work type, the same status value the board treats as
+     * "Resolved" (matched by value, never by display label), and both
+     * root_cause and resolution present and non-blank after trimming.
+     */
+    public function scopeResolvedWithRecordedFix(Builder $query): Builder
+    {
+        return $query
+            ->whereIn('work_type', ['support', 'learning'])
+            ->where('status', 'completed')
+            ->whereNotNull('root_cause')
+            ->whereRaw("TRIM(root_cause) != ''")
+            ->whereNotNull('resolution')
+            ->whereRaw("TRIM(resolution) != ''");
     }
 }

@@ -94,6 +94,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::get('support-ops', [SupportOpsController::class, 'index']);
     Route::post('support-ops', [SupportOpsController::class, 'store']);
     Route::get('support-ops/today', [SupportOpsController::class, 'today']);
+    Route::get('support-ops/knowledge-base', [SupportOpsController::class, 'knowledgeBase']);
     Route::post('support-ops/{id}/generation-log', [SupportOpsController::class, 'generationLog']);
 
     // Notifications
