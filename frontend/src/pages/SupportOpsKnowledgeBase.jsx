@@ -3,6 +3,7 @@ import { useEffectiveUser } from '@/context/PreviewContext'
 import { fetchSupportOpsKnowledgeBase, fetchProjects } from '@/lib/api'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import SupportIssueExtraFields from '@/components/SupportIssueExtraFields'
+import ResolutionExtraFields from '@/components/ResolutionExtraFields'
 import {
   BookOpen,
   Search,
@@ -303,13 +304,23 @@ export default function SupportOpsKnowledgeBase() {
           userRole={userRole}
           eyebrowLabel="Issue Detail"
           readOnly
-          extraFields={(form, setForm, readOnly) => (
+          supportFields={(form, setForm, readOnly) => (
             <SupportIssueExtraFields
               key={selectedIssue.id}
               form={form}
               setForm={setForm}
               selectedIssue={selectedIssue}
               onRecordClientUpdate={() => {}}
+              showToast={() => {}}
+              readOnly={readOnly}
+            />
+          )}
+          resolutionFields={(form, setForm, readOnly) => (
+            <ResolutionExtraFields
+              key={selectedIssue.id}
+              form={form}
+              setForm={setForm}
+              selectedIssue={selectedIssue}
               showToast={() => {}}
               readOnly={readOnly}
             />

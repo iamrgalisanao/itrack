@@ -3,13 +3,15 @@ import { X, MessageSquare, Paperclip } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
+import { getSupportCompletion, getResolutionCompletion, computeMissing } from '@/lib/supportTemplates'
+
+const SUPPORT_WORK_TYPES = ['support', 'learning']
 
 /**
  * Shared task detail modal — extracted from Kanban.jsx so Kanban and
  * Support Ops (and any future task-driven view) reuse the same
  * Details/Comments/Files chrome instead of duplicating it. Kanban's own
- * behavior/fields are unchanged after this extraction; `extraFields` is how
- * a calling page adds fields beyond the base set without forking the modal.
+ * behavior/fields are unchanged after this extraction.
  *
  * `onSave(formData)` must return `false` on failure (the modal then stays
  * open) — any other return value (including `undefined`) is treated as
@@ -20,11 +22,23 @@ import TaskFiles from '@/components/TaskFiles'
  * `readOnly` (009-support-ops-knowledge-base) — additive, defaults to
  * `false` so every existing caller is unaffected. When `true`: Details tab
  * fields render disabled and "Save Changes" is not rendered (only "Close"
- * remains); `extraFields` is invoked with a third `readOnly` argument;
- * `TaskComments`/`TaskFiles` also receive `readOnly` to suppress their own
- * add/upload/delete affordances. `handleSubmit` itself is guarded too, so
- * the component never calls `onSave` in read-only mode even if a future
- * edit misses disabling one field or a caller omits `onSave` entirely.
+ * remains); the Support/Resolution render props are invoked with a third
+ * `readOnly` argument; `TaskComments`/`TaskFiles` also receive `readOnly` to
+ * suppress their own add/upload/delete affordances. `handleSubmit` itself is
+ * guarded too, so the component never calls `onSave` in read-only mode even
+ * if a future edit misses disabling one field or a caller omits `onSave`
+ * entirely.
+ *
+ * `supportFields`/`resolutionFields` (010-task-detail-tabs) — replace the
+ * former single `extraFields` render prop. Both are optional
+ * `(form, setForm, readOnly) => JSX` functions. The modal shows five tabs
+ * (Details, Support, Resolution, Comments, Files) only when the task being
+ * shown is a Support Ops issue (`task.work_type` of `support`/`learning`)
+ * AND both render props are supplied — otherwise it shows exactly today's
+ * three tabs (Details, Comments, Files), unchanged. This is a task-content
+ * decision, not a caller decision: a Kanban board task is never eligible
+ * (its `work_type` is never a Support Ops value), so its detail view is
+ * unaffected automatically, with no defensive check needed on Kanban's side.
  */
 export default function TaskDetailModal({
   task,
@@ -32,7 +46,8 @@ export default function TaskDetailModal({
   onSave,
   userRole,
   eyebrowLabel = 'Task Detail',
-  extraFields,
+  supportFields,
+  resolutionFields,
   readOnly = false,
 }) {
   const [form, setForm] = useState(task)
@@ -40,6 +55,12 @@ export default function TaskDetailModal({
   const [commentCount, setCommentCount] = useState(task?.comments_count ?? 0)
   const [fileCount, setFileCount] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
+  // Whether to show the save-time missing-fields banner. The banner's actual
+  // content is recomputed live from `form` on every render (below), not
+  // frozen at save time — otherwise fixing a field after seeing the banner
+  // would leave it reporting a field as missing after the tab-label pill
+  // already shows it complete (found during review).
+  const [showMissingSummary, setShowMissingSummary] = useState(false)
 
   // Reset local edit state whenever a different task is opened.
   useEffect(() => {
@@ -48,10 +69,54 @@ export default function TaskDetailModal({
     setModalTab('details')
     setCommentCount(task?.comments_count ?? 0)
     setFileCount(0)
+    setShowMissingSummary(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally keyed on task.id only, not the whole task object
   }, [task?.id])
 
+  // 010-task-detail-tabs: a task-content decision, not a caller decision —
+  // see this component's doc comment above. Computed before the early return
+  // below (and the dev-diagnostic effect depends on it) to keep every hook
+  // call unconditional, per the Rules of Hooks.
+  const showSupportResolutionTabs =
+    !!task &&
+    SUPPORT_WORK_TYPES.includes(task.work_type) &&
+    typeof supportFields === 'function' &&
+    typeof resolutionFields === 'function'
+
+  // Dev-only diagnostic, moved into an effect (found during review) so a
+  // mismatched task logs once per actual change instead of on every render.
+  useEffect(() => {
+    if (import.meta.env.DEV && task && SUPPORT_WORK_TYPES.includes(task.work_type) && !showSupportResolutionTabs) {
+      console.warn(
+        `TaskDetailModal: task #${task.id} has work_type "${task.work_type}" but is missing ` +
+        `${typeof supportFields !== 'function' ? '`supportFields`' : ''}` +
+        `${typeof supportFields !== 'function' && typeof resolutionFields !== 'function' ? ' and ' : ''}` +
+        `${typeof resolutionFields !== 'function' ? '`resolutionFields`' : ''} — falling back to the 3-tab layout.`
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supportFields/resolutionFields are stable render-prop closures per render, not tracked identity
+  }, [task?.id, task?.work_type, showSupportResolutionTabs])
+
   if (!task || !form) return null
+
+  const missingSummary = showMissingSummary && showSupportResolutionTabs ? computeMissing(form) : null
+
+  const isFormTab = modalTab === 'details' || modalTab === 'support' || modalTab === 'resolution'
+
+  // 010-task-detail-tabs (FR-008): pure functions of the current `form`
+  // state this component already holds — recomputed on every render, no
+  // count-lifting mechanism needed (unlike Comments/Files' onCountChange,
+  // which exists only because that data comes from a separate fetch).
+  const supportCompletion = showSupportResolutionTabs ? getSupportCompletion(form) : null
+  const resolutionCompletion = showSupportResolutionTabs ? getResolutionCompletion(form) : null
+
+  // Dismisses any save-time missing-fields summary along with closing —
+  // there's no separate dismiss control for the banner (T017/data-model.md),
+  // it rides along with the modal's existing Close/X controls.
+  const handleClose = () => {
+    setShowMissingSummary(false)
+    onClose()
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -60,7 +125,12 @@ export default function TaskDetailModal({
     try {
       const result = await onSave(form)
       if (result !== false) {
-        onClose()
+        const missing = showSupportResolutionTabs ? computeMissing(form) : null
+        if (missing) {
+          setShowMissingSummary(true)
+        } else {
+          onClose()
+        }
       }
     } finally {
       setIsSaving(false)
@@ -68,7 +138,7 @@ export default function TaskDetailModal({
   }
 
   return (
-    <Dialog open={!!task} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={!!task} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent
         showCloseButton={false}
         className="sm:max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0"
@@ -85,7 +155,7 @@ export default function TaskDetailModal({
             </DialogDescription>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
             className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors"
           >
@@ -93,7 +163,28 @@ export default function TaskDetailModal({
           </button>
         </div>
 
-        {/* Tabs: Details | Comments | Files */}
+        {/* Save-time missing-fields summary (US3, FR-012/FR-014): a save
+            already succeeded — this never blocks or re-opens a confirmation,
+            it just names what's still blank, grouped by tab. Dismissed via
+            the modal's existing Close/X controls (handleClose), not a
+            control of its own. Never shown in readOnly mode (FR-014) —
+            structurally redundant with that guard anyway, since handleSubmit
+            never sets it when readOnly is true. */}
+        {missingSummary && !readOnly && (
+          <div className="mx-6 mt-4 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+            <div className="space-y-1">
+              <p className="font-semibold">Saved — some information is still missing</p>
+              {missingSummary.support && (
+                <p>Support is missing: {missingSummary.support.join(', ')}</p>
+              )}
+              {missingSummary.resolution && (
+                <p>Resolution is missing: {missingSummary.resolution.join(', ')}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tabs: Details | [Support | Resolution] | Comments | Files */}
         <div role="tablist" aria-label="Task detail sections" className="flex border-b border-border/60 px-6">
           <button
             role="tab"
@@ -107,6 +198,43 @@ export default function TaskDetailModal({
           >
             Details
           </button>
+          {showSupportResolutionTabs && (
+            <>
+              <button
+                role="tab"
+                aria-selected={modalTab === 'support'}
+                onClick={() => setModalTab('support')}
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
+                  modalTab === 'support'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Support
+                {/* Completion indicator, always an x/y fraction — never a bare
+                    count — so it cannot be mistaken for an activity-count
+                    badge like Comments/Files' below (FR-009). */}
+                <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-bold">
+                  {supportCompletion.complete}/{supportCompletion.total}
+                </span>
+              </button>
+              <button
+                role="tab"
+                aria-selected={modalTab === 'resolution'}
+                onClick={() => setModalTab('resolution')}
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
+                  modalTab === 'resolution'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Resolution
+                <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-bold">
+                  {resolutionCompletion.complete}/{resolutionCompletion.total}
+                </span>
+              </button>
+            </>
+          )}
           <button
             role="tab"
             aria-selected={modalTab === 'comments'}
@@ -146,156 +274,160 @@ export default function TaskDetailModal({
         </div>
 
         {/* Tab Body */}
-        {modalTab === 'details' ? (
+        {isFormTab ? (
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-            {/* Task Name */}
-            <div className="space-y-1.5">
-              <label htmlFor="modal-task-title" className="text-xs font-bold text-foreground">Task Title</label>
-              <input
-                id="modal-task-title"
-                type="text"
-                required
-                disabled={readOnly}
-                value={form.name}
-                onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
+            {modalTab === 'details' && (
+              <>
+                {/* Task Name */}
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-task-title" className="text-xs font-bold text-foreground">Task Title</label>
+                  <input
+                    id="modal-task-title"
+                    type="text"
+                    required
+                    disabled={readOnly}
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
 
-            {/* Status and Progress */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="modal-task-status" className="text-xs font-bold text-foreground">Status</label>
-                <select
-                  id="modal-task-status"
-                  value={form.status}
-                  disabled={readOnly}
-                  onChange={(e) => {
-                    const statusVal = e.target.value
-                    const progressVal = statusVal === 'completed' ? 100 : (statusVal === 'not_started' || statusVal === 'backlog') ? 0 : form.progress
-                    setForm((prev) => ({ ...prev, status: statusVal, progress: progressVal }))
-                  }}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="backlog">Backlog</option>
-                  <option value="not_started">To Do</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="for_review">For Review</option>
-                  <option value="blocked">Blocked</option>
-                  <option value="delayed">Delayed</option>
-                  <option value="completed">Done</option>
-                </select>
-              </div>
+                {/* Status and Progress */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-status" className="text-xs font-bold text-foreground">Status</label>
+                    <select
+                      id="modal-task-status"
+                      value={form.status}
+                      disabled={readOnly}
+                      onChange={(e) => {
+                        const statusVal = e.target.value
+                        const progressVal = statusVal === 'completed' ? 100 : (statusVal === 'not_started' || statusVal === 'backlog') ? 0 : form.progress
+                        setForm((prev) => ({ ...prev, status: statusVal, progress: progressVal }))
+                      }}
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="backlog">Backlog</option>
+                      <option value="not_started">To Do</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="for_review">For Review</option>
+                      <option value="blocked">Blocked</option>
+                      <option value="delayed">Delayed</option>
+                      <option value="completed">Done</option>
+                    </select>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="modal-task-progress" className="text-xs font-bold text-foreground">Progress (%)</label>
-                <input
-                  id="modal-task-progress"
-                  type="number"
-                  min="0"
-                  max="100"
-                  disabled={readOnly}
-                  value={form.progress}
-                  onChange={(e) => setForm((prev) => ({ ...prev, progress: parseInt(e.target.value, 10) || 0 }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-progress" className="text-xs font-bold text-foreground">Progress (%)</label>
+                    <input
+                      id="modal-task-progress"
+                      type="number"
+                      min="0"
+                      max="100"
+                      disabled={readOnly}
+                      value={form.progress}
+                      onChange={(e) => setForm((prev) => ({ ...prev, progress: parseInt(e.target.value, 10) || 0 }))}
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
 
-            {/* Responsible & Priority */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="modal-task-responsible" className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
-                <input
-                  id="modal-task-responsible"
-                  type="text"
-                  disabled={readOnly}
-                  value={form.responsible || ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, responsible: e.target.value }))}
-                  placeholder="Owner's name or role"
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
+                {/* Responsible & Priority */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-responsible" className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
+                    <input
+                      id="modal-task-responsible"
+                      type="text"
+                      disabled={readOnly}
+                      value={form.responsible || ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, responsible: e.target.value }))}
+                      placeholder="Owner's name or role"
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="modal-task-priority" className="text-xs font-bold text-foreground">Priority</label>
-                <select
-                  id="modal-task-priority"
-                  value={form.type || ''}
-                  disabled={readOnly}
-                  onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="">None</option>
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
-                </select>
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-priority" className="text-xs font-bold text-foreground">Priority</label>
+                    <select
+                      id="modal-task-priority"
+                      value={form.type || ''}
+                      disabled={readOnly}
+                      onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="">None</option>
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                      <option value="Critical">Critical</option>
+                    </select>
+                  </div>
+                </div>
 
-            {/* Planned Dates */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="modal-task-plan-start" className="text-xs font-bold text-foreground">Planned Start Date</label>
-                <input
-                  id="modal-task-plan-start"
-                  type="date"
-                  disabled={readOnly}
-                  value={form.plan_start_date ? form.plan_start_date.substring(0, 10) : ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, plan_start_date: e.target.value || null }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
+                {/* Planned Dates */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-plan-start" className="text-xs font-bold text-foreground">Planned Start Date</label>
+                    <input
+                      id="modal-task-plan-start"
+                      type="date"
+                      disabled={readOnly}
+                      value={form.plan_start_date ? form.plan_start_date.substring(0, 10) : ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, plan_start_date: e.target.value || null }))}
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="modal-task-plan-end" className="text-xs font-bold text-foreground">Planned End Date</label>
-                <input
-                  id="modal-task-plan-end"
-                  type="date"
-                  disabled={readOnly}
-                  value={form.plan_end_date ? form.plan_end_date.substring(0, 10) : ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, plan_end_date: e.target.value || null }))}
-                  className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-plan-end" className="text-xs font-bold text-foreground">Planned End Date</label>
+                    <input
+                      id="modal-task-plan-end"
+                      type="date"
+                      disabled={readOnly}
+                      value={form.plan_end_date ? form.plan_end_date.substring(0, 10) : ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, plan_end_date: e.target.value || null }))}
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
 
-            {/* Description */}
-            <div className="space-y-1.5">
-              <label htmlFor="modal-task-description" className="text-xs font-bold text-foreground">Description</label>
-              <textarea
-                id="modal-task-description"
-                rows="3"
-                disabled={readOnly}
-                value={form.description || ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-task-description" className="text-xs font-bold text-foreground">Description</label>
+                  <textarea
+                    id="modal-task-description"
+                    rows="3"
+                    disabled={readOnly}
+                    value={form.description || ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                    className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
 
-            {/* Notes */}
-            <div className="space-y-1.5">
-              <label htmlFor="modal-task-notes" className="text-xs font-bold text-foreground">Notes</label>
-              <textarea
-                id="modal-task-notes"
-                rows="2"
-                disabled={readOnly}
-                value={form.notes || ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-              />
-            </div>
+                {/* Notes */}
+                <div className="space-y-1.5">
+                  <label htmlFor="modal-task-notes" className="text-xs font-bold text-foreground">Notes</label>
+                  <textarea
+                    id="modal-task-notes"
+                    rows="2"
+                    disabled={readOnly}
+                    value={form.notes || ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </div>
+              </>
+            )}
 
-            {/* Caller-specific fields (e.g. Support Ops' client/priority/investigation fields) */}
-            {typeof extraFields === 'function' ? extraFields(form, setForm, readOnly) : extraFields}
+            {modalTab === 'support' && showSupportResolutionTabs && supportFields(form, setForm, readOnly)}
+            {modalTab === 'resolution' && showSupportResolutionTabs && resolutionFields(form, setForm, readOnly)}
 
             {/* Modal Actions */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleClose}
                 className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted text-foreground transition-all"
               >
                 {readOnly ? 'Close' : 'Cancel'}

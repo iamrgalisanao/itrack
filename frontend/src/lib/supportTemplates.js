@@ -184,3 +184,83 @@ export function renderTroubleshootingPacket({
 
   return lines.join('\n')
 }
+
+/**
+ * True if any of `fields` differs between the modal's in-progress `form`
+ * and the last-saved `issue` — used only to show a "you have unsaved
+ * edits" hint before generating a copy-only artifact (FR-016's read source
+ * itself is always `selectedIssue`, never `form`; this check never changes
+ * what gets generated, only whether a warning is shown before the user
+ * clicks Generate). Shared by all three copy-only generators —
+ * SupportIssueExtraFields.jsx's Client Message Templates/Freeform Client
+ * Update, and ResolutionExtraFields.jsx's Troubleshooting Packet
+ * (010-task-detail-tabs) — via SupportGeneratorPanel.jsx.
+ */
+export function hasUnsavedFieldChange(form, issue, fields) {
+  if (!form || !issue) return false
+  return fields.some((field) => (form[field] || '') !== (issue[field] || ''))
+}
+
+/**
+ * True if `value` is a non-blank string — blank means empty, unset, or
+ * whitespace-only after trimming. Shared, single definition of "filled in"
+ * for 010-task-detail-tabs' completion indicators (SupportIssueExtraFields.jsx's
+ * `getSupportCompletion`, ResolutionExtraFields.jsx's `getResolutionCompletion`,
+ * TaskDetailModal.jsx's save-time missing-fields summary) — deliberately the
+ * same trim-based rule 009-support-ops-knowledge-base's backend inclusion
+ * rule already uses (`TRIM(root_cause) != ''`), so a tab label can never say
+ * "complete" for an issue 009's knowledge base would still treat as missing
+ * that information.
+ */
+export function isFilled(value) {
+  return typeof value === 'string' && value.trim() !== ''
+}
+
+// 010-task-detail-tabs: required-field sets, reusing rules this app already
+// has rather than inventing new ones. Support: the exact two fields
+// SupportOpsController::store()'s intake validation already requires
+// (FR-006). Resolution: the exact two fields 009-support-ops-knowledge-
+// base's own inclusion rule already requires (FR-007) — completing this
+// tab is literally what makes an issue discoverable in the knowledge base
+// later. Defined here (not inside SupportIssueExtraFields.jsx/
+// ResolutionExtraFields.jsx) because a component file may only export
+// components for Fast Refresh to work (`react-refresh/only-export-components`).
+const SUPPORT_REQUIRED_FIELDS = ['client_name', 'client_priority']
+const RESOLUTION_REQUIRED_FIELDS = ['root_cause', 'resolution']
+
+/** {complete, total} — how many of the Support tab's required fields currently have a value. */
+export function getSupportCompletion(form) {
+  return {
+    complete: SUPPORT_REQUIRED_FIELDS.filter((field) => isFilled(form[field])).length,
+    total: SUPPORT_REQUIRED_FIELDS.length,
+  }
+}
+
+/** {complete, total} — how many of the Resolution tab's required fields currently have a value. */
+export function getResolutionCompletion(form) {
+  return {
+    complete: RESOLUTION_REQUIRED_FIELDS.filter((field) => isFilled(form[field])).length,
+    total: RESOLUTION_REQUIRED_FIELDS.length,
+  }
+}
+
+const SUPPORT_FIELD_LABELS = { client_name: 'Client', client_priority: 'Client Priority' }
+const RESOLUTION_FIELD_LABELS = { root_cause: 'Root Cause', resolution: 'Resolution' }
+
+/**
+ * `null` when nothing is missing, otherwise `{ support?: [...labels], resolution?: [...labels] }`
+ * naming which required fields are still blank, grouped by tab, omitting any
+ * group with nothing missing. Built from the exact same `SUPPORT_REQUIRED_FIELDS`/
+ * `RESOLUTION_REQUIRED_FIELDS`/`isFilled` the two completion functions above
+ * use — not a third definition of "required" or "blank" — so a save-time
+ * summary can never disagree with what the tab-label pills already showed.
+ */
+export function computeMissing(form) {
+  const support = SUPPORT_REQUIRED_FIELDS.filter((field) => !isFilled(form[field])).map((field) => SUPPORT_FIELD_LABELS[field])
+  const resolution = RESOLUTION_REQUIRED_FIELDS.filter((field) => !isFilled(form[field])).map((field) => RESOLUTION_FIELD_LABELS[field])
+  if (support.length === 0 && resolution.length === 0) return null
+  const missing = {}
+  if (support.length) missing.support = support
+  if (resolution.length) missing.resolution = resolution
+  return missing
+}

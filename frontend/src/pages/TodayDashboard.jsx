@@ -3,6 +3,7 @@ import { useEffectiveUser } from '@/context/PreviewContext'
 import { fetchTodayDashboard, updateDetailedActivity } from '@/lib/api'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import SupportIssueExtraFields from '@/components/SupportIssueExtraFields'
+import ResolutionExtraFields from '@/components/ResolutionExtraFields'
 import {
   Sunrise,
   AlertTriangle,
@@ -63,6 +64,12 @@ export default function TodayDashboard() {
   const [loadError, setLoadError] = useState(false)
   const [toast, setToast] = useState(null)
   const [selectedIssue, setSelectedIssue] = useState(null)
+  // 010-task-detail-tabs (found during review): bumped on every successful
+  // save so the generator key below can force a remount without depending on
+  // `selectedIssue.updated_at`, which is second-precision server-side — two
+  // saves inside the same second would otherwise share a key and skip the
+  // reset.
+  const [savedVersion, setSavedVersion] = useState(0)
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -106,7 +113,15 @@ export default function TodayDashboard() {
   // bucket arrays in place client-side.
   const handleIssueSave = async (formData) => {
     try {
-      await updateDetailedActivity(formData.id, formData)
+      const res = await updateDetailedActivity(formData.id, formData)
+      const updated = res.data?.data ?? res.data
+      // 010-task-detail-tabs (found during review): a save with fields still
+      // missing keeps TaskDetailModal open, so `selectedIssue` — the
+      // last-saved source generators read from (FR-016) — must be refreshed
+      // directly from the save response; loadDashboard()'s re-fetch/
+      // re-classify below never touches `selectedIssue` itself.
+      setSelectedIssue((prev) => (prev && prev.id === formData.id ? { ...prev, ...updated } : prev))
+      setSavedVersion((v) => v + 1)
       showToast('Issue updated')
       await loadDashboard()
     } catch (err) {
@@ -256,13 +271,22 @@ export default function TodayDashboard() {
           onSave={handleIssueSave}
           userRole={userRole}
           eyebrowLabel="Issue Detail"
-          extraFields={(form, setForm) => (
+          supportFields={(form, setForm) => (
             <SupportIssueExtraFields
-              key={selectedIssue.id}
+              key={`${selectedIssue.id}-${savedVersion}`}
               form={form}
               setForm={setForm}
               selectedIssue={selectedIssue}
               onRecordClientUpdate={recordClientUpdate}
+              showToast={showToast}
+            />
+          )}
+          resolutionFields={(form, setForm) => (
+            <ResolutionExtraFields
+              key={`${selectedIssue.id}-${savedVersion}`}
+              form={form}
+              setForm={setForm}
+              selectedIssue={selectedIssue}
               showToast={showToast}
             />
           )}

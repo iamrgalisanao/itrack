@@ -8,6 +8,7 @@ import {
 } from '@/lib/api'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import SupportIssueExtraFields from '@/components/SupportIssueExtraFields'
+import ResolutionExtraFields from '@/components/ResolutionExtraFields'
 import {
   MessagesSquare,
   Clock,
@@ -108,10 +109,17 @@ export default function SupportOps() {
   const [isSubmittingIntake, setIsSubmittingIntake] = useState(false)
 
   // Issue detail view — shared TaskDetailModal. Support-specific fields and
-  // the 003 generators live in <SupportIssueExtraFields>, keyed on the
-  // issue's id so switching issues remounts (and thus resets) that state —
-  // see SupportIssueExtraFields.jsx's doc comment.
+  // the 003 generators live in <SupportIssueExtraFields>, keyed below on the
+  // issue's id plus `savedVersion` so switching issues, or a save landing
+  // while the modal stays open (010-task-detail-tabs, US3), both remount
+  // (and thus reset) that state — see SupportIssueExtraFields.jsx's doc
+  // comment.
   const [selectedIssue, setSelectedIssue] = useState(null)
+  // Bumped on every successful save (found during review) so the generator
+  // key below can force that remount without depending on
+  // `selectedIssue.updated_at`, which is second-precision server-side — two
+  // saves inside the same second would otherwise share a key and skip it.
+  const [savedVersion, setSavedVersion] = useState(0)
 
   const openIssueDetail = (issue) => {
     setSelectedIssue({ ...issue })
@@ -265,6 +273,13 @@ export default function SupportOps() {
       const res = await updateDetailedActivity(formData.id, formData)
       const updated = res.data?.data ?? res.data
       setIssues((prev) => prev.map((i) => (i.id === formData.id ? { ...i, ...updated } : i)))
+      // 010-task-detail-tabs (found during review): a save with fields still
+      // missing keeps TaskDetailModal open, so `selectedIssue` — the
+      // last-saved source generators read from (FR-016) — must be refreshed
+      // here too, not just the list, or a generator run right after this
+      // save would read pre-save data.
+      setSelectedIssue((prev) => (prev && prev.id === formData.id ? { ...prev, ...updated } : prev))
+      setSavedVersion((v) => v + 1)
       showToast('Issue updated')
     } catch (err) {
       console.error('Failed to update issue:', err)
@@ -795,13 +810,22 @@ export default function SupportOps() {
           onSave={handleIssueSave}
           userRole={userRole}
           eyebrowLabel="Issue Detail"
-          extraFields={(form, setForm) => (
+          supportFields={(form, setForm) => (
             <SupportIssueExtraFields
-              key={selectedIssue.id}
+              key={`${selectedIssue.id}-${savedVersion}`}
               form={form}
               setForm={setForm}
               selectedIssue={selectedIssue}
               onRecordClientUpdate={recordClientUpdate}
+              showToast={showToast}
+            />
+          )}
+          resolutionFields={(form, setForm) => (
+            <ResolutionExtraFields
+              key={`${selectedIssue.id}-${savedVersion}`}
+              form={form}
+              setForm={setForm}
+              selectedIssue={selectedIssue}
               showToast={showToast}
             />
           )}
