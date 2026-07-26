@@ -19,6 +19,8 @@ use Illuminate\Http\Request;
  *   member.created | member.updated | member.deleted
  *   comment.deleted | attachment.deleted
  *   department_grant.created | department_grant.deleted
+ *   project_assignment.created | project_assignment.deleted
+ *   project_ownership.created | project_ownership.deleted | project_ownership.transferred
  *   report.exported
  *   permission.denied
  */

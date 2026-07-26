@@ -177,6 +177,15 @@ export const fetchProjectAssignments = (params) => api.get('/project-assignments
 export const createProjectAssignment = (data) => api.post('/project-assignments', data)
 export const deleteProjectAssignment = (id) => api.delete(`/project-assignments/${id}`)
 
+// Project Ownership (008-project-ownership, Admin only) — the real,
+// user-linked relationship that scopes a Project Manager's authority to
+// assign/remove Team Member/Client access to only the projects they own.
+export const fetchProjectOwnerships = (params) => api.get('/project-ownerships', { params })
+export const createProjectOwnership = (data) => api.post('/project-ownerships', data)
+export const deleteProjectOwnership = (id) => api.delete(`/project-ownerships/${id}`)
+export const transferProjectOwnership = (id, newOwnerUserId) =>
+  api.post(`/project-ownerships/${id}/transfer`, { new_owner_user_id: newOwnerUserId })
+
 // Preview Sessions (007-permission-hardening, Admin only) — read-only
 // "preview as user" mode. startPreview's response includes `token` exactly
 // once; the caller is responsible for persisting it (see PreviewContext).

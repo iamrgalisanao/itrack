@@ -38,6 +38,10 @@ import {
   fetchProjectAssignments,
   createProjectAssignment,
   deleteProjectAssignment,
+  fetchProjectOwnerships,
+  createProjectOwnership,
+  deleteProjectOwnership,
+  transferProjectOwnership,
 } from '@/lib/api'
 import {
   ShieldCheck,
@@ -58,6 +62,7 @@ import {
   KeyRound,
   FolderKanban,
   Eye,
+  Crown,
 } from 'lucide-react'
 import { usePreview } from '@/context/PreviewContext'
 
@@ -136,6 +141,19 @@ export default function Admin() {
   const [assignmentForm, setAssignmentForm] = useState({ user_id: '', project_id: '' })
   const [assignmentError, setAssignmentError] = useState('')
 
+  // --- Project Ownership State (008-project-ownership) ---
+  const [ownerships, setOwnerships] = useState([])
+  const [ownershipsLoading, setOwnershipsLoading] = useState(false)
+  const [ownableProjects, setOwnableProjects] = useState([])
+  const [ownablePms, setOwnablePms] = useState([])
+  const [isOwnershipDialogOpen, setIsOwnershipDialogOpen] = useState(false)
+  const [ownershipForm, setOwnershipForm] = useState({ user_id: '', project_id: '' })
+  const [ownershipError, setOwnershipError] = useState('')
+  const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false)
+  const [transferTarget, setTransferTarget] = useState(null)
+  const [transferForm, setTransferForm] = useState({ new_owner_user_id: '' })
+  const [transferError, setTransferError] = useState('')
+
   // --- Audit Logs State ---
   const [logs, setLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
@@ -199,6 +217,28 @@ export default function Admin() {
       .catch((err) => console.error('Failed to load users:', err))
   }
 
+  const loadOwnerships = () => {
+    setOwnershipsLoading(true)
+    fetchProjectOwnerships()
+      .then((res) => {
+        setOwnerships(res.data.data || res.data || [])
+        setOwnershipsLoading(false)
+      })
+      .catch((err) => {
+        console.error('Failed to load project ownerships:', err)
+        setOwnershipsLoading(false)
+      })
+    fetchProjects()
+      .then((res) => setOwnableProjects(res.data || []))
+      .catch((err) => console.error('Failed to load projects:', err))
+    fetchUsers({ role: 'Project Manager', status: 'active', per_page: 100 })
+      .then((res) => {
+        const rows = res.data.data || res.data || []
+        setOwnablePms(rows)
+      })
+      .catch((err) => console.error('Failed to load users:', err))
+  }
+
   const loadLogs = (filtersToUse = logFilters) => {
     setLogsLoading(true)
     // Clean empty filters before sending
@@ -253,6 +293,7 @@ export default function Admin() {
     else if (activeTab === 'user-accounts') loadUserAccounts()
     else if (activeTab === 'grants') loadGrants()
     else if (activeTab === 'project-assignments') loadAssignments()
+    else if (activeTab === 'project-ownership') loadOwnerships()
     else if (activeTab === 'logs') loadLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load* functions are recreated every render; including them would loop
   }, [activeTab])
@@ -495,6 +536,58 @@ export default function Admin() {
     }
   }
 
+  // --- Project Ownership Actions (008-project-ownership) ---
+  const handleOpenOwnershipAdd = () => {
+    setOwnershipForm({ user_id: '', project_id: '' })
+    setOwnershipError('')
+    setIsOwnershipDialogOpen(true)
+  }
+
+  const handleOwnershipSubmit = async (e) => {
+    e.preventDefault()
+    setOwnershipError('')
+    try {
+      await createProjectOwnership(ownershipForm)
+      setIsOwnershipDialogOpen(false)
+      loadOwnerships()
+    } catch (err) {
+      console.error('Failed to create project ownership:', err)
+      setOwnershipError(err.response?.data?.message || 'Failed to assign owner to project.')
+    }
+  }
+
+  const handleOwnershipDelete = async (id) => {
+    if (confirm('Remove this project owner?')) {
+      try {
+        await deleteProjectOwnership(id)
+        loadOwnerships()
+      } catch (err) {
+        console.error('Failed to remove project ownership:', err)
+      }
+    }
+  }
+
+  const handleOpenTransfer = (ownership) => {
+    setTransferTarget(ownership)
+    setTransferForm({ new_owner_user_id: '' })
+    setTransferError('')
+    setIsTransferDialogOpen(true)
+  }
+
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault()
+    setTransferError('')
+    try {
+      await transferProjectOwnership(transferTarget.id, transferForm.new_owner_user_id)
+      setIsTransferDialogOpen(false)
+      setTransferTarget(null)
+      loadOwnerships()
+    } catch (err) {
+      console.error('Failed to transfer project ownership:', err)
+      setTransferError(err.response?.data?.message || 'Failed to transfer ownership.')
+    }
+  }
+
   // --- Audit Log Filters & Pagination ---
   const handleLogFilterChange = (key, value) => {
     const updated = { ...logFilters, [key]: value, page: 1 }
@@ -549,7 +642,7 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 max-w-195">
+        <TabsList className="grid w-full grid-cols-6 max-w-234">
           <TabsTrigger value="members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Members
@@ -565,6 +658,10 @@ export default function Admin() {
           <TabsTrigger value="project-assignments" className="flex items-center gap-2">
             <FolderKanban className="h-4 w-4" />
             Project Assignments
+          </TabsTrigger>
+          <TabsTrigger value="project-ownership" className="flex items-center gap-2">
+            <Crown className="h-4 w-4" />
+            Project Ownership
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -1395,6 +1492,180 @@ export default function Admin() {
           </Dialog>
         </TabsContent>
 
+        {/* ────────────────── PROJECT OWNERSHIP PANEL ────────────────── */}
+        <TabsContent value="project-ownership" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">Project Ownership</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Designate the Project Manager(s) who administer each project's Team Member/Client access
+              </p>
+            </div>
+            <Button onClick={handleOpenOwnershipAdd}>
+              <Plus className="h-4 w-4 mr-2" />
+              Assign Owner
+            </Button>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Project Owners</CardTitle>
+              <CardDescription>
+                A project with no owner listed here remains unrestricted for any Project Manager (rollout default)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ownershipsLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                  Loading ownerships...
+                </div>
+              ) : ownerships.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  No project owners have been assigned yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Assigned By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ownerships.map((ownership) => (
+                      <TableRow key={ownership.id}>
+                        <TableCell className="font-medium">{ownership.user.name}</TableCell>
+                        <TableCell>{ownership.project.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{ownership.assigned_by.name}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenTransfer(ownership)}
+                          >
+                            <ArrowRight className="h-4 w-4 mr-1" />
+                            Transfer
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOwnershipDelete(ownership.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Assign Owner Dialog */}
+          <Dialog open={isOwnershipDialogOpen} onOpenChange={setIsOwnershipDialogOpen}>
+            <DialogContent className="sm:max-w-100">
+              <DialogHeader>
+                <DialogTitle>Assign Project Owner</DialogTitle>
+                <DialogDescription>
+                  Designate an active Project Manager as an owner of a project. A project may have more than one owner.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleOwnershipSubmit} className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="ownership-user" className="text-xs font-semibold">Project Manager</label>
+                  <select
+                    id="ownership-user"
+                    required
+                    value={ownershipForm.user_id}
+                    onChange={(e) => setOwnershipForm({ ...ownershipForm, user_id: e.target.value })}
+                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>Select a Project Manager</option>
+                    {ownablePms.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="ownership-project" className="text-xs font-semibold">Project</label>
+                  <select
+                    id="ownership-project"
+                    required
+                    value={ownershipForm.project_id}
+                    onChange={(e) => setOwnershipForm({ ...ownershipForm, project_id: e.target.value })}
+                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>Select a project</option>
+                    {ownableProjects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {ownershipError && (
+                  <p className="text-xs text-destructive">{ownershipError}</p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setIsOwnershipDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Assign</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Transfer Ownership Dialog */}
+          <Dialog open={isTransferDialogOpen} onOpenChange={setIsTransferDialogOpen}>
+            <DialogContent className="sm:max-w-100">
+              <DialogHeader>
+                <DialogTitle>Transfer Ownership</DialogTitle>
+                <DialogDescription>
+                  {transferTarget && (
+                    <>Move {transferTarget.project.name}'s ownership from {transferTarget.user.name} to a different Project Manager.</>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleTransferSubmit} className="space-y-4 pt-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="transfer-new-owner" className="text-xs font-semibold">New Owner</label>
+                  <select
+                    id="transfer-new-owner"
+                    required
+                    value={transferForm.new_owner_user_id}
+                    onChange={(e) => setTransferForm({ ...transferForm, new_owner_user_id: e.target.value })}
+                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="" disabled>Select a Project Manager</option>
+                    {ownablePms
+                      .filter((u) => u.id !== transferTarget?.user.id)
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                  </select>
+                </div>
+
+                {transferError && (
+                  <p className="text-xs text-destructive">{transferError}</p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setIsTransferDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">Transfer</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
         {/* ────────────────── AUDIT LOGS PANEL ────────────────── */}
         <TabsContent value="logs" className="space-y-4">
           <Card>
@@ -1435,7 +1706,12 @@ export default function Admin() {
                     <option value="member.deleted">Member Deleted</option>
                     <option value="department_grant.created">Grant Created</option>
                     <option value="department_grant.deleted">Grant Deleted</option>
-                    <option value="unauthorized_access">Access Blocked</option>
+                    <option value="project_assignment.created">Assignment Created</option>
+                    <option value="project_assignment.deleted">Assignment Deleted</option>
+                    <option value="project_ownership.created">Owner Assigned</option>
+                    <option value="project_ownership.deleted">Owner Removed</option>
+                    <option value="project_ownership.transferred">Ownership Transferred</option>
+                    <option value="permission.denied">Access Blocked</option>
                   </select>
                 </div>
 
@@ -1452,6 +1728,8 @@ export default function Admin() {
                     <option value="detailed_activity">Task</option>
                     <option value="team_member">Team Member</option>
                     <option value="department_grant">Dept Grant</option>
+                    <option value="project_assignment">Project Assignment</option>
+                    <option value="project_ownership">Project Ownership</option>
                   </select>
                 </div>
 
@@ -1547,7 +1825,7 @@ export default function Admin() {
                       <TableBody>
                         {logs.map((log) => {
                           const dateStr = new Date(log.created_at).toLocaleString()
-                          const isDenied = log.action === 'unauthorized_access'
+                          const isDenied = log.action === 'permission.denied'
                           return (
                             <TableRow key={log.id} className={isDenied ? 'bg-destructive/5' : ''}>
                               <TableCell className="text-xs text-muted-foreground font-mono">

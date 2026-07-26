@@ -14,6 +14,7 @@ use App\Http\Controllers\GlossaryTermController;
 use App\Http\Controllers\SupportOpsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ProjectAssignmentController;
+use App\Http\Controllers\ProjectOwnershipController;
 use App\Http\Controllers\PreviewSessionController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\ResolvePreviewSession;
@@ -116,6 +117,11 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::get('project-assignments', [ProjectAssignmentController::class, 'index'])->name('project-assignments.index');
     Route::post('project-assignments', [ProjectAssignmentController::class, 'store'])->name('project-assignments.store');
     Route::delete('project-assignments/{projectAssignment}', [ProjectAssignmentController::class, 'destroy'])->name('project-assignments.destroy');
+
+    Route::get('project-ownerships', [ProjectOwnershipController::class, 'index'])->name('project-ownerships.index');
+    Route::post('project-ownerships', [ProjectOwnershipController::class, 'store'])->name('project-ownerships.store');
+    Route::delete('project-ownerships/{projectOwnership}', [ProjectOwnershipController::class, 'destroy'])->name('project-ownerships.destroy');
+    Route::post('project-ownerships/{projectOwnership}/transfer', [ProjectOwnershipController::class, 'transfer'])->name('project-ownerships.transfer');
 
     // Preview Sessions (007-permission-hardening — Admin-only "preview as user")
     Route::post('preview-sessions', [PreviewSessionController::class, 'store'])->name('preview-sessions.store');

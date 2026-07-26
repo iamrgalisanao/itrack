@@ -42,6 +42,24 @@ class Project extends Model
         return $this->hasMany(ProjectAssignment::class);
     }
 
+    public function ownerships()
+    {
+        return $this->hasMany(ProjectOwnership::class);
+    }
+
+    /**
+     * Scope: projects the given Project Manager owns.
+     *
+     * 008-project-ownership — deliberately separate from scopeAccessibleTo:
+     * ownership answers "can this PM administer this project's assignments",
+     * accessibility answers "can this user see this project at all". A PM's
+     * scopeAccessibleTo branch (unrestricted) is untouched by this scope.
+     */
+    public function scopeOwnedBy(Builder $query, User $user): Builder
+    {
+        return $query->whereHas('ownerships', fn (Builder $q) => $q->where('user_id', $user->id));
+    }
+
     /**
      * Scope: projects the given user is allowed to see.
      *

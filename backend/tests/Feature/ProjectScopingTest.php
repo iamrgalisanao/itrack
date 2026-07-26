@@ -9,6 +9,7 @@ use App\Models\Module;
 use App\Models\PreviewSession;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Models\ProjectOwnership;
 use App\Models\SubActivity;
 use App\Models\User;
 use Carbon\Carbon;
@@ -74,6 +75,16 @@ class ProjectScopingTest extends TestCase
     {
         return ProjectAssignment::create([
             'user_id'             => $user->id,
+            'project_id'          => $project->id,
+            'assigned_by_user_id' => $this->createUser('Admin')->id,
+        ]);
+    }
+
+    /** 008-project-ownership: makes $pm an owner of $project. */
+    private function own(User $pm, Project $project): ProjectOwnership
+    {
+        return ProjectOwnership::create([
+            'user_id'             => $pm->id,
             'project_id'          => $project->id,
             'assigned_by_user_id' => $this->createUser('Admin')->id,
         ]);
@@ -368,6 +379,169 @@ class ProjectScopingTest extends TestCase
         $tm->update(['role' => 'Team Member']);
         // Demoted back down — original narrower access is restored automatically, no re-entry needed.
         $this->callJson($tm->fresh(), 'GET', "/api/projects/{$project->id}/modules")->assertStatus(200);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 008-project-ownership, User Story 2: PM-scoped administration
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ─── T019: the full enforcement matrix (data-model.md), one row per case ──
+
+    public function test_enforcement_matrix_admin_always_allowed(): void
+    {
+        $admin = $this->createUser('Admin');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        // Project has a different owner entirely — irrelevant to Admin.
+        $this->own($this->createUser('Project Manager'), $project);
+
+        $this->callJson($admin, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(201);
+    }
+
+    public function test_enforcement_matrix_pm_on_ownerless_project_allowed(): void
+    {
+        $pm = $this->createUser('Project Manager');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        // No ownership row created at all — FR-018 rollout safety net.
+
+        $this->callJson($pm, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(201);
+    }
+
+    public function test_enforcement_matrix_pm_sole_owner_allowed(): void
+    {
+        $pm = $this->createUser('Project Manager');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $this->own($pm, $project);
+
+        $this->callJson($pm, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(201);
+    }
+
+    public function test_enforcement_matrix_pm_not_owner_of_solely_other_owned_project_denied(): void
+    {
+        $pmA = $this->createUser('Project Manager');
+        $pmC = $this->createUser('Project Manager');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $this->own($pmC, $project);
+
+        $this->callJson($pmA, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(403)
+            ->assertJson(['message' => 'You do not own this project.']);
+    }
+
+    public function test_enforcement_matrix_pm_one_of_several_owners_allowed(): void
+    {
+        $pmA = $this->createUser('Project Manager');
+        $pmD = $this->createUser('Project Manager');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $this->own($pmA, $project);
+        $this->own($pmD, $project);
+
+        $this->callJson($pmA, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(201);
+    }
+
+    public function test_enforcement_matrix_pm_excluded_from_multi_owner_project_denied(): void
+    {
+        $pmA = $this->createUser('Project Manager');
+        $pmD = $this->createUser('Project Manager');
+        $pmC = $this->createUser('Project Manager'); // not an owner
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $this->own($pmA, $project);
+        $this->own($pmD, $project);
+
+        $this->callJson($pmC, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(403)
+            ->assertJson(['message' => 'You do not own this project.']);
+    }
+
+    public function test_enforcement_matrix_other_role_denied(): void
+    {
+        $client = $this->createUser('Client', 'IT');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+
+        $this->callJson($client, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(403)
+            ->assertJson(['message' => 'Unauthorized: Only Admins and Project Managers can manage project assignments.']);
+    }
+
+    // ─── T020: a PM who owns zero projects — ownerless vs. other-owned ────────
+
+    public function test_pm_owning_zero_projects_denied_on_owned_project_but_allowed_on_ownerless(): void
+    {
+        $pmA = $this->createUser('Project Manager'); // owns nothing
+        $pmC = $this->createUser('Project Manager');
+        $tm = $this->createUser('Team Member', 'IT');
+
+        $ownedProject = Project::factory()->create(['department' => 'IT']);
+        $this->own($pmC, $ownedProject);
+        $ownerlessProject = Project::factory()->create(['department' => 'IT']);
+
+        $this->callJson($pmA, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $ownedProject->id])
+            ->assertStatus(403);
+
+        $this->callJson($pmA, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $ownerlessProject->id])
+            ->assertStatus(201);
+    }
+
+    // ─── T021: Admin's store()/destroy() behavior is provably unaffected ──────
+
+    public function test_admin_assignment_behavior_unaffected_by_ownership_presence(): void
+    {
+        $admin = $this->createUser('Admin');
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+
+        // With zero owners.
+        $created = $this->callJson($admin, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id]);
+        $created->assertStatus(201);
+        $this->callJson($admin, 'DELETE', '/api/project-assignments/' . $created->json('data.id'))->assertStatus(204);
+
+        // With an owner (a different PM entirely) present.
+        $this->own($this->createUser('Project Manager'), $project);
+        $this->callJson($admin, 'POST', '/api/project-assignments', ['user_id' => $tm->id, 'project_id' => $project->id])
+            ->assertStatus(201);
+    }
+
+    // ─── T022: GET /api/project-assignments unaffected by ownership for PM ────
+
+    public function test_pm_read_of_project_assignments_unaffected_by_ownership(): void
+    {
+        $pm = $this->createUser('Project Manager'); // owns zero projects
+        $tm = $this->createUser('Team Member', 'IT');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $this->own($this->createUser('Project Manager'), $project); // owned by someone else
+        $assignment = $this->assign($tm, $project);
+
+        $response = $this->callJson($pm, 'GET', '/api/project-assignments?project_id=' . $project->id);
+        $response->assertStatus(200);
+        $this->assertCount(1, $response->json('data'));
+        $this->assertEquals($assignment->id, $response->json('data.0.id'));
+    }
+
+    // ─── T023: PM read-visibility across surfaces is unaffected by ownership ──
+
+    public function test_pm_read_visibility_unaffected_by_ownership(): void
+    {
+        $owningPm = $this->createUser('Project Manager');
+        $nonOwningPm = $this->createUser('Project Manager');
+        $project = Project::factory()->create(['department' => 'IT']);
+        $this->own($owningPm, $project);
+        // nonOwningPm owns nothing at all.
+
+        foreach ([$owningPm, $nonOwningPm] as $pm) {
+            $this->callJson($pm, 'GET', "/api/projects/{$project->id}")->assertStatus(200);
+            $this->callJson($pm, 'GET', "/api/projects/{$project->id}/modules")->assertStatus(200);
+            $this->callJson($pm, 'GET', '/api/dashboard')->assertStatus(200);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════
