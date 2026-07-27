@@ -1,4 +1,11 @@
 @import "tailwindcss";
+/* Tailwind v4-compatible port of tailwindcss-animate — defines the
+   animate-in/animate-out, fade-in-*, zoom-in-*, slide-in-from-* utilities
+   dialog.jsx (and TaskDetailModal.jsx's tab transitions) already reference.
+   Found during review: those classes were being used throughout the app
+   with no plugin actually defining them, so every Dialog's open/close
+   animation was silently a no-op. */
+@import "tw-animate-css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 

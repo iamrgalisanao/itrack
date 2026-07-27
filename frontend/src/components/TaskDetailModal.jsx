@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { X, MessageSquare, Paperclip } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
@@ -61,6 +61,25 @@ export default function TaskDetailModal({
   // would leave it reporting a field as missing after the tab-label pill
   // already shows it complete (found during review).
   const [showMissingSummary, setShowMissingSummary] = useState(false)
+  // Sliding tab-indicator position — a small bar under the tab bar that
+  // glides to whichever tab is active, instead of each tab drawing its own
+  // static underline. Measured from the actual DOM nodes (below), not
+  // guessed from text length, so it stays correct for any tab label/pill.
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
+  // Found during review: a per-tab `tabRefs.current[modalTab]` map could
+  // end up stale after the modal closed and reopened (the indicator got
+  // stuck on whichever tab was active before close, even though the
+  // "Details" tab was correctly marked active again). Querying the tablist
+  // for `[aria-selected="true"]` instead ties the measured element directly
+  // to the exact same boolean that already drives each tab's active-state
+  // styling — the two can never disagree, since they're the same source.
+  const tabListRef = useRef(null)
+  // Modal-resize animation: the whole dialog's height is driven by this
+  // state (a real px number, not "auto") so switching to a shorter/taller
+  // tab transitions smoothly instead of snapping — see the measuring
+  // useLayoutEffect below for how it's computed.
+  const [dialogHeight, setDialogHeight] = useState(null)
+  const contentInnerRef = useRef(null)
 
   // Reset local edit state whenever a different task is opened.
   useEffect(() => {
@@ -96,6 +115,111 @@ export default function TaskDetailModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supportFields/resolutionFields are stable render-prop closures per render, not tracked identity
   }, [task?.id, task?.work_type, showSupportResolutionTabs])
+
+  // Sliding tab-indicator position. Root cause of an earlier reopen-stuck
+  // bug (found during review, confirmed by reading @radix-ui/react-portal's
+  // source): Radix's Dialog renders its content through a Portal that
+  // starts internally "unmounted" (`useState(false)`) and only flips to
+  // mounted via ITS OWN `useLayoutEffect(() => setMounted(true), [])`, one
+  // render cycle later. That transition happens entirely inside Portal's
+  // own subtree and does NOT trigger a re-render of this component — so a
+  // `useLayoutEffect` declared here (however its dependency array is set
+  // up) can run once, see `tabListRef.current` is still null because
+  // Portal hasn't rendered real content yet, bail out, and never get a
+  // chance to run again once Portal actually mounts. This only bit on a
+  // fresh modal open (a fresh Portal instance) — clicking between tabs in
+  // an already-open modal always worked, since Portal had already settled
+  // by then.
+  //
+  // Measuring directly from a CALLBACK ref sidesteps this entirely: a
+  // callback ref fires exactly when its DOM node attaches, regardless of
+  // which component's render caused that attachment — including Portal's
+  // own delayed internal one.
+  const measureIndicator = useCallback(() => {
+    const container = tabListRef.current
+    if (!container) return
+    const activeEl = container.querySelector('[aria-selected="true"]')
+    if (!activeEl) return
+    const left = activeEl.offsetLeft
+    const width = activeEl.offsetWidth
+    setIndicatorStyle((prev) => (prev.left === left && prev.width === width ? prev : { left, width }))
+  }, [])
+
+  const setTabListRef = useCallback((el) => {
+    tabListRef.current = el
+    if (el) measureIndicator()
+  }, [measureIndicator])
+
+  // Still keyed on nothing (runs every render) as a second line of defense
+  // for in-modal tab switches and any layout drift — the callback ref above
+  // is what specifically fixes the reopen case.
+  useLayoutEffect(() => {
+    const container = tabListRef.current
+    if (!container) return
+
+    measureIndicator()
+    const raf = requestAnimationFrame(measureIndicator)
+
+    const observer = new ResizeObserver(measureIndicator)
+    observer.observe(container)
+    const activeEl = container.querySelector('[aria-selected="true"]')
+    if (activeEl) observer.observe(activeEl)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  })
+
+  // Modal-resize animation: measures how tall the dialog would need to be
+  // to exactly fit the *active* tab's content, then sets that as an
+  // explicit height on DialogContent (see the transition-[height] class
+  // below) so switching to a shorter/taller tab glides instead of snapping.
+  //
+  // `contentInnerRef.offsetTop` is the height used by everything above the
+  // scrollable body (header, the missing-fields banner when shown, the tab
+  // bar) — it's unaffected by how much the scrollable wrapper around it has
+  // stretched via flex-1, so it stays correct across tab switches, not just
+  // the very first render. `contentInnerRef.scrollHeight` is that tab's own
+  // true content height, likewise independent of the scrollable ancestor's
+  // current (possibly stale, from the *previous* tab) size. Summing the two
+  // gives "how tall the dialog needs to be right now," clamped to the same
+  // ~90vh ceiling the static max-h-[90vh] used to enforce alone — beyond
+  // that, the scrollable wrapper's own overflow-y-auto still takes over
+  // exactly as before.
+  //
+  // Measured from a callback ref (same reasoning as measureIndicator
+  // above): Radix's Portal delays actually rendering the dialog's content
+  // by one internal render cycle on every fresh open, and that transition
+  // doesn't trigger a re-render of this component — a `useLayoutEffect`
+  // alone could run once, find `contentInnerRef.current` still null, and
+  // never get a chance to re-measure once Portal actually mounts.
+  const measureDialogHeight = useCallback(() => {
+    const contentEl = contentInnerRef.current
+    if (!contentEl) return
+    const natural = contentEl.offsetTop + contentEl.scrollHeight
+    setDialogHeight(Math.min(natural, window.innerHeight * 0.9))
+  }, [])
+
+  const setContentInnerRef = useCallback((el) => {
+    contentInnerRef.current = el
+    if (el) measureDialogHeight()
+  }, [measureDialogHeight])
+
+  useLayoutEffect(() => {
+    const contentEl = contentInnerRef.current
+    if (!contentEl) return
+
+    measureDialogHeight()
+
+    const observer = new ResizeObserver(measureDialogHeight)
+    observer.observe(contentEl)
+    window.addEventListener('resize', measureDialogHeight)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measureDialogHeight)
+    }
+  })
 
   if (!task || !form) return null
 
@@ -141,7 +265,8 @@ export default function TaskDetailModal({
     <Dialog open={!!task} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0"
+        className="sm:max-w-2xl flex flex-col p-0 gap-0 overflow-hidden transition-[height] duration-300 ease-in-out"
+        style={{ height: dialogHeight ?? undefined }}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
@@ -184,16 +309,17 @@ export default function TaskDetailModal({
           </div>
         )}
 
-        {/* Tabs: Details | [Support | Resolution] | Comments | Files */}
-        <div role="tablist" aria-label="Task detail sections" className="flex border-b border-border/60 px-6">
+        {/* Tabs: Details | [Support | Resolution] | Comments | Files.
+            Each tab keeps a static transparent border-b-2 for layout
+            spacing; the colored indicator below is the only thing that
+            moves, sliding to whichever tab is active. */}
+        <div ref={setTabListRef} role="tablist" aria-label="Task detail sections" className="relative flex border-b border-border/60 px-6">
           <button
             role="tab"
             aria-selected={modalTab === 'details'}
             onClick={() => setModalTab('details')}
-            className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
-              modalTab === 'details'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+            className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors mr-6 ${
+              modalTab === 'details' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             Details
@@ -204,10 +330,8 @@ export default function TaskDetailModal({
                 role="tab"
                 aria-selected={modalTab === 'support'}
                 onClick={() => setModalTab('support')}
-                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
-                  modalTab === 'support'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors mr-6 ${
+                  modalTab === 'support' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 Support
@@ -222,10 +346,8 @@ export default function TaskDetailModal({
                 role="tab"
                 aria-selected={modalTab === 'resolution'}
                 onClick={() => setModalTab('resolution')}
-                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
-                  modalTab === 'resolution'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors mr-6 ${
+                  modalTab === 'resolution' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 Resolution
@@ -239,10 +361,8 @@ export default function TaskDetailModal({
             role="tab"
             aria-selected={modalTab === 'comments'}
             onClick={() => setModalTab('comments')}
-            className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
-              modalTab === 'comments'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+            className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors mr-6 ${
+              modalTab === 'comments' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <MessageSquare className="h-4 w-4" />
@@ -257,10 +377,8 @@ export default function TaskDetailModal({
             role="tab"
             aria-selected={modalTab === 'files'}
             onClick={() => setModalTab('files')}
-            className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
-              modalTab === 'files'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+            className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors ${
+              modalTab === 'files' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Paperclip className="h-4 w-4" />
@@ -271,15 +389,35 @@ export default function TaskDetailModal({
               </span>
             )}
           </button>
+
+          {/* Sliding active-tab indicator — glides to the active tab's
+              measured position/width (see the useLayoutEffect above) instead
+              of each tab drawing its own static underline. */}
+          <span
+            aria-hidden="true"
+            className="absolute bottom-0 h-0.5 rounded-full bg-primary transition-all duration-300 ease-out"
+            style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+          />
         </div>
 
-        {/* Tab Body */}
-        {isFormTab ? (
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-            {modalTab === 'details' && (
-              <>
-                {/* Task Name */}
-                <div className="space-y-1.5">
+        {/* Tab Body — one shared scroll/padding region wrapping all five
+            tabs' content (rather than each tab owning its own overflow-y-auto
+            + p-6) so contentInnerRef below always measures exactly "the
+            active tab's content, including its padding," which is what the
+            modal-resize effect above needs. */}
+        <div className="flex-1 overflow-y-auto">
+          <div ref={setContentInnerRef} className="p-6">
+            {isFormTab && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {modalTab === 'details' && (
+                  // Fresh mount every time this tab becomes active (this
+                  // block only exists in the tree while modalTab === 'details')
+                  // — animate-in plays its reveal animation on each switch,
+                  // unlike the <form> itself, which stays mounted across
+                  // Details/Support/Resolution and would only animate once.
+                  <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+                    {/* Task Name */}
+                    <div className="space-y-1.5">
                   <label htmlFor="modal-task-title" className="text-xs font-bold text-foreground">Task Title</label>
                   <input
                     id="modal-task-title"
@@ -417,11 +555,19 @@ export default function TaskDetailModal({
                     className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
-              </>
-            )}
+                  </div>
+                )}
 
-            {modalTab === 'support' && showSupportResolutionTabs && supportFields(form, setForm, readOnly)}
-            {modalTab === 'resolution' && showSupportResolutionTabs && resolutionFields(form, setForm, readOnly)}
+                {modalTab === 'support' && showSupportResolutionTabs && (
+                  <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+                    {supportFields(form, setForm, readOnly)}
+                  </div>
+                )}
+                {modalTab === 'resolution' && showSupportResolutionTabs && (
+                  <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+                    {resolutionFields(form, setForm, readOnly)}
+                  </div>
+                )}
 
             {/* Modal Actions */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
@@ -443,25 +589,39 @@ export default function TaskDetailModal({
               )}
             </div>
           </form>
-        ) : modalTab === 'comments' ? (
-          <div className="flex-1 overflow-y-auto p-6">
-            <TaskComments
-              taskId={task.id}
-              userRole={userRole}
-              onCountChange={setCommentCount}
-              readOnly={readOnly}
-            />
+            )}
+
+            {/* Comments/Files stay mounted at all times (found during review:
+                a flicker was reported switching to these tabs) instead of
+                being conditionally rendered like the form tabs above — each
+                fetches its own data on mount and started at `loading = true`,
+                so unmounting and remounting on every tab switch replayed a
+                spinner-then-content flash every single time. Toggling
+                visibility with `hidden` instead means each fetches once, in
+                the background, the moment this modal opens, and switching to
+                the tab is then a plain CSS show/hide with nothing left to
+                (re)load. `animate-in` still plays its reveal animation on
+                every switch back to one of these tabs — a CSS animation
+                restarts when its element goes from display:none to visible
+                again, even though the element itself was never unmounted. */}
+            <div className={`animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ${modalTab === 'comments' ? '' : 'hidden'}`}>
+              <TaskComments
+                taskId={task.id}
+                userRole={userRole}
+                onCountChange={setCommentCount}
+                readOnly={readOnly}
+              />
+            </div>
+            <div className={`animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ${modalTab === 'files' ? '' : 'hidden'}`}>
+              <TaskFiles
+                taskId={task.id}
+                userRole={userRole}
+                onCountChange={setFileCount}
+                readOnly={readOnly}
+              />
+            </div>
           </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-6">
-            <TaskFiles
-              taskId={task.id}
-              userRole={userRole}
-              onCountChange={setFileCount}
-              readOnly={readOnly}
-            />
-          </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   )

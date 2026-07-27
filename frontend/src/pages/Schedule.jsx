@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   fetchProjects,
@@ -56,6 +56,21 @@ export default function Schedule() {
   const [modalTab, setModalTab] = useState('details') // 'details' | 'comments' | 'files'
   const [commentCount, setCommentCount] = useState(0)
   const [fileCount, setFileCount] = useState(0)
+  // Task detail modal animation (matches TaskDetailModal.jsx's shared
+  // component — this modal is a separate, not-yet-consolidated
+  // implementation with the same Details/Comments/Files tab structure, so
+  // it gets the same sliding tab indicator + smooth resize treatment).
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
+  // Found during review: a per-tab `tabRefs.current[modalTab]` map could
+  // end up stale after the modal closed and reopened (the indicator got
+  // stuck on whichever tab was active before close, even though "Details"
+  // was correctly marked active again). Querying the tablist for
+  // `[aria-selected="true"]` instead ties the measured element directly to
+  // the exact same boolean that already drives each tab's active-state
+  // styling — the two can never disagree, since they're the same source.
+  const tabListRef = useRef(null)
+  const [dialogHeight, setDialogHeight] = useState(null)
+  const contentInnerRef = useRef(null)
 
   // Toast notifications
   const [toast, setToast] = useState(null)
@@ -205,6 +220,111 @@ export default function Schedule() {
       setIsSaving(false)
     }
   }
+
+  // Sliding tab-indicator position — glides to whichever tab is active
+  // instead of each tab drawing its own static underline. Measured from the
+  // actual DOM nodes via ResizeObserver (not guessed from text length).
+  //
+  // Root cause (found during review, confirmed by reading
+  // @radix-ui/react-portal's source): Radix's Dialog renders its content
+  // through a Portal that starts internally "unmounted" (`useState(false)`)
+  // and only flips to mounted via ITS OWN `useLayoutEffect(() => setMounted
+  // (true), [])`, one render cycle later. That transition happens entirely
+  // inside Portal's own subtree and does NOT trigger a re-render of this
+  // component — so a `useLayoutEffect` declared here (however its
+  // dependency array is set up) can run once, see `tabListRef.current` is
+  // still null because Portal hasn't rendered real content yet, bail out,
+  // and never get a chance to run again once Portal actually mounts. This
+  // only bit on a fresh modal open (a fresh Portal instance) — clicking
+  // between tabs in an already-open modal always worked, since Portal had
+  // already settled by then.
+  //
+  // Measuring directly from a CALLBACK ref sidesteps this entirely: a
+  // callback ref fires exactly when its DOM node attaches, regardless of
+  // which component's render caused that attachment — including Portal's
+  // own delayed internal one.
+  const measureIndicator = useCallback(() => {
+    const container = tabListRef.current
+    if (!container) return
+    const activeEl = container.querySelector('[aria-selected="true"]')
+    if (!activeEl) return
+    const left = activeEl.offsetLeft
+    const width = activeEl.offsetWidth
+    setIndicatorStyle((prev) => (prev.left === left && prev.width === width ? prev : { left, width }))
+  }, [])
+
+  const setTabListRef = useCallback((el) => {
+    tabListRef.current = el
+    if (el) measureIndicator()
+  }, [measureIndicator])
+
+  // Still keyed on nothing (runs every render) as a second line of defense
+  // for in-modal tab switches and any layout drift — the callback ref above
+  // is what specifically fixes the reopen case.
+  useLayoutEffect(() => {
+    const container = tabListRef.current
+    if (!container) return
+
+    measureIndicator()
+    const raf = requestAnimationFrame(measureIndicator)
+
+    const observer = new ResizeObserver(measureIndicator)
+    observer.observe(container)
+    const activeEl = container.querySelector('[aria-selected="true"]')
+    if (activeEl) observer.observe(activeEl)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+    }
+  })
+
+  // Modal-resize animation: measures how tall the dialog needs to be to
+  // exactly fit the active tab's content, then applies that as an explicit,
+  // transitioning height on DialogContent so switching to a shorter/taller
+  // tab glides instead of snapping. `contentInnerRef.offsetTop` is the
+  // height used by everything above the scrollable body (header, tab bar) —
+  // unaffected by how much the scrollable wrapper around it has stretched
+  // via flex-1, so it stays correct across tab switches, not just the first
+  // render. `contentInnerRef.scrollHeight` is that tab's own true content
+  // height, likewise independent of the scrollable ancestor's current
+  // (possibly stale, from the *previous* tab) size. Clamped to the same
+  // ~90vh ceiling the static max-h-[90vh] used to enforce alone — beyond
+  // that, the scrollable wrapper's own overflow-y-auto still takes over
+  // exactly as before (see TaskDetailModal.jsx for the identical technique).
+  //
+  // Measured from a callback ref (same reasoning as measureIndicator
+  // above): Radix's Portal delays actually rendering the dialog's content
+  // by one internal render cycle on every fresh open, and that transition
+  // doesn't trigger a re-render of this component — a `useLayoutEffect`
+  // alone could run once, find `contentInnerRef.current` still null, and
+  // never get a chance to re-measure once Portal actually mounts.
+  const measureDialogHeight = useCallback(() => {
+    const contentEl = contentInnerRef.current
+    if (!contentEl) return
+    const natural = contentEl.offsetTop + contentEl.scrollHeight
+    setDialogHeight(Math.min(natural, window.innerHeight * 0.9))
+  }, [])
+
+  const setContentInnerRef = useCallback((el) => {
+    contentInnerRef.current = el
+    if (el) measureDialogHeight()
+  }, [measureDialogHeight])
+
+  useLayoutEffect(() => {
+    const contentEl = contentInnerRef.current
+    if (!contentEl) return
+
+    measureDialogHeight()
+
+    const observer = new ResizeObserver(measureDialogHeight)
+    observer.observe(contentEl)
+    window.addEventListener('resize', measureDialogHeight)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measureDialogHeight)
+    }
+  })
 
   // Scopes and filters
   const getFilteredTasks = () => {
@@ -832,7 +952,8 @@ export default function Schedule() {
         <Dialog open={isEditModalOpen} onOpenChange={(open) => !open && setIsEditModalOpen(false)}>
           <DialogContent
             showCloseButton={false}
-            className="sm:max-w-2xl flex flex-col max-h-[90vh] p-0 gap-0"
+            className="sm:max-w-2xl flex flex-col p-0 gap-0 overflow-hidden transition-[height] duration-300 ease-in-out"
+            style={{ height: dialogHeight ?? undefined }}
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
@@ -854,16 +975,16 @@ export default function Schedule() {
               </button>
             </div>
 
-            {/* Tabs */}
-            <div role="tablist" aria-label="Task detail sections" className="flex border-b border-border/60 px-6">
+            {/* Tabs. Each tab keeps a static transparent border-b-2 for
+                layout spacing; the colored indicator below is the only
+                thing that moves, sliding to whichever tab is active. */}
+            <div ref={setTabListRef} role="tablist" aria-label="Task detail sections" className="relative flex border-b border-border/60 px-6">
               <button
                 role="tab"
                 aria-selected={modalTab === 'details'}
                 onClick={() => setModalTab('details')}
-                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
-                  modalTab === 'details'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors mr-6 ${
+                  modalTab === 'details' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 Details
@@ -872,10 +993,8 @@ export default function Schedule() {
                 role="tab"
                 aria-selected={modalTab === 'comments'}
                 onClick={() => setModalTab('comments')}
-                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors mr-6 ${
-                  modalTab === 'comments'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors mr-6 ${
+                  modalTab === 'comments' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <MessageSquare className="h-4 w-4" />
@@ -890,10 +1009,8 @@ export default function Schedule() {
                 role="tab"
                 aria-selected={modalTab === 'files'}
                 onClick={() => setModalTab('files')}
-                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                  modalTab === 'files'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                className={`flex items-center gap-2 px-1 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors ${
+                  modalTab === 'files' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 <Paperclip className="h-4 w-4" />
@@ -904,11 +1021,39 @@ export default function Schedule() {
                   </span>
                 )}
               </button>
+
+              {/* Sliding active-tab indicator — glides to the active tab's
+                  measured position/width instead of each tab drawing its own
+                  static underline. */}
+              <span
+                aria-hidden="true"
+                className="absolute bottom-0 h-0.5 rounded-full bg-primary transition-all duration-300 ease-out"
+                style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+              />
             </div>
 
-            {/* Tab Body */}
-            {modalTab === 'details' ? (
-            <form onSubmit={handleEditSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* Tab Body — one shared scroll/padding region wrapping all
+                three tabs' content (rather than each tab owning its own
+                overflow-y-auto + p-6) so contentInnerRef below always
+                measures exactly "the active tab's content, including its
+                padding," which is what the modal-resize effect above needs.
+                Comments/Files stay mounted at all times instead of being
+                conditionally rendered like Details — each fetches its own
+                data on mount and starts at `loading = true`, so unmounting
+                and remounting on every tab switch would replay a
+                spinner-then-content flash every time. Toggling visibility
+                with `hidden` instead means each fetches once, in the
+                background, the moment this modal opens, and switching to
+                the tab is then a plain CSS show/hide with nothing left to
+                (re)load. `animate-in` still plays its reveal animation on
+                every switch — a CSS animation restarts when its element goes
+                from display:none to visible again, even for an element that
+                was never unmounted (see TaskDetailModal.jsx for the
+                identical set of techniques). */}
+            <div className="flex-1 overflow-y-auto">
+              <div ref={setContentInnerRef} className="p-6">
+            {modalTab === 'details' && (
+            <form onSubmit={handleEditSubmit} className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
               {/* Task Name */}
               <div className="space-y-1.5">
                 <label htmlFor="task-title" className="text-xs font-bold text-foreground">Task Title</label>
@@ -1069,23 +1214,24 @@ export default function Schedule() {
                 )}
               </div>
             </form>
-            ) : modalTab === 'comments' ? (
-            <div className="flex-1 overflow-y-auto p-6">
+            )}
+
+            <div className={`animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ${modalTab === 'comments' ? '' : 'hidden'}`}>
               <TaskComments
                 taskId={selectedTask.id}
                 userRole={userRole}
                 onCountChange={setCommentCount}
               />
             </div>
-            ) : (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className={`animate-in fade-in-0 slide-in-from-bottom-1 duration-300 ${modalTab === 'files' ? '' : 'hidden'}`}>
               <TaskFiles
                 taskId={selectedTask.id}
                 userRole={userRole}
                 onCountChange={setFileCount}
               />
             </div>
-            )}
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}
