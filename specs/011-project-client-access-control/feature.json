@@ -1,0 +1,20 @@
+{
+  "feature": "011-project-client-access-control",
+  "name": "Project Client Access Control",
+  "branch": "011-project-client-access-control",
+  "created": "2026-07-31",
+  "status": "Draft",
+  "reference": "../010-task-detail-tabs",
+  "artifacts": [
+    "feature.json",
+    "constitution.md",
+    "spec.md",
+    "plan.md",
+    "research.md",
+    "data-model.md",
+    "quickstart.md",
+    "project-client-access-control.openapi.yaml",
+    "requirements.md",
+    "tasks.md"
+  ]
+}

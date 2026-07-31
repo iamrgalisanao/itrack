@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\SupportOpsStaleness;
 use App\Services\SupportOpsTodayClassifier;
 use App\Services\SupportOpsWeeklyReportBuilder;
+use App\Support\ProjectClientAccess;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -41,16 +42,17 @@ class NotificationController extends Controller
 
         // Retrieve notifications visible to this user (eager load task to filter deleted ones)
         $notifications = Notification::where($this->visibleToUser($user))
-            ->with('detailedActivity')
+            ->with('detailedActivity.subActivity.activity.module.project')
             ->orderBy('created_at', 'desc')
             ->get()
-            ->filter(function ($n) {
+            ->filter(function ($n) use ($user) {
                 // If notification links to a task, ensure the task still exists in the DB
                 if ($n->detailed_activity_id && !$n->detailedActivity) {
                     $n->delete(); // Auto-clean orphan notifications
                     return false;
                 }
-                return true;
+
+                return $this->linkedTaskVisibleTo($user, $n);
             })
             ->values();
 
@@ -80,7 +82,7 @@ class NotificationController extends Controller
             ? $notification->recipient_user_id === $user->id
             : $notification->user_role === $user->role;
 
-        if (!$isMine) {
+        if (!$isMine || !$this->linkedTaskVisibleTo($user, $notification)) {
             return response()->json(['message' => 'Access denied.'], 403);
         }
 
@@ -89,9 +91,7 @@ class NotificationController extends Controller
             'read_at' => Carbon::now(),
         ]);
 
-        $unreadCount = Notification::where($this->visibleToUser($user))
-            ->where('is_read', false)
-            ->count();
+        $unreadCount = $this->visibleUnreadCount($user);
 
         return response()->json([
             'unread_count' => $unreadCount,
@@ -109,12 +109,17 @@ class NotificationController extends Controller
     {
         $user = $this->user($request);
 
-        Notification::where($this->visibleToUser($user))
+        $visibleIds = Notification::where($this->visibleToUser($user))
             ->where('is_read', false)
-            ->update([
-                'is_read' => true,
-                'read_at' => Carbon::now(),
-            ]);
+            ->with('detailedActivity.subActivity.activity.module.project')
+            ->get()
+            ->filter(fn (Notification $notification) => $this->linkedTaskVisibleTo($user, $notification))
+            ->pluck('id');
+
+        Notification::whereIn('id', $visibleIds)->update([
+            'is_read' => true,
+            'read_at' => Carbon::now(),
+        ]);
 
         return response()->json([
             'unread_count' => 0,
@@ -134,6 +139,43 @@ class NotificationController extends Controller
                     $q->whereNull('recipient_user_id')->where('user_role', $user->role);
                 });
         };
+    }
+
+    private function linkedTaskVisibleTo(User $user, Notification $notification): bool
+    {
+        if (!$user->isClient()) {
+            return true;
+        }
+
+        if (!$notification->detailed_activity_id) {
+            return true;
+        }
+
+        $task = $notification->detailedActivity;
+        if (!$task) {
+            return false;
+        }
+
+        $project = $task->subActivity?->activity?->module?->project;
+        if (!$project) {
+            return false;
+        }
+
+        if (!app(ProjectClientAccess::class)->canReadProject($user, $project)) {
+            return false;
+        }
+
+        return $task->client_visible;
+    }
+
+    private function visibleUnreadCount(User $user): int
+    {
+        return Notification::where($this->visibleToUser($user))
+            ->where('is_read', false)
+            ->with('detailedActivity.subActivity.activity.module.project')
+            ->get()
+            ->filter(fn (Notification $notification) => $this->linkedTaskVisibleTo($user, $notification))
+            ->count();
     }
 
     // ─── Support Ops Automation (005) ───────────────────────────────────────

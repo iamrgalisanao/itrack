@@ -101,6 +101,7 @@ export default function TaskDetailModal({
     SUPPORT_WORK_TYPES.includes(task.work_type) &&
     typeof supportFields === 'function' &&
     typeof resolutionFields === 'function'
+  const isClient = userRole === 'Client'
 
   // Dev-only diagnostic, moved into an effect (found during review) so a
   // mismatched task logs once per actual change instead of on every render.
@@ -471,20 +472,21 @@ export default function TaskDetailModal({
                 </div>
 
                 {/* Responsible & Priority */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label htmlFor="modal-task-responsible" className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
-                    <input
-                      id="modal-task-responsible"
-                      type="text"
-                      disabled={readOnly}
-                      value={form.responsible || ''}
-                      onChange={(e) => setForm((prev) => ({ ...prev, responsible: e.target.value }))}
-                      placeholder="Owner's name or role"
-                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                    />
-                  </div>
-
+                <div className={`grid grid-cols-1 ${isClient ? '' : 'sm:grid-cols-2'} gap-4`}>
+                  {!isClient && (
+                    <div className="space-y-1.5">
+                      <label htmlFor="modal-task-responsible" className="text-xs font-bold text-foreground">Assignee (Responsible)</label>
+                      <input
+                        id="modal-task-responsible"
+                        type="text"
+                        disabled={readOnly}
+                        value={form.responsible || ''}
+                        onChange={(e) => setForm((prev) => ({ ...prev, responsible: e.target.value }))}
+                        placeholder="Owner's name or role"
+                        className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <label htmlFor="modal-task-priority" className="text-xs font-bold text-foreground">Priority</label>
                     <select
@@ -543,18 +545,19 @@ export default function TaskDetailModal({
                   />
                 </div>
 
-                {/* Notes */}
-                <div className="space-y-1.5">
-                  <label htmlFor="modal-task-notes" className="text-xs font-bold text-foreground">Notes</label>
-                  <textarea
-                    id="modal-task-notes"
-                    rows="2"
-                    disabled={readOnly}
-                    value={form.notes || ''}
-                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                  />
-                </div>
+                {!isClient && (
+                  <div className="space-y-1.5">
+                    <label htmlFor="modal-task-notes" className="text-xs font-bold text-foreground">Notes</label>
+                    <textarea
+                      id="modal-task-notes"
+                      rows="2"
+                      disabled={readOnly}
+                      value={form.notes || ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                )}
                   </div>
                 )}
 

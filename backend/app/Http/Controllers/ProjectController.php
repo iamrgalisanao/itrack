@@ -9,6 +9,8 @@ use App\Models\DetailedActivity;
 use App\Models\TeamMember;
 use App\Models\GlossaryTerm;
 use App\Models\DepartmentGrant;
+use App\Models\ProjectMembership;
+use App\Models\ProjectOwnership;
 use App\Services\AuditLogger;
 use App\Models\User;
 use App\Support\AccessContext;
@@ -45,7 +47,11 @@ class ProjectController extends Controller
 
         return Project::with('modules')
             ->accessibleTo($user)
-            ->get();
+            ->get()
+            ->each(fn (Project $project) => $project->setAttribute(
+                'can_manage_client_access',
+                $this->canManageClientAccess($user, $project)
+            ));
     }
 
     // ─── POST /api/projects ──────────────────────────────────────────────────
@@ -102,7 +108,39 @@ class ProjectController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $project->load('modules');
+        return $project->load('modules')->setAttribute(
+            'can_manage_client_access',
+            $this->canManageClientAccess($user, $project)
+        );
+    }
+
+    private function canManageClientAccess(User $user, Project $project): bool
+    {
+        if ($project->client_organization_id === null) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ($user->isProjectManager()) {
+            $hasAnyOwner = ProjectOwnership::where('project_id', $project->id)->exists();
+
+            return !$hasAnyOwner || Project::query()->ownedBy($user)->whereKey($project->id)->exists();
+        }
+
+        if (!$user->isClient()) {
+            return false;
+        }
+
+        return ProjectMembership::query()
+            ->where('client_organization_id', $project->client_organization_id)
+            ->where('project_id', $project->id)
+            ->where('user_id', $user->id)
+            ->where('state', ProjectMembership::STATE_APPROVED)
+            ->where('role', ProjectMembership::ROLE_CLIENT_ADMIN)
+            ->exists();
     }
 
     // ─── PUT /api/projects/{project} ─────────────────────────────────────────

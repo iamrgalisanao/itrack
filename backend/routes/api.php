@@ -13,8 +13,14 @@ use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\GlossaryTermController;
 use App\Http\Controllers\SupportOpsController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\ClientDomainController;
+use App\Http\Controllers\ClientMembershipReviewController;
+use App\Http\Controllers\ClientOrganizationController;
 use App\Http\Controllers\ProjectAssignmentController;
 use App\Http\Controllers\ProjectOwnershipController;
+use App\Http\Controllers\ProjectInvitationController;
+use App\Http\Controllers\ProjectMembershipController;
+use App\Http\Controllers\ProjectClientOrganizationController;
 use App\Http\Controllers\PreviewSessionController;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\ResolvePreviewSession;
@@ -47,6 +53,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     // Projects
     Route::apiResource('projects', ProjectController::class);
     Route::patch('projects/{project}/health', [ProjectController::class, 'updateHealth'])->name('projects.health');
+    Route::patch('projects/{project}/client-organization', [ProjectClientOrganizationController::class, 'update'])->name('projects.client-organization');
 
     // Modules (nested under projects)
     Route::apiResource('projects.modules', ModuleController::class)->shallow();
@@ -115,6 +122,14 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::delete('department-grants/{departmentGrant}', [App\Http\Controllers\DepartmentGrantController::class, 'destroy'])->name('department-grants.destroy');
 
     // Project Assignments (007-permission-hardening — Admin/PM CRUD)
+    Route::get('client-organizations', [ClientOrganizationController::class, 'index'])->name('client-organizations.index');
+    Route::post('client-organizations', [ClientOrganizationController::class, 'store'])->name('client-organizations.store');
+    Route::patch('client-organizations/{clientOrganization}/trusted-domain-policy', [ClientOrganizationController::class, 'updateTrustedDomainPolicy'])->name('client-organizations.trusted-domain-policy');
+    Route::get('client-organizations/{clientOrganization}/domains', [ClientDomainController::class, 'index'])->name('client-domains.index');
+    Route::post('client-organizations/{clientOrganization}/domains', [ClientDomainController::class, 'store'])->name('client-domains.store');
+    Route::delete('client-domains/{clientDomain}', [ClientDomainController::class, 'destroy'])->name('client-domains.destroy');
+    Route::get('client-membership-review', [ClientMembershipReviewController::class, 'index'])->name('client-membership-review.index');
+
     Route::get('project-assignments', [ProjectAssignmentController::class, 'index'])->name('project-assignments.index');
     Route::post('project-assignments', [ProjectAssignmentController::class, 'store'])->name('project-assignments.store');
     Route::delete('project-assignments/{projectAssignment}', [ProjectAssignmentController::class, 'destroy'])->name('project-assignments.destroy');
@@ -123,6 +138,16 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::post('project-ownerships', [ProjectOwnershipController::class, 'store'])->name('project-ownerships.store');
     Route::delete('project-ownerships/{projectOwnership}', [ProjectOwnershipController::class, 'destroy'])->name('project-ownerships.destroy');
     Route::post('project-ownerships/{projectOwnership}/transfer', [ProjectOwnershipController::class, 'transfer'])->name('project-ownerships.transfer');
+    Route::get('projects/{project}/invitations', [ProjectInvitationController::class, 'index'])->name('project-invitations.index');
+    Route::post('projects/{project}/invitations', [ProjectInvitationController::class, 'store'])->name('project-invitations.store');
+    Route::post('project-invitations/accept', [ProjectInvitationController::class, 'accept'])->name('project-invitations.accept');
+    Route::get('projects/{project}/memberships', [ProjectMembershipController::class, 'index'])->name('project-memberships.index');
+    Route::post('project-memberships/{projectMembership}/approve', [ProjectMembershipController::class, 'approve'])->name('project-memberships.approve');
+    Route::post('project-memberships/{projectMembership}/reject', [ProjectMembershipController::class, 'reject'])->name('project-memberships.reject');
+    Route::post('project-memberships/{projectMembership}/suspend', [ProjectMembershipController::class, 'suspend'])->name('project-memberships.suspend');
+    Route::post('project-memberships/{projectMembership}/restore', [ProjectMembershipController::class, 'restore'])->name('project-memberships.restore');
+    Route::post('project-memberships/{projectMembership}/remove', [ProjectMembershipController::class, 'remove'])->name('project-memberships.remove');
+    Route::post('project-memberships/{projectMembership}/expire', [ProjectMembershipController::class, 'expire'])->name('project-memberships.expire');
 
     // Preview Sessions (007-permission-hardening — Admin-only "preview as user")
     Route::post('preview-sessions', [PreviewSessionController::class, 'store'])->name('preview-sessions.store');

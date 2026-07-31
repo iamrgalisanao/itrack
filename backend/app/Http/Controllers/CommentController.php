@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\CommentResource;
 use App\Models\Comment;
 use App\Models\DetailedActivity;
+use App\Models\Project;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Support\ProjectClientAccess;
 use Illuminate\Http\Request;
 
 class CommentController extends Controller
@@ -43,7 +47,11 @@ class CommentController extends Controller
             $query->where('visibility', Comment::VISIBILITY_CLIENT_VISIBLE);
         }
 
-        return response()->json($query->get());
+        return response()->json(
+            $query->get()
+                ->map(fn (Comment $comment) => CommentResource::make($comment)->resolve($request))
+                ->values()
+        );
     }
 
     /**
@@ -60,14 +68,21 @@ class CommentController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        if ($user->isClient()) {
-            return response()->json(['message' => 'Clients are not permitted to post comments.'], 403);
-        }
-
         $validated = $request->validate([
             'body'       => ['required', 'string', 'min:1', 'max:5000'],
             'visibility' => ['required', 'string', 'in:internal,client_visible'],
         ]);
+
+        if ($user->isClient()) {
+            $project = Project::find($detailedActivity->resolveProjectId());
+
+            if (!$project || !$detailedActivity->client_visible || !app(ProjectClientAccess::class)->canContribute($user, $project)) {
+                AuditLogger::denied($request, 'comment.create_client_contribution', 'detailed_activity', $detailedActivity->id);
+                return response()->json(['message' => 'Clients are not permitted to post comments for this task.'], 403);
+            }
+
+            $validated['visibility'] = Comment::VISIBILITY_CLIENT_VISIBLE;
+        }
 
         $comment = $detailedActivity->comments()->create([
             'author'      => $user->name ?? $user->role,
@@ -78,7 +93,7 @@ class CommentController extends Controller
 
         \App\Models\Notification::parseAndSendMentions($validated['body'], $comment, $detailedActivity);
 
-        return response()->json($comment, 201);
+        return response()->json(CommentResource::make($comment)->resolve($request), 201);
     }
 
     /**

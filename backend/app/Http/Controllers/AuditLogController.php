@@ -24,28 +24,50 @@ class AuditLogController extends Controller
             return response()->json(['message' => 'Unauthorized: Audit logs are restricted to Admin users.'], 403);
         }
 
+        $validated = $request->validate([
+            'action' => ['sometimes', 'string', 'max:255'],
+            'entity_type' => ['sometimes', 'string', 'max:255'],
+            'actor_role' => ['sometimes', 'string', 'max:255'],
+            'actor_dept' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'client_organization_id' => ['sometimes', 'integer'],
+            'project_id' => ['sometimes', 'integer'],
+            'membership_user_id' => ['sometimes', 'integer'],
+            'date_from' => ['sometimes', 'date'],
+            'date_to' => ['sometimes', 'date'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:200'],
+        ]);
+
         $query = AuditLog::orderByDesc('created_at');
 
-        if ($request->filled('action')) {
-            $query->where('action', $request->input('action'));
+        if (isset($validated['action'])) {
+            $query->where('action', $validated['action']);
         }
-        if ($request->filled('entity_type')) {
-            $query->where('entity_type', $request->input('entity_type'));
+        if (isset($validated['entity_type'])) {
+            $query->where('entity_type', $validated['entity_type']);
         }
-        if ($request->filled('actor_role')) {
-            $query->where('actor_role', $request->input('actor_role'));
+        if (isset($validated['actor_role'])) {
+            $query->where('actor_role', $validated['actor_role']);
         }
-        if ($request->filled('actor_dept')) {
-            $query->where('actor_dept', $request->input('actor_dept'));
+        if (array_key_exists('actor_dept', $validated)) {
+            $query->where('actor_dept', $validated['actor_dept']);
         }
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->input('date_from'));
+        if (isset($validated['client_organization_id'])) {
+            $this->whereMetadataValue($query, 'client_organization_id', $validated['client_organization_id']);
         }
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->input('date_to'));
+        if (isset($validated['project_id'])) {
+            $this->whereMetadataValue($query, 'project_id', $validated['project_id']);
+        }
+        if (isset($validated['membership_user_id'])) {
+            $this->whereMetadataValue($query, 'membership_user_id', $validated['membership_user_id']);
+        }
+        if (isset($validated['date_from'])) {
+            $query->whereDate('created_at', '>=', $validated['date_from']);
+        }
+        if (isset($validated['date_to'])) {
+            $query->whereDate('created_at', '<=', $validated['date_to']);
         }
 
-        $perPage = min((int) $request->input('per_page', 50), 200);
+        $perPage = $validated['per_page'] ?? 50;
 
         return response()->json($query->paginate($perPage));
     }
@@ -53,5 +75,15 @@ class AuditLogController extends Controller
     private function user(Request $request): User
     {
         return $request->user();
+    }
+
+    private function whereMetadataValue($query, string $key, int $value): void
+    {
+        if ($query->getConnection()->getDriverName() === 'sqlite') {
+            $query->whereRaw("json_extract(metadata, '$.{$key}') = ?", [$value]);
+            return;
+        }
+
+        $query->where("metadata->{$key}", $value);
     }
 }

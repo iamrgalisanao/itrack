@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\AttachmentResource;
 use App\Models\Attachment;
 use App\Models\DetailedActivity;
+use App\Models\Project;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Support\ProjectClientAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -65,7 +69,11 @@ class AttachmentController extends Controller
         }
 
         // path is hidden via $hidden on the model — no manual exclusion needed
-        return response()->json($query->get());
+        return response()->json(
+            $query->get()
+                ->map(fn (Attachment $attachment) => AttachmentResource::make($attachment)->resolve($request))
+                ->values()
+        );
     }
 
     /**
@@ -82,10 +90,6 @@ class AttachmentController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        if ($user->isClient()) {
-            return response()->json(['message' => 'Clients are not permitted to upload files.'], 403);
-        }
-
         $request->validate([
             'file' => [
                 'required',
@@ -95,6 +99,19 @@ class AttachmentController extends Controller
             ],
             'visibility' => ['required', 'string', 'in:internal,client_visible'],
         ]);
+
+        $visibility = $request->input('visibility');
+
+        if ($user->isClient()) {
+            $project = Project::find($detailedActivity->resolveProjectId());
+
+            if (!$project || !$detailedActivity->client_visible || !app(ProjectClientAccess::class)->canContribute($user, $project)) {
+                AuditLogger::denied($request, 'attachment.create_client_contribution', 'detailed_activity', $detailedActivity->id);
+                return response()->json(['message' => 'Clients are not permitted to upload files for this task.'], 403);
+            }
+
+            $visibility = Attachment::VISIBILITY_CLIENT_VISIBLE;
+        }
 
         $uploadedFile = $request->file('file');
         $originalName = $uploadedFile->getClientOriginalName();
@@ -119,10 +136,10 @@ class AttachmentController extends Controller
             'path'                => $storagePath, // stored but hidden from API response
             'mime_type'           => $uploadedFile->getMimeType(),
             'size_bytes'          => $uploadedFile->getSize(),
-            'visibility'          => $request->input('visibility'),
+            'visibility'          => $visibility,
         ]);
 
-        return response()->json($attachment, 201);
+        return response()->json(AttachmentResource::make($attachment)->resolve($request), 201);
     }
 
     /**
