@@ -9,7 +9,8 @@ This setup runs iTrack on one VPS with Docker Compose:
 
 This repository's default Compose stack assumes Apache is already the public
 web server. Apache keeps ports 80/443, and the Docker Nginx container listens
-only on `127.0.0.1:8080`.
+only on `127.0.0.1:18080` by default. Change `ITRACK_HTTP_BIND` in `.env` if
+that port is already used on your VPS.
 
 ## 1. VPS prerequisites
 
@@ -115,8 +116,8 @@ Use a virtual host like this, replacing the domain and certificate paths:
     RequestHeader set X-Forwarded-Proto "https"
     RequestHeader set X-Forwarded-Port "443"
 
-    ProxyPass / http://127.0.0.1:8080/
-    ProxyPassReverse / http://127.0.0.1:8080/
+    ProxyPass / http://127.0.0.1:18080/
+    ProxyPassReverse / http://127.0.0.1:18080/
 
     ErrorLog ${APACHE_LOG_DIR}/itrack-error.log
     CustomLog ${APACHE_LOG_DIR}/itrack-access.log combined
