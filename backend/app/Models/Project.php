@@ -14,6 +14,7 @@ class Project extends Model
         'name',
         'location',
         'updated_date',
+        'client_organization_id',
         'project_owner',
         'department',
         'status',
@@ -40,6 +41,21 @@ class Project extends Model
     public function assignments()
     {
         return $this->hasMany(ProjectAssignment::class);
+    }
+
+    public function clientOrganization()
+    {
+        return $this->belongsTo(ClientOrganization::class);
+    }
+
+    public function memberships()
+    {
+        return $this->hasMany(ProjectMembership::class);
+    }
+
+    public function invitations()
+    {
+        return $this->hasMany(ProjectInvitation::class);
     }
 
     public function ownerships()
@@ -81,8 +97,21 @@ class Project extends Model
             return $query->whereIn('department', $departments);
         }
 
-        if ($user->isTeamMember() || $user->isClient()) {
+        if ($user->isTeamMember()) {
             return $query->whereHas('assignments', fn (Builder $q) => $q->where('user_id', $user->id));
+        }
+
+        if ($user->isClient()) {
+            return $query->where(function (Builder $q) use ($user) {
+                $q->where(function (Builder $legacy) use ($user) {
+                    $legacy->whereNull('client_organization_id')
+                        ->whereHas('assignments', fn (Builder $assignment) => $assignment->where('user_id', $user->id));
+                })->orWhereHas('memberships', function (Builder $membership) use ($user) {
+                    $membership->where('user_id', $user->id)
+                        ->whereColumn('project_memberships.client_organization_id', 'projects.client_organization_id')
+                        ->where('state', ProjectMembership::STATE_APPROVED);
+                });
+            });
         }
 
         // Unknown / null role — deny by returning an impossible match

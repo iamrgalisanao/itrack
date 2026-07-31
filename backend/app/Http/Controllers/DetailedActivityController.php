@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\DetailedActivityResource;
 use App\Models\DetailedActivity;
 use App\Models\SubActivity;
 use App\Services\AuditLogger;
@@ -39,7 +40,11 @@ class DetailedActivityController extends Controller
             $query->where('client_visible', true);
         }
 
-        return $query->get();
+        return response()->json(
+            $query->get()
+                ->map(fn (DetailedActivity $task) => DetailedActivityResource::make($task)->resolve($request))
+                ->values()
+        );
     }
 
     // ─── POST /sub-activities/{subActivity}/detailed-activities ─────────────
@@ -112,7 +117,7 @@ class DetailedActivityController extends Controller
             }
         }
 
-        return $task;
+        return response()->json(DetailedActivityResource::make($task)->resolve($request), 201);
     }
 
     // ─── GET /detailed-activities/{detailedActivity} ─────────────────────────
@@ -130,7 +135,7 @@ class DetailedActivityController extends Controller
             return response()->json(['message' => 'Access denied.'], 403);
         }
 
-        return $detailedActivity;
+        return response()->json(DetailedActivityResource::make($detailedActivity)->resolve($request));
     }
 
     // ─── PUT /detailed-activities/{detailedActivity} ─────────────────────────
@@ -280,7 +285,7 @@ class DetailedActivityController extends Controller
             );
         }
 
-        return $detailedActivity;
+        return response()->json(DetailedActivityResource::make($detailedActivity)->resolve($request));
     }
 
     // ─── DELETE /detailed-activities/{detailedActivity} ──────────────────────

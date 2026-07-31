@@ -1,0 +1,659 @@
+openapi: 3.0.3
+info:
+  title: iTrack Project Client Access Control API
+  version: 0.1.0
+  description: Project-scoped client organization membership, invitations, verified domains, and trusted-domain policy.
+servers:
+  - url: /api
+security:
+  - sanctumCookie: []
+paths:
+  /client-organizations:
+    get:
+      summary: List client organizations
+      operationId: listClientOrganizations
+      tags: [Client Organizations]
+      responses:
+        "200":
+          description: Client organizations visible to the actor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ClientOrganization"
+    post:
+      summary: Create a client organization
+      operationId: createClientOrganization
+      tags: [Client Organizations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientOrganizationCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientOrganizationResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /client-organizations/{clientOrganization}/trusted-domain-policy:
+    patch:
+      summary: Update trusted-domain policy
+      operationId: updateTrustedDomainPolicy
+      tags: [Client Organizations]
+      parameters:
+        - $ref: "#/components/parameters/ClientOrganizationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trusted_domain_policy]
+              properties:
+                trusted_domain_policy:
+                  $ref: "#/components/schemas/TrustedDomainPolicy"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientOrganizationResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /projects/{project}/client-organization:
+    patch:
+      summary: Associate or clear a project's client organization
+      operationId: updateProjectClientOrganization
+      tags: [Projects]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_organization_id]
+              properties:
+                client_organization_id:
+                  type: integer
+                  nullable: true
+      responses:
+        "200":
+          description: Project client organization updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Project"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /client-organizations/{clientOrganization}/domains:
+    get:
+      summary: List domains for a client organization
+      operationId: listClientDomains
+      tags: [Client Domains]
+      parameters:
+        - $ref: "#/components/parameters/ClientOrganizationId"
+      responses:
+        "200":
+          description: Domain list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ClientDomain"
+    post:
+      summary: Add a verified corporate domain
+      operationId: createClientDomain
+      tags: [Client Domains]
+      parameters:
+        - $ref: "#/components/parameters/ClientOrganizationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain:
+                  type: string
+                  example: clientco.example
+      responses:
+        "201":
+          description: Domain created or verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ClientDomain"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /client-domains/{clientDomain}:
+    delete:
+      summary: Remove a verified domain
+      operationId: removeClientDomain
+      tags: [Client Domains]
+      parameters:
+        - name: clientDomain
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /client-membership-review:
+    get:
+      summary: List pending or exceptional client memberships for review
+      operationId: listClientMembershipReview
+      tags: [Project Memberships]
+      parameters:
+        - name: client_organization_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: project_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: domain_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [verified_corporate, public_provider, unverified]
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/MembershipState"
+        - name: older_than_days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProjectMembership"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /projects/{project}/invitations:
+    get:
+      summary: List project invitations
+      operationId: listProjectInvitations
+      tags: [Project Invitations]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Invitation list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProjectInvitation"
+    post:
+      summary: Invite a client contact to a project
+      operationId: createProjectInvitation
+      tags: [Project Invitations]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInvitationCreateRequest"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ProjectInvitationCreated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /project-invitations/accept:
+    post:
+      summary: Accept a project invitation token
+      operationId: acceptProjectInvitation
+      tags: [Project Invitations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        "200":
+          description: Invitation accepted and membership created or updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ProjectMembership"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /projects/{project}/memberships:
+    get:
+      summary: List project memberships
+      operationId: listProjectMemberships
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/MembershipState"
+      responses:
+        "200":
+          description: Membership list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProjectMembership"
+  /project-memberships/{projectMembership}/approve:
+    post:
+      summary: Approve a project membership
+      operationId: approveProjectMembership
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectMembershipId"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectMembershipResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /project-memberships/{projectMembership}/reject:
+    post:
+      summary: Reject a project membership
+      operationId: rejectProjectMembership
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectMembershipId"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectMembershipResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /project-memberships/{projectMembership}/suspend:
+    post:
+      summary: Suspend a project membership
+      operationId: suspendProjectMembership
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectMembershipId"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectMembershipResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /project-memberships/{projectMembership}/restore:
+    post:
+      summary: Restore a suspended project membership
+      operationId: restoreProjectMembership
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectMembershipId"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectMembershipResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /project-memberships/{projectMembership}/remove:
+    post:
+      summary: Remove a project membership
+      operationId: removeProjectMembership
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectMembershipId"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectMembershipResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /project-memberships/{projectMembership}/expire:
+    post:
+      summary: Expire a pending project membership
+      operationId: expireProjectMembership
+      tags: [Project Memberships]
+      parameters:
+        - $ref: "#/components/parameters/ProjectMembershipId"
+      responses:
+        "200":
+          $ref: "#/components/responses/ProjectMembershipResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /audit-logs:
+    get:
+      summary: List audit logs with client access filters
+      operationId: listAuditLogs
+      tags: [Audit Logs]
+      parameters:
+        - name: client_organization_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: project_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: membership_user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLog"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    sanctumCookie:
+      type: apiKey
+      in: cookie
+      name: laravel_session
+  parameters:
+    ClientOrganizationId:
+      name: clientOrganization
+      in: path
+      required: true
+      schema:
+        type: integer
+    ProjectId:
+      name: project
+      in: path
+      required: true
+      schema:
+        type: integer
+    ProjectMembershipId:
+      name: projectMembership
+      in: path
+      required: true
+      schema:
+        type: integer
+  responses:
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+    ProjectMembershipResponse:
+      description: Membership response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/ProjectMembership"
+  schemas:
+    TrustedDomainPolicy:
+      type: string
+      enum: [domain_auto_approve, invitation_only, manual_approval]
+    MembershipState:
+      type: string
+      enum: [pending, approved, rejected, expired, suspended, removed]
+    InvitationState:
+      type: string
+      enum: [pending, accepted, expired, revoked]
+    ProjectMembershipRole:
+      type: string
+      enum: [client_viewer, client_contributor, client_admin]
+    ClientOrganization:
+      type: object
+      required: [id, name, slug, trusted_domain_policy, status]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        trusted_domain_policy:
+          $ref: "#/components/schemas/TrustedDomainPolicy"
+        status:
+          type: string
+          enum: [active, suspended, archived]
+    ClientOrganizationCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        trusted_domain_policy:
+          $ref: "#/components/schemas/TrustedDomainPolicy"
+    ClientOrganizationResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/ClientOrganization"
+    ClientDomain:
+      type: object
+      required: [id, client_organization_id, domain, status]
+      properties:
+        id:
+          type: integer
+        client_organization_id:
+          type: integer
+        domain:
+          type: string
+        status:
+          type: string
+          enum: [verified, removed]
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+    Project:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        client_organization_id:
+          type: integer
+          nullable: true
+    ProjectInvitation:
+      type: object
+      required: [id, client_organization_id, project_id, email, email_domain, role, state, expires_at]
+      properties:
+        id:
+          type: integer
+        client_organization_id:
+          type: integer
+        project_id:
+          type: integer
+        email:
+          type: string
+          format: email
+        email_domain:
+          type: string
+        role:
+          $ref: "#/components/schemas/ProjectMembershipRole"
+        state:
+          $ref: "#/components/schemas/InvitationState"
+        expires_at:
+          type: string
+          format: date-time
+    ProjectInvitationCreated:
+      allOf:
+        - $ref: "#/components/schemas/ProjectInvitation"
+        - type: object
+          properties:
+            invitation_url:
+              type: string
+              description: Returned only immediately after creation when local/dev mail delivery is not configured.
+    ProjectInvitationCreateRequest:
+      type: object
+      required: [client_organization_id, email, role]
+      properties:
+        client_organization_id:
+          type: integer
+        email:
+          type: string
+          format: email
+        role:
+          $ref: "#/components/schemas/ProjectMembershipRole"
+        expires_in_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+    ProjectMembership:
+      type: object
+      required: [id, client_organization_id, project_id, user_id, role, state]
+      properties:
+        id:
+          type: integer
+        client_organization_id:
+          type: integer
+        project_id:
+          type: integer
+        user_id:
+          type: integer
+        role:
+          $ref: "#/components/schemas/ProjectMembershipRole"
+        state:
+          $ref: "#/components/schemas/MembershipState"
+        approved_at:
+          type: string
+          format: date-time
+          nullable: true
+    AuditLog:
+      type: object
+      required: [id, action, entity_type, entity_id, actor_role, message]
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: integer
+          nullable: true
+        actor_role:
+          type: string
+        message:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    ValidationError:
+      type: object
+      required: [message, errors]
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string

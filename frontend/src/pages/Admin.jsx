@@ -20,6 +20,13 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   fetchTeamMembers,
   createTeamMember,
   updateTeamMember,
@@ -42,6 +49,13 @@ import {
   createProjectOwnership,
   deleteProjectOwnership,
   transferProjectOwnership,
+  fetchClientOrganizations,
+  createClientOrganization,
+  updateTrustedDomainPolicy,
+  updateProjectClientOrganization,
+  fetchClientDomains,
+  createClientDomain,
+  deleteClientDomain,
 } from '@/lib/api'
 import {
   ShieldCheck,
@@ -63,6 +77,11 @@ import {
   FolderKanban,
   Eye,
   Crown,
+  Building2,
+  Globe2,
+  Link2,
+  X,
+  Info,
 } from 'lucide-react'
 import { usePreview } from '@/context/PreviewContext'
 
@@ -70,6 +89,11 @@ import { usePreview } from '@/context/PreviewContext'
 const USER_ROLES = ['Admin', 'Project Manager', 'Department Head', 'Team Member', 'Client']
 const DEPARTMENT_REQUIRED_ROLES = ['Team Member', 'Department Head', 'Client']
 const DEPARTMENTS = ['IT', 'Engineering', 'Marketing', 'Finance']
+const TRUSTED_DOMAIN_POLICIES = [
+  ['manual_approval', 'Manual approval'],
+  ['domain_auto_approve', 'Verified domains auto-approve'],
+  ['invitation_only', 'Invitation only'],
+]
 
 export default function Admin() {
   const { startPreview } = usePreview()
@@ -153,6 +177,27 @@ export default function Admin() {
   const [transferTarget, setTransferTarget] = useState(null)
   const [transferForm, setTransferForm] = useState({ new_owner_user_id: '' })
   const [transferError, setTransferError] = useState('')
+
+  // --- Client Organizations State (011-project-client-access-control) ---
+  const [clientOrganizations, setClientOrganizations] = useState([])
+  const [clientProjects, setClientProjects] = useState([])
+  const [clientDomainsByOrg, setClientDomainsByOrg] = useState({})
+  const [clientsLoading, setClientsLoading] = useState(false)
+  const [clientOrgForm, setClientOrgForm] = useState({
+    name: '',
+    trusted_domain_policy: 'manual_approval',
+  })
+  const [clientOrgError, setClientOrgError] = useState('')
+  const [projectClientForm, setProjectClientForm] = useState({ project_id: '', client_organization_id: '' })
+  const [projectClientError, setProjectClientError] = useState('')
+  const [domainForms, setDomainForms] = useState({})
+  const [domainErrors, setDomainErrors] = useState({})
+  const selectedClientProject = clientProjects.find(
+    (project) => String(project.id) === String(projectClientForm.project_id)
+  )
+  const selectedClientOrganization = clientOrganizations.find(
+    (organization) => String(organization.id) === String(selectedClientProject?.client_organization_id)
+  )
 
   // --- Audit Logs State ---
   const [logs, setLogs] = useState([])
@@ -239,6 +284,32 @@ export default function Admin() {
       .catch((err) => console.error('Failed to load users:', err))
   }
 
+  const loadClients = () => {
+    setClientsLoading(true)
+    Promise.all([fetchClientOrganizations(), fetchProjects()])
+      .then(async ([orgRes, projectRes]) => {
+        const orgs = orgRes.data.data || orgRes.data || []
+        setClientOrganizations(orgs)
+        setClientProjects(projectRes.data || [])
+        const domainPairs = await Promise.all(
+          orgs.map((org) =>
+            fetchClientDomains(org.id)
+              .then((res) => [org.id, res.data.data || res.data || []])
+              .catch((err) => {
+                console.error(`Failed to load domains for client organization ${org.id}:`, err)
+                return [org.id, []]
+              })
+          )
+        )
+        setClientDomainsByOrg(Object.fromEntries(domainPairs))
+        setClientsLoading(false)
+      })
+      .catch((err) => {
+        console.error('Failed to load client access controls:', err)
+        setClientsLoading(false)
+      })
+  }
+
   const loadLogs = (filtersToUse = logFilters) => {
     setLogsLoading(true)
     // Clean empty filters before sending
@@ -294,6 +365,7 @@ export default function Admin() {
     else if (activeTab === 'grants') loadGrants()
     else if (activeTab === 'project-assignments') loadAssignments()
     else if (activeTab === 'project-ownership') loadOwnerships()
+    else if (activeTab === 'clients') loadClients()
     else if (activeTab === 'logs') loadLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load* functions are recreated every render; including them would loop
   }, [activeTab])
@@ -588,6 +660,86 @@ export default function Admin() {
     }
   }
 
+  // --- Client Organization Actions (011-project-client-access-control) ---
+  const handleClientOrgSubmit = async (e) => {
+    e.preventDefault()
+    setClientOrgError('')
+    try {
+      await createClientOrganization(clientOrgForm)
+      setClientOrgForm({ name: '', trusted_domain_policy: 'manual_approval' })
+      loadClients()
+    } catch (err) {
+      console.error('Failed to create client organization:', err)
+      setClientOrgError(err.response?.data?.message || 'Failed to create client organization.')
+    }
+  }
+
+  const handlePolicyChange = async (organization, trustedDomainPolicy) => {
+    try {
+      await updateTrustedDomainPolicy(organization.id, trustedDomainPolicy)
+      loadClients()
+    } catch (err) {
+      console.error('Failed to update trusted-domain policy:', err)
+      alert(err.response?.data?.message || 'Failed to update trusted-domain policy.')
+    }
+  }
+
+  const handleProjectClientSubmit = async (e) => {
+    e.preventDefault()
+    setProjectClientError('')
+    try {
+      await updateProjectClientOrganization(
+        projectClientForm.project_id,
+        projectClientForm.client_organization_id ? Number(projectClientForm.client_organization_id) : null
+      )
+      setProjectClientForm({ project_id: '', client_organization_id: '' })
+      loadClients()
+    } catch (err) {
+      console.error('Failed to update project client organization:', err)
+      setProjectClientError(err.response?.data?.message || 'Failed to update project client organization.')
+    }
+  }
+
+  const handleProjectClientProjectChange = (projectId) => {
+    const project = clientProjects.find((item) => String(item.id) === String(projectId))
+    setProjectClientForm({
+      project_id: projectId,
+      client_organization_id: project?.client_organization_id
+        ? String(project.client_organization_id)
+        : '',
+    })
+  }
+
+  const handleDomainSubmit = async (e, organization) => {
+    e.preventDefault()
+    const domain = domainForms[organization.id] || ''
+    setDomainErrors({ ...domainErrors, [organization.id]: '' })
+    try {
+      await createClientDomain(organization.id, { domain })
+      setDomainForms({ ...domainForms, [organization.id]: '' })
+      loadClients()
+    } catch (err) {
+      console.error('Failed to verify client domain:', err)
+      setDomainErrors({
+        ...domainErrors,
+        [organization.id]: err.response?.data?.message || 'Failed to verify domain.',
+      })
+    }
+  }
+
+  const handleDomainDelete = async (domain) => {
+    if (!confirm(`Remove verified domain "${domain.domain}"?`)) {
+      return
+    }
+    try {
+      await deleteClientDomain(domain.id)
+      loadClients()
+    } catch (err) {
+      console.error('Failed to remove client domain:', err)
+      alert(err.response?.data?.message || 'Failed to remove domain.')
+    }
+  }
+
   // --- Audit Log Filters & Pagination ---
   const handleLogFilterChange = (key, value) => {
     const updated = { ...logFilters, [key]: value, page: 1 }
@@ -642,7 +794,7 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6 max-w-234">
+        <TabsList className="grid w-full grid-cols-7 max-w-274">
           <TabsTrigger value="members" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Members
@@ -662,6 +814,10 @@ export default function Admin() {
           <TabsTrigger value="project-ownership" className="flex items-center gap-2">
             <Crown className="h-4 w-4" />
             Project Ownership
+          </TabsTrigger>
+          <TabsTrigger value="clients" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Clients
           </TabsTrigger>
           <TabsTrigger value="logs" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -777,15 +933,18 @@ export default function Admin() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label htmlFor="member-side" className="text-xs font-semibold">Side</label>
-                    <select
-                      id="member-side"
+                    <Select
                       value={memberForm.side}
-                      onChange={(e) => setMemberForm({ ...memberForm, side: e.target.value })}
-                      className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      onValueChange={(v) => setMemberForm({ ...memberForm, side: v })}
                     >
-                      <option value="Vendor">Vendor</option>
-                      <option value="Client">Client</option>
-                    </select>
+                      <SelectTrigger id="member-side">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Vendor">Vendor</SelectItem>
+                        <SelectItem value="Client">Client</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="member-abbreviation" className="text-xs font-semibold">Abbreviation</label>
@@ -866,44 +1025,53 @@ export default function Admin() {
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="user-filter-role" className="font-semibold">Role</label>
-                  <select
-                    id="user-filter-role"
-                    value={userFilters.role}
-                    onChange={(e) => handleUserFilterChange('role', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={userFilters.role || 'all'}
+                    onValueChange={(v) => handleUserFilterChange('role', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Roles</option>
-                    {USER_ROLES.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="user-filter-role" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {USER_ROLES.map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="user-filter-department" className="font-semibold">Department</label>
-                  <select
-                    id="user-filter-department"
-                    value={userFilters.department}
-                    onChange={(e) => handleUserFilterChange('department', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={userFilters.department || 'all'}
+                    onValueChange={(v) => handleUserFilterChange('department', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Depts</option>
-                    {DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="user-filter-department" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Depts</SelectItem>
+                      {DEPARTMENTS.map((d) => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="user-filter-status" className="font-semibold">Status</label>
-                  <select
-                    id="user-filter-status"
-                    value={userFilters.status}
-                    onChange={(e) => handleUserFilterChange('status', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={userFilters.status || 'all'}
+                    onValueChange={(v) => handleUserFilterChange('status', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
+                    <SelectTrigger id="user-filter-status" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="disabled">Disabled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1095,31 +1263,37 @@ export default function Admin() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label htmlFor="user-role" className="text-xs font-semibold">Role</label>
-                    <select
-                      id="user-role"
+                    <Select
                       value={userForm.role}
-                      onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
-                      className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      onValueChange={(v) => setUserForm({ ...userForm, role: v })}
                     >
-                      {USER_ROLES.map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger id="user-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {USER_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <label htmlFor="user-department" className="text-xs font-semibold">
                       Department{DEPARTMENT_REQUIRED_ROLES.includes(userForm.role) ? '' : ' (optional)'}
                     </label>
-                    <select
-                      id="user-department"
+                    <Select
                       value={userForm.department}
-                      onChange={(e) => setUserForm({ ...userForm, department: e.target.value })}
-                      className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      onValueChange={(v) => setUserForm({ ...userForm, department: v })}
                     >
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger id="user-department">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map((d) => (
+                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
@@ -1283,8 +1457,9 @@ export default function Admin() {
                   <p>
                     For example, granting <strong>Department Head</strong> of <strong>Engineering</strong> visibility to <strong>IT</strong> projects will let ANY user switched to "Department Head" with department "Engineering" view both Engineering and IT projects.
                   </p>
-                  <p className="text-xs border-t pt-2 border-border/80">
-                    💡 Perfect for testing and prototyping role configurations before introducing production directory integrations (e.g. Active Directory/Okta).
+                  <p className="text-xs border-t pt-2 border-border/80 flex items-start gap-1.5">
+                    <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    Perfect for testing and prototyping role configurations before introducing production directory integrations (e.g. Active Directory/Okta).
                   </p>
                 </CardContent>
               </Card>
@@ -1303,31 +1478,37 @@ export default function Admin() {
               <form onSubmit={handleGrantSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <label htmlFor="grant-role" className="text-xs font-semibold">Grantee Persona Role</label>
-                  <select
-                    id="grant-role"
+                  <Select
                     value={grantForm.grantee_role}
-                    onChange={(e) => setGrantForm({ ...grantForm, grantee_role: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    onValueChange={(v) => setGrantForm({ ...grantForm, grantee_role: v })}
                   >
-                    <option value="Department Head">Department Head</option>
-                    <option value="Project Manager">Project Manager</option>
-                    <option value="Team Member">Team Member</option>
-                  </select>
+                    <SelectTrigger id="grant-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Department Head">Department Head</SelectItem>
+                      <SelectItem value="Project Manager">Project Manager</SelectItem>
+                      <SelectItem value="Team Member">Team Member</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label htmlFor="grant-grantee-department" className="text-xs font-semibold">Who is requestor (Grantee Department)</label>
-                  <select
-                    id="grant-grantee-department"
+                  <Select
                     value={grantForm.grantee_department}
-                    onChange={(e) => setGrantForm({ ...grantForm, grantee_department: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    onValueChange={(v) => setGrantForm({ ...grantForm, grantee_department: v })}
                   >
-                    <option value="Engineering">Engineering</option>
-                    <option value="IT">IT</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Finance">Finance</option>
-                  </select>
+                    <SelectTrigger id="grant-grantee-department">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5 font-bold text-center py-1">
@@ -1336,17 +1517,20 @@ export default function Admin() {
 
                 <div className="space-y-1.5">
                   <label htmlFor="grant-granted-department" className="text-xs font-semibold">Target Department to Reveal</label>
-                  <select
-                    id="grant-granted-department"
+                  <Select
                     value={grantForm.granted_department}
-                    onChange={(e) => setGrantForm({ ...grantForm, granted_department: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    onValueChange={(v) => setGrantForm({ ...grantForm, granted_department: v })}
                   >
-                    <option value="IT">IT</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Finance">Finance</option>
-                  </select>
+                    <SelectTrigger id="grant-granted-department">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
@@ -1447,34 +1631,38 @@ export default function Admin() {
               <form onSubmit={handleAssignmentSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <label htmlFor="assignment-user" className="text-xs font-semibold">User</label>
-                  <select
-                    id="assignment-user"
+                  <Select
                     required
-                    value={assignmentForm.user_id}
-                    onChange={(e) => setAssignmentForm({ ...assignmentForm, user_id: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={assignmentForm.user_id ? String(assignmentForm.user_id) : ''}
+                    onValueChange={(v) => setAssignmentForm({ ...assignmentForm, user_id: v })}
                   >
-                    <option value="" disabled>Select a Team Member or Client</option>
-                    {assignableUsers.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="assignment-user">
+                      <SelectValue placeholder="Select a Team Member or Client" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignableUsers.map((u) => (
+                        <SelectItem key={u.id} value={String(u.id)}>{u.name} ({u.role})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label htmlFor="assignment-project" className="text-xs font-semibold">Project</label>
-                  <select
-                    id="assignment-project"
+                  <Select
                     required
-                    value={assignmentForm.project_id}
-                    onChange={(e) => setAssignmentForm({ ...assignmentForm, project_id: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={assignmentForm.project_id ? String(assignmentForm.project_id) : ''}
+                    onValueChange={(v) => setAssignmentForm({ ...assignmentForm, project_id: v })}
                   >
-                    <option value="" disabled>Select a project</option>
-                    {assignableProjects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="assignment-project">
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignableProjects.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {assignmentError && (
@@ -1577,34 +1765,38 @@ export default function Admin() {
               <form onSubmit={handleOwnershipSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <label htmlFor="ownership-user" className="text-xs font-semibold">Project Manager</label>
-                  <select
-                    id="ownership-user"
+                  <Select
                     required
-                    value={ownershipForm.user_id}
-                    onChange={(e) => setOwnershipForm({ ...ownershipForm, user_id: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={ownershipForm.user_id ? String(ownershipForm.user_id) : ''}
+                    onValueChange={(v) => setOwnershipForm({ ...ownershipForm, user_id: v })}
                   >
-                    <option value="" disabled>Select a Project Manager</option>
-                    {ownablePms.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="ownership-user">
+                      <SelectValue placeholder="Select a Project Manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ownablePms.map((u) => (
+                        <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label htmlFor="ownership-project" className="text-xs font-semibold">Project</label>
-                  <select
-                    id="ownership-project"
+                  <Select
                     required
-                    value={ownershipForm.project_id}
-                    onChange={(e) => setOwnershipForm({ ...ownershipForm, project_id: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={ownershipForm.project_id ? String(ownershipForm.project_id) : ''}
+                    onValueChange={(v) => setOwnershipForm({ ...ownershipForm, project_id: v })}
                   >
-                    <option value="" disabled>Select a project</option>
-                    {ownableProjects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="ownership-project">
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ownableProjects.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {ownershipError && (
@@ -1635,20 +1827,22 @@ export default function Admin() {
               <form onSubmit={handleTransferSubmit} className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <label htmlFor="transfer-new-owner" className="text-xs font-semibold">New Owner</label>
-                  <select
-                    id="transfer-new-owner"
+                  <Select
                     required
-                    value={transferForm.new_owner_user_id}
-                    onChange={(e) => setTransferForm({ ...transferForm, new_owner_user_id: e.target.value })}
-                    className="w-full text-sm rounded-md border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={transferForm.new_owner_user_id ? String(transferForm.new_owner_user_id) : ''}
+                    onValueChange={(v) => setTransferForm({ ...transferForm, new_owner_user_id: v })}
                   >
-                    <option value="" disabled>Select a Project Manager</option>
-                    {ownablePms
-                      .filter((u) => u.id !== transferTarget?.user.id)
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                  </select>
+                    <SelectTrigger id="transfer-new-owner">
+                      <SelectValue placeholder="Select a Project Manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ownablePms
+                        .filter((u) => u.id !== transferTarget?.user.id)
+                        .map((u) => (
+                          <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {transferError && (
@@ -1664,6 +1858,248 @@ export default function Admin() {
               </form>
             </DialogContent>
           </Dialog>
+        </TabsContent>
+
+        {/* ────────────────── CLIENTS PANEL ────────────────── */}
+        <TabsContent value="clients" className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Client Organizations</CardTitle>
+                  <CardDescription>
+                    Manage client records, trusted-domain policies, and verified corporate domains
+                  </CardDescription>
+                </div>
+                <Button size="sm" variant="outline" onClick={loadClients} className="h-8">
+                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {clientsLoading ? (
+                  <div className="flex items-center justify-center py-10 text-muted-foreground">
+                    <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                    Loading clients...
+                  </div>
+                ) : clientOrganizations.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    No client organizations have been created yet.
+                  </div>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Policy</TableHead>
+                          <TableHead>Projects</TableHead>
+                          <TableHead>Domains</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {clientOrganizations.map((organization) => {
+                          const domains = clientDomainsByOrg[organization.id] || []
+                          const verifiedDomains = domains.filter((domain) => domain.status === 'verified')
+                          const associatedProjects = clientProjects.filter(
+                            (project) => String(project.client_organization_id) === String(organization.id)
+                          )
+                          return (
+                            <TableRow key={organization.id}>
+                              <TableCell>
+                                <div className="font-medium">{organization.name}</div>
+                                <div className="text-xs text-muted-foreground">{organization.slug}</div>
+                              </TableCell>
+                              <TableCell className="min-w-52">
+                                <Select
+                                  value={organization.trusted_domain_policy}
+                                  onValueChange={(v) => handlePolicyChange(organization, v)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {TRUSTED_DOMAIN_POLICIES.map(([value, label]) => (
+                                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="min-w-56">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {associatedProjects.map((project) => (
+                                    <Badge key={project.id} variant="outline" className="gap-1">
+                                      <FolderKanban className="h-3 w-3" />
+                                      {project.name}
+                                    </Badge>
+                                  ))}
+                                  {associatedProjects.length === 0 && (
+                                    <span className="text-xs text-muted-foreground">No linked projects</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {verifiedDomains.map((domain) => (
+                                    <Badge key={domain.id} variant="secondary" className="gap-1">
+                                      <Globe2 className="h-3 w-3" />
+                                      {domain.domain}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDomainDelete(domain)}
+                                        className="ml-1 rounded-sm hover:text-destructive"
+                                        title="Remove domain"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </Badge>
+                                  ))}
+                                  {verifiedDomains.length === 0 && (
+                                    <span className="text-xs text-muted-foreground">No verified domains</span>
+                                  )}
+                                </div>
+                                <form onSubmit={(e) => handleDomainSubmit(e, organization)} className="mt-2 flex gap-2">
+                                  <Input
+                                    value={domainForms[organization.id] || ''}
+                                    onChange={(e) => setDomainForms({ ...domainForms, [organization.id]: e.target.value })}
+                                    placeholder="client.example"
+                                    className="h-8 text-xs"
+                                  />
+                                  <Button size="sm" variant="outline" className="h-8" type="submit">
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Verify
+                                  </Button>
+                                </form>
+                                {domainErrors[organization.id] && (
+                                  <p className="mt-1 text-xs text-destructive">{domainErrors[organization.id]}</p>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create Client</CardTitle>
+                  <CardDescription>Add a client organization with its initial trusted-domain policy</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleClientOrgSubmit} className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label htmlFor="client-org-name" className="text-xs font-semibold">Name</label>
+                      <Input
+                        id="client-org-name"
+                        required
+                        value={clientOrgForm.name}
+                        onChange={(e) => setClientOrgForm({ ...clientOrgForm, name: e.target.value })}
+                        placeholder="Acme Corporation"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor="client-org-policy" className="text-xs font-semibold">Trusted-Domain Policy</label>
+                      <Select
+                        value={clientOrgForm.trusted_domain_policy}
+                        onValueChange={(v) => setClientOrgForm({ ...clientOrgForm, trusted_domain_policy: v })}
+                      >
+                        <SelectTrigger id="client-org-policy">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TRUSTED_DOMAIN_POLICIES.map(([value, label]) => (
+                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {clientOrgError && <p className="text-xs text-destructive">{clientOrgError}</p>}
+                    <Button type="submit" className="w-full">
+                      <Plus className="h-4 w-4" />
+                      Create Client
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Project Client</CardTitle>
+                  <CardDescription>Associate a project with a client organization or clear the association</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleProjectClientSubmit} className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label htmlFor="project-client-project" className="text-xs font-semibold">Project</label>
+                      <Select
+                        required
+                        value={projectClientForm.project_id ? String(projectClientForm.project_id) : ''}
+                        onValueChange={handleProjectClientProjectChange}
+                      >
+                        <SelectTrigger id="project-client-project">
+                          <SelectValue placeholder="Select a project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clientProjects.map((project) => (
+                            <SelectItem key={project.id} value={String(project.id)}>
+                              {project.name}
+                              {project.client_organization_id ? ' - linked' : ' - no client'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {projectClientForm.project_id && (
+                        <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <FolderKanban className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="font-semibold">{selectedClientProject?.name}</span>
+                          </div>
+                          <div className="mt-1 text-muted-foreground">
+                            Current client:{' '}
+                            <span className="font-medium text-foreground">
+                              {selectedClientOrganization?.name || 'No client organization'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor="project-client-organization" className="text-xs font-semibold">Client Organization</label>
+                      <Select
+                        value={projectClientForm.client_organization_id ? String(projectClientForm.client_organization_id) : 'none'}
+                        onValueChange={(v) =>
+                          setProjectClientForm({
+                            ...projectClientForm,
+                            client_organization_id: v === 'none' ? '' : v,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="project-client-organization">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No client organization</SelectItem>
+                          {clientOrganizations.map((organization) => (
+                            <SelectItem key={organization.id} value={String(organization.id)}>{organization.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {projectClientError && <p className="text-xs text-destructive">{projectClientError}</p>}
+                    <Button type="submit" className="w-full">
+                      <Link2 className="h-4 w-4" />
+                      Save Association
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* ────────────────── AUDIT LOGS PANEL ────────────────── */}
@@ -1686,84 +2122,96 @@ export default function Admin() {
               <div className="grid gap-3 grid-cols-2 md:grid-cols-6 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
                 <div className="space-y-1">
                   <label htmlFor="log-filter-action" className="font-semibold">Action</label>
-                  <select
-                    id="log-filter-action"
-                    value={logFilters.action}
-                    onChange={(e) => handleLogFilterChange('action', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={logFilters.action || 'all'}
+                    onValueChange={(v) => handleLogFilterChange('action', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Actions</option>
-                    <option value="project.created">Project Created</option>
-                    <option value="project.updated">Project Updated</option>
-                    <option value="project.deleted">Project Deleted</option>
-                    <option value="project.health_updated">Health Updated</option>
-                    <option value="task.created">Task Created</option>
-                    <option value="task.updated">Task Updated</option>
-                    <option value="task.deleted">Task Deleted</option>
-                    <option value="task.status_changed">Status Changed</option>
-                    <option value="member.created">Member Created</option>
-                    <option value="member.updated">Member Updated</option>
-                    <option value="member.deleted">Member Deleted</option>
-                    <option value="department_grant.created">Grant Created</option>
-                    <option value="department_grant.deleted">Grant Deleted</option>
-                    <option value="project_assignment.created">Assignment Created</option>
-                    <option value="project_assignment.deleted">Assignment Deleted</option>
-                    <option value="project_ownership.created">Owner Assigned</option>
-                    <option value="project_ownership.deleted">Owner Removed</option>
-                    <option value="project_ownership.transferred">Ownership Transferred</option>
-                    <option value="permission.denied">Access Blocked</option>
-                  </select>
+                    <SelectTrigger id="log-filter-action" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Actions</SelectItem>
+                      <SelectItem value="project.created">Project Created</SelectItem>
+                      <SelectItem value="project.updated">Project Updated</SelectItem>
+                      <SelectItem value="project.deleted">Project Deleted</SelectItem>
+                      <SelectItem value="project.health_updated">Health Updated</SelectItem>
+                      <SelectItem value="task.created">Task Created</SelectItem>
+                      <SelectItem value="task.updated">Task Updated</SelectItem>
+                      <SelectItem value="task.deleted">Task Deleted</SelectItem>
+                      <SelectItem value="task.status_changed">Status Changed</SelectItem>
+                      <SelectItem value="member.created">Member Created</SelectItem>
+                      <SelectItem value="member.updated">Member Updated</SelectItem>
+                      <SelectItem value="member.deleted">Member Deleted</SelectItem>
+                      <SelectItem value="department_grant.created">Grant Created</SelectItem>
+                      <SelectItem value="department_grant.deleted">Grant Deleted</SelectItem>
+                      <SelectItem value="project_assignment.created">Assignment Created</SelectItem>
+                      <SelectItem value="project_assignment.deleted">Assignment Deleted</SelectItem>
+                      <SelectItem value="project_ownership.created">Owner Assigned</SelectItem>
+                      <SelectItem value="project_ownership.deleted">Owner Removed</SelectItem>
+                      <SelectItem value="project_ownership.transferred">Ownership Transferred</SelectItem>
+                      <SelectItem value="permission.denied">Access Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1">
                   <label htmlFor="log-filter-entity-type" className="font-semibold">Entity Type</label>
-                  <select
-                    id="log-filter-entity-type"
-                    value={logFilters.entity_type}
-                    onChange={(e) => handleLogFilterChange('entity_type', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={logFilters.entity_type || 'all'}
+                    onValueChange={(v) => handleLogFilterChange('entity_type', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Types</option>
-                    <option value="project">Project</option>
-                    <option value="detailed_activity">Task</option>
-                    <option value="team_member">Team Member</option>
-                    <option value="department_grant">Dept Grant</option>
-                    <option value="project_assignment">Project Assignment</option>
-                    <option value="project_ownership">Project Ownership</option>
-                  </select>
+                    <SelectTrigger id="log-filter-entity-type" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="project">Project</SelectItem>
+                      <SelectItem value="detailed_activity">Task</SelectItem>
+                      <SelectItem value="team_member">Team Member</SelectItem>
+                      <SelectItem value="department_grant">Dept Grant</SelectItem>
+                      <SelectItem value="project_assignment">Project Assignment</SelectItem>
+                      <SelectItem value="project_ownership">Project Ownership</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1">
                   <label htmlFor="log-filter-actor-role" className="font-semibold">Actor Role</label>
-                  <select
-                    id="log-filter-actor-role"
-                    value={logFilters.actor_role}
-                    onChange={(e) => handleLogFilterChange('actor_role', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={logFilters.actor_role || 'all'}
+                    onValueChange={(v) => handleLogFilterChange('actor_role', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Roles</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Project Manager">Project Manager</option>
-                    <option value="Team Member">Team Member</option>
-                    <option value="Department Head">Department Head</option>
-                    <option value="Client">Client</option>
-                  </select>
+                    <SelectTrigger id="log-filter-actor-role" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="Admin">Admin</SelectItem>
+                      <SelectItem value="Project Manager">Project Manager</SelectItem>
+                      <SelectItem value="Team Member">Team Member</SelectItem>
+                      <SelectItem value="Department Head">Department Head</SelectItem>
+                      <SelectItem value="Client">Client</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1">
                   <label htmlFor="log-filter-actor-dept" className="font-semibold">Actor Dept</label>
-                  <select
-                    id="log-filter-actor-dept"
-                    value={logFilters.actor_dept}
-                    onChange={(e) => handleLogFilterChange('actor_dept', e.target.value)}
-                    className="w-full text-xs rounded-md border border-border bg-card px-2 py-1 text-foreground focus:outline-none"
+                  <Select
+                    value={logFilters.actor_dept || 'all'}
+                    onValueChange={(v) => handleLogFilterChange('actor_dept', v === 'all' ? '' : v)}
                   >
-                    <option value="">All Depts</option>
-                    <option value="IT">IT</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Finance">Finance</option>
-                  </select>
+                    <SelectTrigger id="log-filter-actor-dept" className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Depts</SelectItem>
+                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1">

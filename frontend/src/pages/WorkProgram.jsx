@@ -7,6 +7,8 @@ import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEffectiveUser } from '@/context/PreviewContext'
 import AccessDenied from '@/components/AccessDenied'
+import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
+import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
 import {
   Select,
   SelectContent,
@@ -82,6 +84,8 @@ export default function WorkProgram() {
   // context/PreviewContext.jsx.
   const user = useEffectiveUser()
   const userRole = user?.role
+  const isClient = userRole === 'Client'
+  const canReviewClientMemberships = ['Admin', 'Project Manager'].includes(userRole)
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
   const [modules, setModules] = useState([])
@@ -109,6 +113,8 @@ export default function WorkProgram() {
   const [projectEditingId, setProjectEditingId] = useState(null)
   const [projectForm, setProjectForm] = useState({ name: '', location: '', updated_date: '' })
   const [projectSaving, setProjectSaving] = useState(false)
+  const selectedProjectRecord = projects.find((project) => project.id === selectedProject)
+  const canManageSelectedProjectClientAccess = selectedProjectRecord?.can_manage_client_access === true
 
   const populateStateFromModules = (mods) => {
     const newActivities = {}
@@ -1277,6 +1283,16 @@ export default function WorkProgram() {
       )}
 
       {/* ── No project selected ─────────────────────────────────────── */}
+      {selectedProject && canManageSelectedProjectClientAccess && (
+        <>
+          <ProjectClientAccessPanel
+            projectId={selectedProject}
+            clientOrganizationId={selectedProjectRecord?.client_organization_id}
+          />
+          {canReviewClientMemberships && <ClientMembershipReviewQueue />}
+        </>
+      )}
+
       {!selectedProject && (
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted py-20 text-center gap-4">
           <div className="rounded-full bg-muted/60 p-4">
@@ -1587,7 +1603,7 @@ export default function WorkProgram() {
                                             <TableHead className="w-[300px]">Task</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Progress</TableHead>
-                                            <TableHead>Responsible</TableHead>
+                                            {!isClient && <TableHead>Responsible</TableHead>}
                                             <TableHead>Plan Dates</TableHead>
                                             <TableHead>Actual Dates</TableHead>
                                             <TableHead className="w-[120px]">Actions</TableHead>
@@ -1645,7 +1661,7 @@ export default function WorkProgram() {
                                                   </div>
                                                 )}
                                               </TableCell>
-                                              <TableCell>{detail.responsible}</TableCell>
+                                              {!isClient && <TableCell>{detail.responsible}</TableCell>}
                                               <TableCell className="text-sm">
                                                 {formatDate(detail.plan_start_date)} - {formatDate(detail.plan_end_date)}
                                               </TableCell>
@@ -1877,8 +1893,8 @@ export default function WorkProgram() {
             {/* Header */}
             <div className="h-20 bg-muted/20 border-b border-border flex items-center px-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
               <div className="grid grid-cols-12 w-full gap-2 items-center">
-                <div className="col-span-5">Task Name</div>
-                <div className="col-span-2">Contributor</div>
+                <div className={isClient ? 'col-span-7' : 'col-span-5'}>Task Name</div>
+                {!isClient && <div className="col-span-2">Contributor</div>}
                 <div className="col-span-2 text-center">Status</div>
                 <div className="col-span-2 text-right">Dates</div>
                 <div className="col-span-1 text-right">Edit</div>
@@ -1890,7 +1906,7 @@ export default function WorkProgram() {
                 <div key={row.id} className="h-12 flex items-center px-4 hover:bg-muted/30 transition-colors">
                   <div className="grid grid-cols-12 w-full gap-2 items-center text-xs">
                     {/* Task name with indentation based on depth */}
-                    <div className="col-span-5 flex items-center gap-1" style={{ paddingLeft: `${row.depth * 12}px` }}>
+                    <div className={`${isClient ? 'col-span-7' : 'col-span-5'} flex items-center gap-1`} style={{ paddingLeft: `${row.depth * 12}px` }}>
                       {row.type !== 'task' ? (
                         <button
                           onClick={() => handleGanttToggle(row)}
@@ -1913,10 +1929,11 @@ export default function WorkProgram() {
                       </span>
                     </div>
 
-                    {/* Contributor */}
-                    <div className="col-span-2 truncate text-muted-foreground/80 text-[11px]">
-                      {row.responsible}
-                    </div>
+                    {!isClient && (
+                      <div className="col-span-2 truncate text-muted-foreground/80 text-[11px]">
+                        {row.responsible}
+                      </div>
+                    )}
 
                     {/* Status badge */}
                     <div className="col-span-2 flex justify-center">
@@ -2181,10 +2198,12 @@ export default function WorkProgram() {
                                         <span>Status:</span>
                                         <span className="text-foreground capitalize font-medium">{row.status}</span>
                                       </div>
-                                      <div className="flex justify-between">
-                                        <span>Contributor:</span>
-                                        <span className="text-foreground truncate max-w-[140px]">{row.responsible}</span>
-                                      </div>
+                                      {!isClient && (
+                                        <div className="flex justify-between">
+                                          <span>Contributor:</span>
+                                          <span className="text-foreground truncate max-w-[140px]">{row.responsible}</span>
+                                        </div>
+                                      )}
                                       <div className="text-[9px] text-muted-foreground/60 italic text-center mt-2 border-t border-border/40 pt-1.5 select-none pointer-events-none">
                                         Click timeline bar to edit
                                       </div>

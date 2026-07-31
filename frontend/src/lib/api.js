@@ -60,6 +60,8 @@ export const fetchProject = (id) => api.get(`/projects/${id}`)
 export const createProject = (data) => api.post('/projects', data)
 export const updateProject = (id, data) => api.put(`/projects/${id}`, data)
 export const deleteProject = (id) => api.delete(`/projects/${id}`)
+export const updateProjectClientOrganization = (projectId, clientOrganizationId) =>
+  api.patch(`/projects/${projectId}/client-organization`, { client_organization_id: clientOrganizationId })
 
 // Modules
 export const fetchModules = (projectId) => api.get(`/projects/${projectId}/modules`)
@@ -159,6 +161,38 @@ export const fetchAuditLogs = (params) => api.get('/audit-logs', { params })
 export const fetchDepartmentGrants = () => api.get('/department-grants')
 export const createDepartmentGrant = (data) => api.post('/department-grants', data)
 export const deleteDepartmentGrant = (id) => api.delete(`/department-grants/${id}`)
+
+// Client Access Control (011-project-client-access-control)
+export const fetchClientOrganizations = (params) => api.get('/client-organizations', { params })
+export const createClientOrganization = (data) => api.post('/client-organizations', data)
+export const updateTrustedDomainPolicy = (clientOrganizationId, trustedDomainPolicy) =>
+  api.patch(`/client-organizations/${clientOrganizationId}/trusted-domain-policy`, {
+    trusted_domain_policy: trustedDomainPolicy,
+  })
+export const fetchClientDomains = (clientOrganizationId) =>
+  api.get(`/client-organizations/${clientOrganizationId}/domains`)
+export const createClientDomain = (clientOrganizationId, data) =>
+  api.post(`/client-organizations/${clientOrganizationId}/domains`, data)
+export const deleteClientDomain = (clientDomainId) => api.delete(`/client-domains/${clientDomainId}`)
+export const fetchClientMembershipReview = (params) => api.get('/client-membership-review', { params })
+export const fetchProjectInvitations = (projectId, params) =>
+  api.get(`/projects/${projectId}/invitations`, { params })
+export const createProjectInvitation = (projectId, data) => api.post(`/projects/${projectId}/invitations`, data)
+export const acceptProjectInvitation = (token) => api.post('/project-invitations/accept', { token })
+export const fetchProjectMemberships = (projectId, params) =>
+  api.get(`/projects/${projectId}/memberships`, { params })
+export const approveProjectMembership = (projectMembershipId) =>
+  api.post(`/project-memberships/${projectMembershipId}/approve`)
+export const rejectProjectMembership = (projectMembershipId, data) =>
+  api.post(`/project-memberships/${projectMembershipId}/reject`, data)
+export const suspendProjectMembership = (projectMembershipId) =>
+  api.post(`/project-memberships/${projectMembershipId}/suspend`)
+export const restoreProjectMembership = (projectMembershipId) =>
+  api.post(`/project-memberships/${projectMembershipId}/restore`)
+export const removeProjectMembership = (projectMembershipId) =>
+  api.post(`/project-memberships/${projectMembershipId}/remove`)
+export const expireProjectMembership = (projectMembershipId) =>
+  api.post(`/project-memberships/${projectMembershipId}/expire`)
 
 // User Accounts (006-real-user-management, Admin only) — real, sign-in-capable
 // accounts. Distinct from Team Members above, which is a non-authenticating
