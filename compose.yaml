@@ -1,0 +1,90 @@
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:80"
+    networks:
+      - itrack_public
+      - itrack_internal
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - backend_storage:/var/www/html/storage
+    expose:
+      - "9000"
+    networks:
+      - itrack_internal
+
+  queue:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+    volumes:
+      - backend_storage:/var/www/html/storage
+    networks:
+      - itrack_internal
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: sh -c "while true; do php artisan schedule:run --no-interaction; sleep 60; done"
+    volumes:
+      - backend_storage:/var/www/html/storage
+    networks:
+      - itrack_internal
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - itrack_internal
+
+volumes:
+  mysql_data:
+  backend_storage:
+
+networks:
+  itrack_public:
+  itrack_internal:
+    internal: true
