@@ -28,6 +28,7 @@ import { fetchDashboard } from '@/lib/api'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import Dashboard from './pages/Dashboard'
 import WorkProgram from './pages/WorkProgram'
+import ProjectAccess from './pages/ProjectAccess'
 import Glossary from './pages/Glossary'
 import Team from './pages/Team'
 import Kanban from './pages/Kanban'
@@ -656,6 +657,7 @@ function AppShell() {
             <Routes>
               <Route path="/"             element={<Dashboard />} />
               <Route path="/work-program" element={<WorkProgram />} />
+              <Route path="/work-program/access" element={<ProjectAccess />} />
               <Route path="/kanban"       element={<KanbanGuard><Kanban /></KanbanGuard>} />
               <Route path="/support-ops"  element={<SupportOpsGuard><SupportOps /></SupportOpsGuard>} />
               <Route path="/support-ops/today" element={<SupportOpsGuard><TodayDashboard /></SupportOpsGuard>} />

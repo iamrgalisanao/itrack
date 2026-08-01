@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Support\DurationCalculator;
 use Illuminate\Http\Request;
 
 class ModuleController extends Controller
@@ -79,6 +80,11 @@ class ModuleController extends Controller
             'sort_order' => 'integer|min:0',
         ]);
 
+        $validated = array_merge($validated, DurationCalculator::fromDates(
+            $validated['plan_start_date'] ?? null,
+            $validated['plan_end_date'] ?? null,
+        ));
+
         $module = $project->modules()->create($validated);
 
         AuditLogger::record(
@@ -130,6 +136,11 @@ class ModuleController extends Controller
             'plan_end_date' => 'nullable|date',
             'sort_order' => 'integer|min:0',
         ]);
+
+        $validated = array_merge($validated, DurationCalculator::fromDates(
+            $validated['plan_start_date'] ?? $module->plan_start_date,
+            $validated['plan_end_date'] ?? $module->plan_end_date,
+        ));
 
         $module->update($validated);
 

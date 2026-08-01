@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -102,16 +109,19 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
             placeholder="client@example.com"
             aria-label="Invite email"
           />
-          <select
+          <Select
             value={inviteForm.role}
-            onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="Project client role"
+            onValueChange={(value) => setInviteForm({ ...inviteForm, role: value })}
           >
-            {CLIENT_ROLES.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
+            <SelectTrigger aria-label="Project client role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CLIENT_ROLES.map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="submit" disabled={!clientOrganizationId}>
             <MailPlus className="h-4 w-4" />
             Invite

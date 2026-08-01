@@ -8,6 +8,7 @@ use App\Models\SubActivity;
 use App\Services\AuditLogger;
 use App\Models\User;
 use App\Support\AccessContext;
+use App\Support\DurationCalculator;
 use Illuminate\Http\Request;
 
 class DetailedActivityController extends Controller
@@ -87,6 +88,11 @@ class DetailedActivityController extends Controller
         if (!$user->isPmOrAdmin()) {
             $validated['client_visible'] = false;
         }
+
+        $validated = array_merge($validated, DurationCalculator::fromDates(
+            $validated['plan_start_date'] ?? null,
+            $validated['plan_end_date'] ?? null,
+        ));
 
         $task = $subActivity->detailedActivities()->create($validated);
 
@@ -204,6 +210,11 @@ class DetailedActivityController extends Controller
         if (isset($validated['client_visible']) && !$user->isPmOrAdmin()) {
             unset($validated['client_visible']);
         }
+
+        $validated = array_merge($validated, DurationCalculator::fromDates(
+            $validated['plan_start_date'] ?? $detailedActivity->plan_start_date,
+            $validated['plan_end_date'] ?? $detailedActivity->plan_end_date,
+        ));
 
         $oldStatus      = $detailedActivity->status;
         $oldResponsible = $detailedActivity->responsible;

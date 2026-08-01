@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -48,7 +55,7 @@ export default function ClientMembershipReviewQueue() {
     setLoading(true)
     const params = {}
     Object.entries(filtersToUse).forEach(([key, value]) => {
-      if (value !== '') params[key] = value
+      if (value !== '' && value !== 'all') params[key] = value
     })
     fetchClientMembershipReview(params)
       .then((res) => {
@@ -74,7 +81,7 @@ export default function ClientMembershipReviewQueue() {
   }
 
   const handleClearFilters = () => {
-    const reset = { state: '', domain_type: '', older_than_days: '' }
+    const reset = { state: 'all', domain_type: 'all', older_than_days: '' }
     setFilters(reset)
     loadQueue(reset)
   }
@@ -126,28 +133,28 @@ export default function ClientMembershipReviewQueue() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <select
-            value={filters.state}
-            onChange={(e) => handleFilterChange('state', e.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="Review state"
-          >
-            <option value="">All review states</option>
-            {REVIEW_STATES.map((state) => (
-              <option key={state} value={state}>{state}</option>
-            ))}
-          </select>
-          <select
-            value={filters.domain_type}
-            onChange={(e) => handleFilterChange('domain_type', e.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="Domain type"
-          >
-            <option value="">All domain types</option>
-            {DOMAIN_TYPES.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
+          <Select value={filters.state} onValueChange={(value) => handleFilterChange('state', value)}>
+            <SelectTrigger aria-label="Review state">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All review states</SelectItem>
+              {REVIEW_STATES.map((state) => (
+                <SelectItem key={state} value={state}>{state}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.domain_type} onValueChange={(value) => handleFilterChange('domain_type', value)}>
+            <SelectTrigger aria-label="Domain type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All domain types</SelectItem>
+              {DOMAIN_TYPES.map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             min="0"
             type="number"

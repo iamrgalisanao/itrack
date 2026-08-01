@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { intervalToDuration, addDays } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Link } from 'react-router-dom'
 import { useEffectiveUser } from '@/context/PreviewContext'
 import AccessDenied from '@/components/AccessDenied'
-import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
-import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
 import {
   Select,
   SelectContent,
@@ -76,6 +76,14 @@ import {
   SearchX,
   Layers,
   AlertTriangle,
+  MapPin,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Circle,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ShieldCheck,
 } from 'lucide-react'
 
 export default function WorkProgram() {
@@ -168,6 +176,23 @@ export default function WorkProgram() {
     return new Date(year, month - 1, day)
   }
 
+  // Duration is derived from the planned date range, not hand-entered — a
+  // manually-typed duration can drift out of sync with the actual dates.
+  // The +1 day on the end mirrors the inclusive-of-end-date convention used
+  // by the Gantt bar width calc (calculateBarPosition) elsewhere in this file.
+  const deriveDuration = (startStr, endStr) => {
+    const start = parseLocalDate(startStr)
+    const end = parseLocalDate(endStr)
+    if (!start || !end || end < start) {
+      return { duration_months: 0, duration_days: 0 }
+    }
+    const dur = intervalToDuration({ start, end: addDays(end, 1) })
+    return {
+      duration_months: (dur.years || 0) * 12 + (dur.months || 0),
+      duration_days: dur.days || 0,
+    }
+  }
+
   const isToday = (date) => {
     if (!date) return false
     const today = new Date()
@@ -176,7 +201,10 @@ export default function WorkProgram() {
       date.getFullYear() === today.getFullYear()
   }
 
-  const getRolledUpData = () => {
+  // Memoized: this is a full tree walk with date parsing at every level, and was
+  // previously being re-run from scratch up to 3x per render (once for the list
+  // view, once inside getProjectDateRange, once inside getVisibleGanttRows).
+  const rolledUpData = useMemo(() => {
     const rolledUpModules = {}
     const rolledUpActivities = {}
     const rolledUpSubActivities = {}
@@ -347,14 +375,12 @@ export default function WorkProgram() {
     })
 
     return { rolledUpModules, rolledUpActivities, rolledUpSubActivities }
-  }
+  }, [modules, activities, subActivities, detailedActivities])
 
   const getProjectDateRange = () => {
     let min = null
     let max = null
-    
-    const rolledUpData = getRolledUpData()
-    
+
     const checkDate = (dateStr) => {
       const date = parseLocalDate(dateStr)
       if (!date) return
@@ -469,29 +495,31 @@ export default function WorkProgram() {
     switch (status) {
       case 'completed':
         baseStyles = {
-          background: 'linear-gradient(135deg, #10b981, #059669)',
-          border: '1px solid #047857',
+          background: 'linear-gradient(135deg, var(--success), color-mix(in srgb, var(--success) 70%, black))',
+          border: '1px solid color-mix(in srgb, var(--success) 55%, black)',
         }
         break
       case 'in_progress':
         baseStyles = {
-          background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-          border: '1px solid #1d4ed8',
+          background: 'linear-gradient(135deg, var(--info), color-mix(in srgb, var(--info) 70%, black))',
+          border: '1px solid color-mix(in srgb, var(--info) 55%, black)',
         }
         break
       case 'delayed':
-      case 'review':
+      case 'for_review':
         baseStyles = {
-          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-          border: '1px solid #b45309',
+          background: 'linear-gradient(135deg, var(--warning), color-mix(in srgb, var(--warning) 70%, black))',
+          border: '1px solid color-mix(in srgb, var(--warning) 55%, black)',
         }
         break
       case 'not_started':
       case 'pending':
+      case 'backlog':
+      case 'blocked':
       default:
         baseStyles = {
-          background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-          border: '1px solid #b91c1c',
+          background: 'linear-gradient(135deg, var(--destructive), color-mix(in srgb, var(--destructive) 70%, black))',
+          border: '1px solid color-mix(in srgb, var(--destructive) 55%, black)',
         }
         break
     }
@@ -499,11 +527,29 @@ export default function WorkProgram() {
     if (isCritical) {
       return {
         ...baseStyles,
-        boxShadow: '0 0 10px rgba(239, 68, 68, 0.85)',
-        border: '2px solid #ef4444',
+        boxShadow: '0 0 10px color-mix(in srgb, var(--destructive) 85%, transparent)',
+        border: '2px solid var(--destructive)',
       }
     }
     return baseStyles
+  }
+
+  const getGanttStatusIcon = (status) => {
+    switch (status) {
+      case 'completed':
+        return CheckCircle2
+      case 'in_progress':
+        return Clock
+      case 'delayed':
+      case 'for_review':
+        return AlertTriangle
+      case 'not_started':
+      case 'pending':
+      case 'backlog':
+      case 'blocked':
+      default:
+        return Circle
+    }
   }
 
   const getGanttStatusColor = (status) => {
@@ -513,10 +559,12 @@ export default function WorkProgram() {
       case 'in_progress':
         return 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800'
       case 'delayed':
-      case 'review':
+      case 'for_review':
         return 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
       case 'not_started':
       case 'pending':
+      case 'backlog':
+      case 'blocked':
       default:
         return 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
     }
@@ -528,8 +576,13 @@ export default function WorkProgram() {
         return 'Completed'
       case 'in_progress':
         return 'In Progress'
+      case 'backlog':
+        return 'Backlog'
+      case 'blocked':
+        return 'Blocked'
       case 'delayed':
-      case 'review':
+        return 'Delayed'
+      case 'for_review':
         return 'Review'
       case 'not_started':
       case 'pending':
@@ -603,7 +656,6 @@ export default function WorkProgram() {
 
   const getVisibleGanttRows = () => {
     const rows = []
-    const rolledUpData = getRolledUpData()
     const hasFilter = searchTerm !== '' || statusFilter !== 'all'
 
     const traverseModule = (module) => {
@@ -817,16 +869,9 @@ export default function WorkProgram() {
     }
   }
 
-  const handleProjectDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this project? All associated modules, activities, and tasks will be permanently deleted.')) {
-      return
-    }
-    try {
-      await deleteProject(id)
-      await reloadProjects()
-    } catch (err) {
-      console.error('Failed to delete project:', err)
-    }
+  const handleProjectDelete = (id, name) => {
+    setDeleteTarget({ level: 'project', id, name })
+    setDeleteConfirmOpen(true)
   }
 
 
@@ -846,8 +891,7 @@ export default function WorkProgram() {
         output: item.output || '',
         responsible: item.responsible || '',
         support: item.support || '',
-        duration_months: item.duration_months || 0,
-        duration_days: item.duration_days || 0,
+        ...deriveDuration(item.plan_start_date, item.plan_end_date),
         plan_start_date: item.plan_start_date ? item.plan_start_date.substring(0, 10) : '',
         plan_end_date: item.plan_end_date ? item.plan_end_date.substring(0, 10) : '',
         actual_start_date: item.actual_start_date ? item.actual_start_date.substring(0, 10) : '',
@@ -928,8 +972,14 @@ export default function WorkProgram() {
         await deleteSubActivity(id)
       } else if (level === 'task') {
         await deleteDetailedActivity(id)
+      } else if (level === 'project') {
+        await deleteProject(id)
       }
-      await reloadModules()
+      if (level === 'project') {
+        await reloadProjects()
+      } else {
+        await reloadModules()
+      }
       setDeleteConfirmOpen(false)
       setDeleteTarget(null)
     } catch (err) {
@@ -942,10 +992,21 @@ export default function WorkProgram() {
     setProjectsError(null)
     fetchProjects()
       .then(res => {
-        setProjects(res.data.data || res.data)
-        if (res.data.data?.[0] || res.data[0]) {
-          const firstProject = res.data.data?.[0] || res.data[0]
-          setSelectedProject(firstProject.id)
+        const list = res.data.data || res.data
+        setProjects(list)
+
+        // Mirrors the existing `?view=gantt` convention: a `?project=` param
+        // (e.g. the "Back to Work Program" link from /work-program/access)
+        // restores the project that was selected before navigating away,
+        // instead of always resetting to the first project in the list.
+        const params = new URLSearchParams(window.location.search)
+        const requestedId = params.get('project') ? parseInt(params.get('project'), 10) : null
+        const requested = requestedId ? list.find(p => p.id === requestedId) : null
+
+        if (requested) {
+          setSelectedProject(requested.id)
+        } else if (list[0]) {
+          setSelectedProject(list[0].id)
         }
         setLoading(false)
       })
@@ -1040,6 +1101,63 @@ export default function WorkProgram() {
     }
   }
 
+  const expandAll = async () => {
+    const newExpandedModules = {}
+    modules.forEach(m => { newExpandedModules[m.id] = true })
+    setExpandedModules(prev => ({ ...prev, ...newExpandedModules }))
+
+    for (const module of modules) {
+      let acts = activities[module.id]
+      if (!acts) {
+        try {
+          const res = await fetchActivities(module.id)
+          acts = res.data.data || res.data
+          setActivities(prev => ({ ...prev, [module.id]: acts }))
+        } catch (err) {
+          console.error('Failed to fetch activities:', err)
+          continue
+        }
+      }
+
+      const newExpandedActivities = {}
+      for (const activity of acts) {
+        const actKey = `${module.id}-${activity.id}`
+        newExpandedActivities[actKey] = true
+
+        let subs = subActivities[actKey]
+        if (!subs) {
+          try {
+            const res = await fetchSubActivities(activity.id)
+            subs = res.data.data || res.data
+            setSubActivities(prev => ({ ...prev, [actKey]: subs }))
+          } catch (err) {
+            console.error('Failed to fetch sub-activities:', err)
+            continue
+          }
+        }
+
+        for (const sa of subs) {
+          const fullKey = `${module.id}-${activity.id}-${sa.id}`
+          newExpandedActivities[fullKey] = true
+          if (!detailedActivities[fullKey]) {
+            try {
+              const res = await fetchDetailedActivities(sa.id)
+              setDetailedActivities(prev => ({ ...prev, [fullKey]: res.data.data || res.data }))
+            } catch (err) {
+              console.error('Failed to fetch detailed activities:', err)
+            }
+          }
+        }
+      }
+      setExpandedActivities(prev => ({ ...prev, ...newExpandedActivities }))
+    }
+  }
+
+  const collapseAll = () => {
+    setExpandedModules({})
+    setExpandedActivities({})
+  }
+
   const startEdit = (activity) => {
     setEditingId(activity.id)
     setEditForm({
@@ -1109,8 +1227,6 @@ export default function WorkProgram() {
       </div>
     )
   }
-
-  const rolledUpData = getRolledUpData()
 
   // Derive counts for contextual subtitle
   const totalModuleCount = modules.length
@@ -1215,6 +1331,20 @@ export default function WorkProgram() {
             >
               <Settings className="h-4 w-4" />
             </Button>
+            {selectedProject && (canManageSelectedProjectClientAccess || canReviewClientMemberships) && (
+              <Button
+                variant="outline"
+                size="icon"
+                asChild
+                title="Client Access & Governance"
+                aria-label="Client Access & Governance"
+                className="h-9 w-9 shrink-0"
+              >
+                <Link to={`/work-program/access?project=${selectedProject}`}>
+                  <ShieldCheck className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
           </div>
 
           {/* Primary action */}
@@ -1257,9 +1387,12 @@ export default function WorkProgram() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Status: All</SelectItem>
+                    <SelectItem value="backlog">Backlog</SelectItem>
                     <SelectItem value="not_started">Not Started</SelectItem>
                     <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="for_review">For Review</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="blocked">Blocked</SelectItem>
                     <SelectItem value="delayed">Delayed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1283,16 +1416,6 @@ export default function WorkProgram() {
       )}
 
       {/* ── No project selected ─────────────────────────────────────── */}
-      {selectedProject && canManageSelectedProjectClientAccess && (
-        <>
-          <ProjectClientAccessPanel
-            projectId={selectedProject}
-            clientOrganizationId={selectedProjectRecord?.client_organization_id}
-          />
-          {canReviewClientMemberships && <ClientMembershipReviewQueue />}
-        </>
-      )}
-
       {!selectedProject && (
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted py-20 text-center gap-4">
           <div className="rounded-full bg-muted/60 p-4">
@@ -1383,6 +1506,26 @@ export default function WorkProgram() {
               </Button>
             </div>
           )}
+          {totalModuleCount > 0 && !hasActiveSearch && (
+            <div className="flex justify-end gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={expandAll}
+              >
+                <ChevronsUpDown className="h-3.5 w-3.5" /> Expand All
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={collapseAll}
+              >
+                <ChevronsDownUp className="h-3.5 w-3.5" /> Collapse All
+              </Button>
+            </div>
+          )}
           {modules.map(module => (
             <>
             <Card key={module.id}>
@@ -1392,6 +1535,7 @@ export default function WorkProgram() {
                 role="button"
                 tabIndex={0}
                 aria-expanded={!!expandedModules[module.id]}
+                aria-label={`${expandedModules[module.id] ? 'Collapse' : 'Expand'} module: ${module.name}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
@@ -1424,20 +1568,19 @@ export default function WorkProgram() {
                     })()}</span>
                   </div>
                   {['Admin', 'Project Manager'].includes(userRole) && (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="h-8 w-8 p-0"
                         onClick={() => openFormModal('module', 'edit', {}, module)}
                         aria-label={`Edit module: ${module.name}`}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                        className="text-destructive hover:bg-destructive/10"
                         onClick={() => {
                           setDeleteTarget({ level: 'module', id: module.id })
                           setDeleteConfirmOpen(true)
@@ -1470,6 +1613,7 @@ export default function WorkProgram() {
                           role="button"
                           tabIndex={0}
                           aria-expanded={!!expandedActivities[`${module.id}-${activity.id}`]}
+                          aria-label={`${expandedActivities[`${module.id}-${activity.id}`] ? 'Collapse' : 'Expand'} activity: ${activity.name}`}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault()
@@ -1493,20 +1637,19 @@ export default function WorkProgram() {
                               <span>{activity.responsible}</span>
                             </div>
                             {['Admin', 'Project Manager'].includes(userRole) && (
-                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   variant="ghost"
-                                  className="h-8 w-8 p-0"
                                   onClick={() => openFormModal('activity', 'edit', { moduleId: module.id }, activity)}
                                   aria-label={`Edit activity: ${activity.name}`}
                                 >
                                   <Edit className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   variant="ghost"
-                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                  className="text-destructive hover:bg-destructive/10"
                                   onClick={() => {
                                     setDeleteTarget({ level: 'activity', id: activity.id, context: { moduleId: module.id } })
                                     setDeleteConfirmOpen(true)
@@ -1539,6 +1682,7 @@ export default function WorkProgram() {
                                     role="button"
                                     tabIndex={0}
                                     aria-expanded={!!expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`]}
+                                    aria-label={`${expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`] ? 'Collapse' : 'Expand'} sub-activity: ${subActivity.name}`}
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter' || e.key === ' ') {
                                         e.preventDefault()
@@ -1560,20 +1704,19 @@ export default function WorkProgram() {
                                         <span>{subActivity.responsible}</span>
                                       </div>
                                       {['Admin', 'Project Manager'].includes(userRole) && (
-                                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                           <Button
-                                            size="sm"
+                                            size="icon"
                                             variant="ghost"
-                                            className="h-8 w-8 p-0"
                                             onClick={() => openFormModal('sub-activity', 'edit', { moduleId: module.id, activityId: activity.id }, subActivity)}
                                             aria-label={`Edit sub-activity: ${subActivity.name}`}
                                           >
                                             <Edit className="h-3.5 w-3.5" />
                                           </Button>
                                           <Button
-                                            size="sm"
+                                            size="icon"
                                             variant="ghost"
-                                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                            className="text-destructive hover:bg-destructive/10"
                                             onClick={() => {
                                               setDeleteTarget({ level: 'sub-activity', id: subActivity.id, context: { moduleId: module.id, activityId: activity.id } })
                                               setDeleteConfirmOpen(true)
@@ -1606,7 +1749,7 @@ export default function WorkProgram() {
                                             {!isClient && <TableHead>Responsible</TableHead>}
                                             <TableHead>Plan Dates</TableHead>
                                             <TableHead>Actual Dates</TableHead>
-                                            <TableHead className="w-[120px]">Actions</TableHead>
+                                            <TableHead className="w-[170px]">Actions</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -1616,7 +1759,7 @@ export default function WorkProgram() {
                                                 <div className="flex items-center gap-2">
                                                   <span>{detail.name}</span>
                                                   {detail.client_visible && (
-                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-500 bg-blue-500/5 shrink-0">
+                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-700 dark:text-blue-400 bg-blue-500/10 shrink-0">
                                                       Shared with Client
                                                     </Badge>
                                                   )}
@@ -1632,9 +1775,12 @@ export default function WorkProgram() {
                                                       <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
+                                                      <SelectItem value="backlog">Backlog</SelectItem>
                                                       <SelectItem value="not_started">Not Started</SelectItem>
                                                       <SelectItem value="in_progress">In Progress</SelectItem>
+                                                      <SelectItem value="for_review">For Review</SelectItem>
                                                       <SelectItem value="completed">Completed</SelectItem>
+                                                      <SelectItem value="blocked">Blocked</SelectItem>
                                                       <SelectItem value="delayed">Delayed</SelectItem>
                                                     </SelectContent>
                                                   </Select>
@@ -1692,25 +1838,25 @@ export default function WorkProgram() {
                                               </TableCell>
                                               <TableCell>
                                                 {editingId === detail.id ? (
-                                                  <div className="flex gap-1">
-                                                    <Button size="sm" variant="success" onClick={() => saveEdit(detail.id)} aria-label="Save">
+                                                  <div className="flex gap-2">
+                                                    <Button size="icon" variant="success" onClick={() => saveEdit(detail.id)} aria-label="Save">
                                                       <Save className="h-4 w-4" />
                                                     </Button>
-                                                    <Button size="sm" variant="ghost" onClick={cancelEdit} aria-label="Cancel">
+                                                    <Button size="icon" variant="ghost" onClick={cancelEdit} aria-label="Cancel">
                                                       <X className="h-4 w-4" />
                                                     </Button>
                                                   </div>
                                                 ) : (
-                                                  <div className="flex items-center gap-1">
+                                                  <div className="flex items-center gap-2">
                                                     {userRole !== 'Client' && (
                                                       <>
-                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(detail)} title="Quick Status Edit" aria-label="Quick Status Edit">
+                                                        <Button size="icon" variant="ghost" onClick={() => startEdit(detail)} title="Quick Status Edit" aria-label="Quick Status Edit">
                                                           <Edit className="h-4 w-4" />
                                                         </Button>
                                                         <Button
-                                                          size="sm"
+                                                          size="icon"
                                                           variant="ghost"
-                                                          className="h-8 w-8 p-0 text-blue-500"
+                                                          className="text-blue-500"
                                                           onClick={() => openFormModal('task', 'edit', { moduleId: module.id, activityId: activity.id, subActivityId: subActivity.id }, detail)}
                                                           title="Full Edit"
                                                           aria-label={`Full edit: ${detail.name}`}
@@ -1721,9 +1867,9 @@ export default function WorkProgram() {
                                                     )}
                                                     {['Admin', 'Project Manager'].includes(userRole) && (
                                                       <Button
-                                                        size="sm"
+                                                        size="icon"
                                                         variant="ghost"
-                                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                        className="text-destructive hover:bg-destructive/10"
                                                         onClick={() => {
                                                           setDeleteTarget({
                                                             level: 'task',
@@ -1970,9 +2116,9 @@ export default function WorkProgram() {
                     {/* Action buttons */}
                     <div className="col-span-1 flex justify-end">
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-blue-500 hover:bg-muted"
+                        className="text-muted-foreground hover:text-blue-500 hover:bg-muted"
                         onClick={() => {
                           if (row.type === 'module') {
                             openFormModal('module', 'edit', {}, row.item)
@@ -2095,6 +2241,7 @@ export default function WorkProgram() {
 
                       const hasTimeline = actualPos || planPos
                       const isCritical = isItemOnCriticalPath(row, dateRange.actualMax)
+                      const StatusIcon = getGanttStatusIcon(row.status)
 
                       return (
                         <div key={row.id} className="h-12 relative flex items-center hover:bg-muted/10 transition-colors">
@@ -2142,6 +2289,11 @@ export default function WorkProgram() {
                                       className="absolute left-0 top-0 bottom-0 bg-white/20 rounded-l-[5px] transition-all duration-300 pointer-events-none"
                                       style={{ width: `${row.progress}%` }}
                                     />
+                                  )}
+
+                                  {/* Status icon — status must be readable without relying on bar color alone */}
+                                  {actualPos.width > 20 && (
+                                    <StatusIcon className="h-2.5 w-2.5 text-white z-10 shrink-0" strokeWidth={2.5} />
                                   )}
 
                                   {/* Progress label (only if width is large enough and not pending/0%) */}
@@ -2343,15 +2495,22 @@ export default function WorkProgram() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                        {proj.location && <span>📍 {proj.location}</span>}
-                        {proj.updated_date && <span>📅 Last updated: {formatDate(proj.updated_date)}</span>}
+                        {proj.location && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {proj.location}
+                          </span>
+                        )}
+                        {proj.updated_date && (
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" /> Last updated: {formatDate(proj.updated_date)}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="h-8 w-8 p-0"
                         onClick={() => {
                           setProjectEditingId(proj.id)
                           setProjectForm({
@@ -2366,10 +2525,10 @@ export default function WorkProgram() {
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                        onClick={() => handleProjectDelete(proj.id)}
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => handleProjectDelete(proj.id, proj.name)}
                         title="Delete Project"
                         aria-label={`Delete project: ${proj.name}`}
                       >
@@ -2464,7 +2623,11 @@ export default function WorkProgram() {
                   id="plan_start_date"
                   type="date"
                   value={formValues.plan_start_date || ''}
-                  onChange={(e) => setFormValues(prev => ({ ...prev, plan_start_date: e.target.value }))}
+                  onChange={(e) => setFormValues(prev => ({
+                    ...prev,
+                    plan_start_date: e.target.value,
+                    ...deriveDuration(e.target.value, prev.plan_end_date),
+                  }))}
                 />
               </div>
               <div className="space-y-2">
@@ -2473,7 +2636,11 @@ export default function WorkProgram() {
                   id="plan_end_date"
                   type="date"
                   value={formValues.plan_end_date || ''}
-                  onChange={(e) => setFormValues(prev => ({ ...prev, plan_end_date: e.target.value }))}
+                  onChange={(e) => setFormValues(prev => ({
+                    ...prev,
+                    plan_end_date: e.target.value,
+                    ...deriveDuration(prev.plan_start_date, e.target.value),
+                  }))}
                 />
               </div>
             </div>
@@ -2484,9 +2651,10 @@ export default function WorkProgram() {
                 <Input
                   id="duration_months"
                   type="number"
-                  min="0"
+                  readOnly
+                  disabled
                   value={formValues.duration_months || 0}
-                  onChange={(e) => setFormValues(prev => ({ ...prev, duration_months: parseInt(e.target.value) || 0 }))}
+                  className="bg-muted/40 cursor-not-allowed"
                 />
               </div>
               <div className="space-y-2">
@@ -2494,11 +2662,15 @@ export default function WorkProgram() {
                 <Input
                   id="duration_days"
                   type="number"
-                  min="0"
+                  readOnly
+                  disabled
                   value={formValues.duration_days || 0}
-                  onChange={(e) => setFormValues(prev => ({ ...prev, duration_days: parseInt(e.target.value) || 0 }))}
+                  className="bg-muted/40 cursor-not-allowed"
                 />
               </div>
+              <p className="text-xs text-muted-foreground -mt-2 col-span-1 md:col-span-2">
+                Auto-calculated from the planned start and end dates.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -2536,9 +2708,12 @@ export default function WorkProgram() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="backlog">Backlog</SelectItem>
                         <SelectItem value="not_started">Not Started</SelectItem>
                         <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="for_review">For Review</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="blocked">Blocked</SelectItem>
                         <SelectItem value="delayed">Delayed</SelectItem>
                       </SelectContent>
                     </Select>
@@ -2629,7 +2804,7 @@ export default function WorkProgram() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-destructive">Confirm Delete</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this {deleteTarget?.level}? This action cannot be undone and will delete all nested child elements.
+              Are you sure you want to delete this {deleteTarget?.level}{deleteTarget?.name ? ` (${deleteTarget.name})` : ''}? This action cannot be undone and will delete all nested child elements.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-2">

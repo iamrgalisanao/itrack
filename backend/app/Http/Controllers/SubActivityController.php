@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Support\DurationCalculator;
 use Illuminate\Http\Request;
 
 class SubActivityController extends Controller
@@ -62,6 +63,11 @@ class SubActivityController extends Controller
             'sort_order' => 'integer|min:0',
         ]);
 
+        $validated = array_merge($validated, DurationCalculator::fromDates(
+            $validated['plan_start_date'] ?? null,
+            $validated['plan_end_date'] ?? null,
+        ));
+
         $subActivity = $activity->subActivities()->create($validated);
 
         AuditLogger::record(
@@ -116,6 +122,11 @@ class SubActivityController extends Controller
             'plan_end_date' => 'nullable|date',
             'sort_order' => 'integer|min:0',
         ]);
+
+        $validated = array_merge($validated, DurationCalculator::fromDates(
+            $validated['plan_start_date'] ?? $subActivity->plan_start_date,
+            $validated['plan_end_date'] ?? $subActivity->plan_end_date,
+        ));
 
         $subActivity->update($validated);
 
