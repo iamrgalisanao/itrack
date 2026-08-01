@@ -8,10 +8,19 @@
 - Seed or create two client organizations, each associated with two projects through `projects.client_organization_id`.
 - Have one Admin, one Project Manager owning at least one project, and at least two Client-role users.
 
+## Admin UI Setup
+
+1. Sign in as Admin.
+2. Open **Admin Panel > Clients**.
+3. Create or select a client organization.
+4. Use **Project Client** to select a project and associate it with the client organization.
+5. Confirm the association appears in the **Client Organizations** table under the **Projects** column.
+6. When editing an existing association, select the project in **Project Client** and confirm the current client organization is prefilled before saving changes.
+
 ## Scenario 1 - Project-scoped invitation and approval
 
 1. Sign in as a Project Manager who owns Project A.
-2. Create or select ClientCo.
+2. Confirm Project A is already associated with ClientCo in **Admin Panel > Clients**.
 3. Invite `alex@clientco.example` to Project A as `client_viewer`.
 4. Accept the invitation as Alex.
 5. Expected: Alex receives `approved` membership if policy permits auto-approval; otherwise Alex remains `pending` until Admin approval.

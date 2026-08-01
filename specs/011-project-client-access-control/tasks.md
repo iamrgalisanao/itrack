@@ -138,9 +138,9 @@ frontend/src/
 
 - [x] T048 Run `php artisan test` and fix regressions.
 - [x] T049 Run frontend lint/build if frontend files changed.
-- [ ] T050 Validate OpenAPI syntax and compare implemented routes with `project-client-access-control.openapi.yaml`.
-- [ ] T051 Run `git status` and confirm only intended files changed.
-- [ ] T052 Update quickstart.md only if implementation details materially changed during build.
+- [x] T050 Validate OpenAPI syntax and compare implemented routes with `project-client-access-control.openapi.yaml`.
+- [x] T051 Run `git status` and confirm only intended files changed.
+- [x] T052 Update quickstart.md only if implementation details materially changed during build.
 
 ## Dependencies & Execution Order
 
