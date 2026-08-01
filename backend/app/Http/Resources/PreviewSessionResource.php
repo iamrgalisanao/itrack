@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\ProjectClientAccess;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,6 +22,10 @@ class PreviewSessionResource extends JsonResource
                 'name' => $this->target->name,
                 'role' => $this->target->role,
                 'department' => $this->target->department,
+                // 012-help-center: computed for the *previewed* user, not
+                // the Admin starting the preview — see data-model.md "Two
+                // response shapes need this field, not one."
+                'client_role' => app(ProjectClientAccess::class)->highestClientRole($this->target),
             ],
             'expires_at' => $this->expires_at,
         ];

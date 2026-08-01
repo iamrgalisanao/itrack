@@ -71,4 +71,30 @@ class ProjectClientAccess
             ->where('state', ProjectMembership::STATE_APPROVED)
             ->first();
     }
+
+    /**
+     * 012-help-center — FR-003's tiebreak rule: when a Client-role user holds
+     * more than one approved membership across projects, the guide shown is
+     * for their highest-access level, never their lowest. Priority order is
+     * fixed: client_admin > client_contributor > client_viewer.
+     */
+    public function highestClientRole(User $user): ?string
+    {
+        if (!$user->isClient()) {
+            return null;
+        }
+
+        $roles = ProjectMembership::query()
+            ->where('user_id', $user->id)
+            ->where('state', ProjectMembership::STATE_APPROVED)
+            ->pluck('role');
+
+        foreach ([ProjectMembership::ROLE_CLIENT_ADMIN, ProjectMembership::ROLE_CLIENT_CONTRIBUTOR, ProjectMembership::ROLE_CLIENT_VIEWER] as $tier) {
+            if ($roles->contains($tier)) {
+                return $tier;
+            }
+        }
+
+        return null;
+    }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\ProjectClientAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\Request;
@@ -11,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function __construct(private readonly ProjectClientAccess $access) {}
+
     /**
      * POST /api/login
      *
@@ -91,6 +94,9 @@ class AuthController extends Controller
             'email'      => $user->email,
             'role'       => $user->role,
             'department' => $user->department,
+            // 012-help-center: null for every non-Client role, and for a
+            // Client with no approved ProjectMembership (FR-004's default).
+            'client_role' => $this->access->highestClientRole($user),
         ];
     }
 }
