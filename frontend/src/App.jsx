@@ -20,6 +20,7 @@ import {
   LogOut,
   MessagesSquare,
   MessageSquareQuote,
+  Bug,
   Sunrise,
   Library,
   PanelLeftClose,
@@ -40,6 +41,7 @@ import TodayDashboard from './pages/TodayDashboard'
 import SupportOpsKnowledgeBase from './pages/SupportOpsKnowledgeBase'
 import Login from './pages/Login'
 import Retrospectives from './pages/Retrospectives'
+import BugTracker from './pages/BugTracker'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -116,6 +118,7 @@ const NAV_GROUPS = [
         ],
       },
       { path: '/retrospectives', label: 'Retrospectives', icon: MessageSquareQuote, internalOnly: true },
+      { path: '/bug-tracker', label: 'Bug Tracker', icon: Bug },
     ],
   },
   {
@@ -681,6 +684,11 @@ function AppShell() {
               <Route path="/support-ops/today" element={<SupportOpsGuard><TodayDashboard /></SupportOpsGuard>} />
               <Route path="/support-ops/knowledge-base" element={<SupportOpsGuard><SupportOpsKnowledgeBase /></SupportOpsGuard>} />
               <Route path="/retrospectives" element={<RetrospectivesGuard><Retrospectives /></RetrospectivesGuard>} />
+              {/* 017-bug-tracker: no route guard — every role has a legitimate
+                  path (Client gets read-only, client_visible bugs); all
+                  enforcement is server-side in BugController and in the
+                  page's own conditional rendering. */}
+              <Route path="/bug-tracker"  element={<BugTracker />} />
               <Route path="/schedule"     element={<Schedule />} />
               <Route path="/reports"      element={<Reports />} />
               <Route path="/glossary"     element={<Glossary />} />

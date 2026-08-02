@@ -291,4 +291,11 @@ export const downloadRetroEntryAttachment = async (id, filename) => {
   window.URL.revokeObjectURL(url)
 }
 
+// Bug Tracker (017-bug-tracker)
+export const fetchBugs = (projectId) => api.get(`/projects/${projectId}/bugs`)
+export const createBug = (projectId, data) => api.post(`/projects/${projectId}/bugs`, data)
+export const fetchBug = (id) => api.get(`/bugs/${id}`)
+export const updateBug = (id, data) => api.patch(`/bugs/${id}`, data)
+export const deleteBug = (id) => api.delete(`/bugs/${id}`)
+
 export default api

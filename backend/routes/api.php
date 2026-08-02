@@ -13,6 +13,7 @@ use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\GlossaryTermController;
 use App\Http\Controllers\SupportOpsController;
 use App\Http\Controllers\RetrospectiveController;
+use App\Http\Controllers\BugController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ClientDomainController;
 use App\Http\Controllers\ClientMembershipReviewController;
@@ -122,6 +123,13 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::post('retro-entries/{retroEntry}/attachments', [RetrospectiveController::class, 'storeAttachment']);
     Route::get('retro-entry-attachments/{retroEntryAttachment}/download', [RetrospectiveController::class, 'downloadAttachment']);
     Route::delete('retro-entry-attachments/{retroEntryAttachment}', [RetrospectiveController::class, 'destroyAttachment']);
+
+    // Bug Tracker (017-bug-tracker)
+    Route::get('projects/{project}/bugs', [BugController::class, 'index']);
+    Route::post('projects/{project}/bugs', [BugController::class, 'store']);
+    Route::get('bugs/{bug}', [BugController::class, 'show']);
+    Route::patch('bugs/{bug}', [BugController::class, 'update']);
+    Route::delete('bugs/{bug}', [BugController::class, 'destroy']);
 
     // Notifications
     Route::get('notifications', [App\Http\Controllers\NotificationController::class, 'index']);
