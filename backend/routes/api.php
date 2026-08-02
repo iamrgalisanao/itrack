@@ -12,6 +12,7 @@ use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\TeamMemberController;
 use App\Http\Controllers\GlossaryTermController;
 use App\Http\Controllers\SupportOpsController;
+use App\Http\Controllers\RetrospectiveController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ClientDomainController;
 use App\Http\Controllers\ClientMembershipReviewController;
@@ -103,6 +104,24 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::get('support-ops/today', [SupportOpsController::class, 'today']);
     Route::get('support-ops/knowledge-base', [SupportOpsController::class, 'knowledgeBase']);
     Route::post('support-ops/{id}/generation-log', [SupportOpsController::class, 'generationLog']);
+
+    // Sprint Retrospectives (013-sprint-retrospectives)
+    Route::get('retro-sessions', [RetrospectiveController::class, 'indexSessions']);
+    Route::post('retro-sessions', [RetrospectiveController::class, 'storeSession']);
+    Route::get('retro-sessions/{retroSession}', [RetrospectiveController::class, 'showSession']);
+    Route::patch('retro-sessions/{retroSession}', [RetrospectiveController::class, 'updateSession']);
+    Route::post('retro-sessions/{retroSession}/entries', [RetrospectiveController::class, 'storeEntry']);
+    Route::patch('retro-entries/{retroEntry}', [RetrospectiveController::class, 'updateEntry']);
+    Route::delete('retro-entries/{retroEntry}', [RetrospectiveController::class, 'destroyEntry']);
+    Route::post('retro-entries/{retroEntry}/vote', [RetrospectiveController::class, 'toggleVote']);
+
+    // Retro Entry Discussion, Attachments & Decision (015-retro-entry-context)
+    Route::get('retro-entries/{retroEntry}/comments', [RetrospectiveController::class, 'indexComments']);
+    Route::post('retro-entries/{retroEntry}/comments', [RetrospectiveController::class, 'storeComment']);
+    Route::get('retro-entries/{retroEntry}/attachments', [RetrospectiveController::class, 'indexAttachments']);
+    Route::post('retro-entries/{retroEntry}/attachments', [RetrospectiveController::class, 'storeAttachment']);
+    Route::get('retro-entry-attachments/{retroEntryAttachment}/download', [RetrospectiveController::class, 'downloadAttachment']);
+    Route::delete('retro-entry-attachments/{retroEntryAttachment}', [RetrospectiveController::class, 'destroyAttachment']);
 
     // Notifications
     Route::get('notifications', [App\Http\Controllers\NotificationController::class, 'index']);

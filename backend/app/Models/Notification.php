@@ -217,4 +217,75 @@ class Notification extends Model
             }
         }
     }
+
+    /**
+     * 015-retro-entry-context/research.md D4: parseAndSendMentions() above
+     * is type-coupled to Comment/DetailedActivity and reads author_role/
+     * visibility fields RetroEntryComment doesn't have — this is a small
+     * parallel method (same regex/role-matching/dedup logic), not a shared
+     * one. Client is never a valid mention target here since Retrospectives
+     * has no Client-visibility path at all (spec FR-016), unlike the
+     * conditional Client check above.
+     */
+    public static function parseAndSendRetroMentions(string $body, RetroEntryComment $comment, RetroEntry $entry): void
+    {
+        preg_match_all('/@([a-zA-Z\s]+)/', $body, $matches);
+
+        if (empty($matches[1])) {
+            return;
+        }
+
+        $notifiedRoles = [];
+        $commentAuthorRole = $comment->author->role;
+
+        foreach ($matches[1] as $mentionText) {
+            $mentionText = trim($mentionText);
+            $targetRole = null;
+
+            $lower = strtolower($mentionText);
+            if (str_starts_with($lower, 'admin')) {
+                $targetRole = 'Admin';
+            } elseif (str_starts_with($lower, 'project manager') || str_starts_with($lower, 'projectmanager') || str_starts_with($lower, 'pm') || str_starts_with($lower, 'ppm')) {
+                $targetRole = 'Project Manager';
+            } elseif (str_starts_with($lower, 'team member') || str_starts_with($lower, 'teammember') || str_starts_with($lower, 'tm') || str_starts_with($lower, 'pfc') || str_starts_with($lower, 'pts')) {
+                $targetRole = 'Team Member';
+            } elseif (str_starts_with($lower, 'department head') || str_starts_with($lower, 'departmenthead') || str_starts_with($lower, 'dh')) {
+                $targetRole = 'Department Head';
+            }
+            // Client is intentionally never matched — Retrospectives has no
+            // Client-reachable path at all (spec FR-016), unlike Comment's
+            // conditional visibility-gated Client case above.
+
+            if ($targetRole) {
+                if (in_array($targetRole, $notifiedRoles)) {
+                    continue;
+                }
+
+                if ($targetRole === $commentAuthorRole) {
+                    continue;
+                }
+
+                $notifiedRoles[] = $targetRole;
+
+                $eventKey = "mention:retro_comment:{$comment->id}:{$targetRole}";
+                self::sendNotification(
+                    $targetRole,
+                    self::TYPE_MENTION,
+                    self::SEVERITY_INFO,
+                    "Mention in Retrospective",
+                    "{$comment->author->name} mentioned you in a comment on retro entry: \"" . substr($entry->body, 0, 60) . "\"",
+                    null,
+                    "/retrospectives?session={$entry->retro_session_id}",
+                    $eventKey,
+                    null,
+                    [
+                        'retro_entry_comment_id' => $comment->id,
+                        'retro_entry_id' => $entry->id,
+                        'author' => $comment->author->name,
+                        'comment_body' => substr($comment->body, 0, 100),
+                    ]
+                );
+            }
+        }
+    }
 }

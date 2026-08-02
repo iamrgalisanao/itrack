@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   LogOut,
   MessagesSquare,
+  MessageSquareQuote,
   Sunrise,
   Library,
   PanelLeftClose,
@@ -38,6 +39,7 @@ import SupportOps from './pages/SupportOps'
 import TodayDashboard from './pages/TodayDashboard'
 import SupportOpsKnowledgeBase from './pages/SupportOpsKnowledgeBase'
 import Login from './pages/Login'
+import Retrospectives from './pages/Retrospectives'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -113,6 +115,7 @@ const NAV_GROUPS = [
           { path: '/support-ops/knowledge-base', label: 'Knowledge Base', icon: Library },
         ],
       },
+      { path: '/retrospectives', label: 'Retrospectives', icon: MessageSquareQuote, internalOnly: true },
     ],
   },
   {
@@ -620,6 +623,23 @@ function SupportOpsGuard({ children }) {
   return children
 }
 
+/**
+ * 013-sprint-retrospectives: same internal-only audience as Kanban/Support
+ * Ops — a Client hitting the URL directly is denied here, not just hidden
+ * from the sidebar (internalOnly on the nav item alone wouldn't stop that).
+ */
+function RetrospectivesGuard({ children }) {
+  const user = useEffectiveUser()
+
+  if (!KANBAN_INTERNAL_ROLES.includes(user?.role)) {
+    return (
+      <AccessDenied message="Retrospectives is restricted to internal team members. Client accounts do not have access." />
+    )
+  }
+
+  return children
+}
+
 /* ─── Root App ──────────────────────────────────────────────────────────────── */
 function AppShell() {
   // 007-permission-hardening: NotificationBell's polling should restart
@@ -660,6 +680,7 @@ function AppShell() {
               <Route path="/support-ops"  element={<SupportOpsGuard><SupportOps /></SupportOpsGuard>} />
               <Route path="/support-ops/today" element={<SupportOpsGuard><TodayDashboard /></SupportOpsGuard>} />
               <Route path="/support-ops/knowledge-base" element={<SupportOpsGuard><SupportOpsKnowledgeBase /></SupportOpsGuard>} />
+              <Route path="/retrospectives" element={<RetrospectivesGuard><Retrospectives /></RetrospectivesGuard>} />
               <Route path="/schedule"     element={<Schedule />} />
               <Route path="/reports"      element={<Reports />} />
               <Route path="/glossary"     element={<Glossary />} />
