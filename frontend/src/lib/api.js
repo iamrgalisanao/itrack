@@ -109,9 +109,13 @@ export const deleteGlossaryTerm = (id) => api.delete(`/glossary-terms/${id}`)
 export const fetchAttachments  = (detailedActivityId) =>
   api.get(`/detailed-activities/${detailedActivityId}/attachments`)
 
-// Note: do NOT set Content-Type manually — Axios sets it with the correct multipart boundary
+// Content-Type must be cleared per-request (not left as the shared api instance's
+// default 'application/json') so the browser sets the correct multipart boundary.
 export const uploadAttachment  = (detailedActivityId, formData, onUploadProgress) =>
-  api.post(`/detailed-activities/${detailedActivityId}/attachments`, formData, { onUploadProgress })
+  api.post(`/detailed-activities/${detailedActivityId}/attachments`, formData, {
+    onUploadProgress,
+    headers: { 'Content-Type': undefined },
+  })
 
 export const deleteAttachment  = (id) => api.delete(`/attachments/${id}`)
 
