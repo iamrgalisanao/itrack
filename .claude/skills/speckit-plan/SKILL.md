@@ -61,12 +61,31 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
+3. **Detect actual repository architecture** (before writing Technical Context):
+   - Read `backend/composer.json` (and `backend/composer.lock` if present) to determine the actual installed Laravel version — do not assume the version named in the constitution or in prior specs is still current.
+   - Read `frontend/package.json` to confirm the actual React/Vite/build-tool versions and whether TypeScript is present (check for `typescript` in dependencies and any `.ts`/`.tsx` files).
+   - The plan MUST build on the repository's existing Laravel and React architecture (existing controllers/models/routes conventions, existing frontend routing/state patterns) rather than introducing a parallel structure.
+   - **Do not use Laravel-version-specific APIs, syntax, or package features unless the detected installed Laravel version actually supports them.** If Technical Context or research.md is tempted to reference a Laravel 13-only API, verify against the detected version first; if the repo is on an earlier version, use the equivalent API for that version instead.
+
+4. **Apply installed coding-standard skills**: Load and apply the rules from the project's installed skills relevant to this feature's surface:
+   - `.claude/skills/php-best-practices` and `.claude/skills/laravel-best-practices` — for any backend PHP/Laravel work
+   - `.claude/skills/react-vite-best-practices` — for any frontend React/Vite work
+   - `.claude/skills/typescript-react-patterns` — for any frontend work, applied prospectively if the repo is not yet on TypeScript (see Technical Context detection above)
+   - `.claude/skills/laravel-testing` — to shape the test-task requirements below
+   - `.claude/skills/laravel-owasp-security` — for any endpoint, auth, file-upload, or data-exposure surface
+   - `.claude/skills/code-slop` — to shape review/validation expectations, not just implementation style
+
+   Convert the applicable rules from each skill into concrete, feature-specific output in the plan artifacts — not a generic restatement of the skill:
+   - **Technical constraints**: add a "Coding-Standard Constraints" subsection under Technical Context in plan.md, listing the specific rules from the applicable skills that bind this feature (e.g., a specific validation pattern, a specific N+1-avoidance rule, a specific typed-props rule).
+   - **Test requirements**: research.md and data-model.md/contracts must call out the specific test cases `laravel-testing` and `laravel-owasp-security` imply for this feature's surface (e.g., authorization-denied cases, mass-assignment guards, an OWASP-relevant case such as IDOR/broken access control on a new endpoint) — these feed directly into `/speckit-tasks`' test tasks (Constitution Principle III and VIII).
+   - **Validation tasks**: quickstart.md must include the manual/automated validation steps implied by `laravel-owasp-security` and `code-slop` for this feature (e.g., "verify the new endpoint rejects a user without project access", "confirm no unexplained defensive/mock-heavy code was introduced") so they carry forward into `/speckit-tasks` as explicit tasks, satisfying Constitution Principle VIII's Definition-of-Done Gate.
+
+5. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
+   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION"), including the Coding-Standard Constraints subsection from step 4
+   - Fill Constitution Check section from constitution (Principles VII and VIII apply to every feature touching PHP/Laravel or React/TypeScript code)
    - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
+   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION, including skill-derived test requirements)
+   - Phase 1: Generate data-model.md, contracts/, quickstart.md (including skill-derived validation tasks)
    - Re-evaluate Constitution Check post-design
 
 ## Mandatory Post-Execution Hooks
@@ -161,6 +180,9 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
 
 - Use absolute paths for filesystem operations; use project-relative paths for references in documentation
 - ERROR on gate failures or unresolved clarifications
+- Build on the repository's existing Laravel and React architecture; do not introduce a parallel structure or a new framework/library without a constitution amendment (Delivery Constraints)
+- Do not introduce Laravel-version-specific APIs (e.g., Laravel 13-only syntax) unless the version detected in `backend/composer.json`/`composer.lock` actually supports them
+- Every plan touching PHP/Laravel or React/TypeScript code must translate `php-best-practices`, `laravel-best-practices`, `react-vite-best-practices`, `typescript-react-patterns`, `laravel-testing`, `laravel-owasp-security`, and `code-slop` into concrete constraints, test requirements, and validation tasks per step 4 above — not just cite the skill names
 
 ## Done When
 

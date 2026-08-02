@@ -1,16 +1,23 @@
 <!--
 Sync Impact Report
-- Version change: [TEMPLATE] → 1.0.0 (initial ratification)
-- Modified principles: n/a (first concrete version, no prior named principles)
-- Added sections: Core Principles (I–VI), Delivery Constraints, Development Workflow, Governance
+- Version change: 1.0.0 → 1.1.0
+- Modified principles: none renamed or removed
+- Added sections:
+  - VII. Installed Coding-Standard Skills Govern Implementation
+  - VIII. Definition-of-Done Gate (tests, authorization, tenant isolation, OWASP, code-slop)
 - Removed sections: none
 - Templates requiring updates:
   - .specify/templates/plan-template.md ✅ generic, Constitution Check gate reads this file dynamically — no edit needed
   - .specify/templates/spec-template.md ✅ generic, no principle-specific sections referenced — no edit needed
   - .specify/templates/tasks-template.md ✅ generic task categories already cover testing/backend/frontend — no edit needed
   - .claude/skills/speckit-*/SKILL.md ✅ reviewed, no CLAUDE-only or stale agent-specific references found
-- Follow-up TODOs: TODO(RATIFICATION_DATE) resolved to spec-kit adoption date (2026-07-22); pre-existing
-  codebase history predates this constitution and is not retroactively governed by it.
+  - Development Workflow §4 ✅ updated to reference the new Definition-of-Done Gate instead of a bare test-run note
+- Follow-up TODOs:
+  - TODO(TYPESCRIPT_ADOPTION): frontend is currently JS/JSX (React 19/Vite), not TypeScript. Principle VII's
+    TypeScript-conformance clause is written prospectively; it activates automatically if/when the frontend
+    adopts TS, requiring no further amendment.
+  - laravel-inertia-react skill is installed but not currently applicable (iTrack uses a separate SPA over a
+    Sanctum session API, not Inertia); retained for reference, not an active gate.
 -->
 
 # iTrack Constitution
@@ -96,6 +103,59 @@ vs. real session auth) is the single largest correctness risk in the current
 codebase — features built against the mock model have to be redone once auth
 is wired up for real.
 
+### VII. Installed Coding-Standard Skills Govern Implementation
+Backend PHP/Laravel code MUST conform to the rules in the installed
+`php-best-practices` and `laravel-best-practices` skills
+(`.claude/skills/php-best-practices`, `.claude/skills/laravel-best-practices`).
+Frontend React code MUST conform to the installed `react-vite-best-practices`
+skill; if the frontend adopts TypeScript, the corresponding installed
+TypeScript skill becomes mandatory from that point forward without requiring
+a further constitution amendment. These skills are consulted during
+implementation, not left as passive references — when a plan or task touches
+PHP/Laravel or React/TypeScript source, its rules take precedence over ad hoc
+style choices. The installed `laravel-inertia-react` skill is not currently
+enforced: iTrack's frontend is a separate SPA calling a Sanctum session API,
+not an Inertia application; it is retained only in case that architecture
+changes.
+
+**Rationale**: Skills were installed specifically to give this project a
+consistent, checkable style and architecture baseline across PHP and React.
+A skill nobody is required to follow is documentation, not a standard —
+naming them here makes conformance part of the definition of "done," not an
+optional nicety.
+
+### VIII. Definition-of-Done Gate
+A task or feature MUST NOT be marked complete until all of the following
+pass, in addition to Principle III's per-change test requirement:
+
+1. **Automated tests green** — `php artisan test` (backend) and any
+   configured frontend test suite pass for the changed surface.
+2. **Authorization check reviewed** — every new or changed endpoint's role
+   gate is checked against Principle I (Fail-Closed Access Control); no
+   inline role-string comparisons, no default-allow paths.
+3. **Tenant/organization-isolation check reviewed** — every new or changed
+   query or endpoint is checked to confirm it cannot return or mutate data
+   outside the acting user's accessible Projects/ClientOrganizations (e.g.
+   via `Project::accessibleTo()` or the equivalent membership/grant scope for
+   the resource), not merely role-gated in isolation.
+4. **OWASP review run** — the installed `laravel-owasp-security` skill
+   (`.claude/skills/laravel-owasp-security`) is applied to the changed
+   backend/frontend surface before sign-off.
+5. **code-slop review run** — the installed `code-slop` skill
+   (`.claude/skills/code-slop`) is applied to the diff before sign-off.
+
+A feature whose plan or task list cannot satisfy one of these gates must
+either change its approach or document the exception and why it's necessary,
+per the Governance section below — it must not silently skip the gate.
+
+**Rationale**: iTrack's access model spans five roles and multiple
+project/client-organization boundaries (Principle I, Fail-Closed Access
+Control); the two failure modes that matter most — a missing authz check and
+a cross-project/cross-organization data leak — are exactly the ones easy to
+miss in code review without a named, mandatory gate. OWASP and code-slop
+review close the remaining gap between "it works" and "it's safe and not
+AI-slop to maintain."
+
 ## Delivery Constraints
 
 - **Stack is fixed for this phase**: Laravel 13 / PHP 8.4 / MySQL backend,
@@ -124,9 +184,10 @@ is wired up for real.
    tasks per Principle III — a feature's task list is incomplete if it has
    implementation tasks with no matching test task.
 4. Backend changes run `php artisan test` (or the project's configured
-   PHPUnit invocation) and frontend changes are manually verified in the
-   browser (per this project's existing UI-testing practice) before a
-   feature is considered done.
+   PHPUnit invocation), frontend changes are manually verified in the browser
+   (per this project's existing UI-testing practice), and every gate in
+   Principle VIII (Definition-of-Done Gate) passes before a feature is
+   considered done.
 
 ## Governance
 
@@ -141,4 +202,4 @@ compliance checkpoint — a plan that cannot satisfy a principle must either
 change its approach or document the exception and why it's necessary in that
 feature's plan.md, not silently ignore it.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-07-22
+**Version**: 1.1.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-02
