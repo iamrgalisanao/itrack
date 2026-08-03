@@ -298,4 +298,8 @@ export const fetchBug = (id) => api.get(`/bugs/${id}`)
 export const updateBug = (id, data) => api.patch(`/bugs/${id}`, data)
 export const deleteBug = (id) => api.delete(`/bugs/${id}`)
 
+// Taskboard (018-taskboard)
+export const fetchTaskboardTasks = (projectId) => api.get(`/projects/${projectId}/taskboard/tasks`)
+export const createTaskboardTask = (projectId, data) => api.post(`/projects/${projectId}/taskboard/tasks`, data)
+
 export default api

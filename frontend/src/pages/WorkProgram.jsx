@@ -9,6 +9,8 @@ import { useEffectiveUser } from '@/context/PreviewContext'
 import AccessDenied from '@/components/AccessDenied'
 import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
 import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
+import TaskboardView from '@/components/TaskboardView'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
   Select,
   SelectContent,
@@ -61,7 +63,6 @@ import {
   Search,
   Filter,
   Edit,
-  Save,
   X,
   Plus,
   Trash2,
@@ -73,11 +74,28 @@ import {
   GanttChart,
   FolderOpen,
   LayoutList,
+  LayoutGrid,
   RefreshCw,
   SearchX,
   Layers,
   AlertTriangle,
 } from 'lucide-react'
+
+// 020-list-view-groups: deterministic per-group color accent for List
+// view's flattened Activity groups — same palette/shape as
+// TaskboardView.jsx's GROUP_ACCENT_CLASSES (research.md D6), duplicated
+// here rather than imported, matching this codebase's established
+// preference for small duplication over cross-component coupling at two
+// call sites. Rendered as a background-color bar, not border-l-*: a
+// global index.css reset makes border-color utilities inert app-wide
+// (discovered in 019-taskboard-scannability's research.md D2b).
+const GROUP_ACCENT_CLASSES = [
+  { bar: 'bg-emerald-500', label: 'text-emerald-700 dark:text-emerald-400' },
+  { bar: 'bg-amber-500', label: 'text-amber-700 dark:text-amber-400' },
+  { bar: 'bg-primary', label: 'text-primary' },
+  { bar: 'bg-rose-500', label: 'text-rose-700 dark:text-rose-400' },
+  { bar: 'bg-orange-500', label: 'text-orange-700 dark:text-orange-400' },
+]
 
 export default function WorkProgram() {
   // 007-permission-hardening: reflects the previewed target during an
@@ -95,6 +113,14 @@ export default function WorkProgram() {
   const [activities, setActivities] = useState({})
   const [subActivities, setSubActivities] = useState({})
   const [detailedActivities, setDetailedActivities] = useState({})
+  // 020-list-view-groups: flattened, merged task list per Activity (List
+  // view only — Gantt view keeps using detailedActivities/toggleSubActivity
+  // directly, untouched by this feature).
+  const [activityTasks, setActivityTasks] = useState({})
+  const [activityTasksLoading, setActivityTasksLoading] = useState({})
+  const [manageSubActivitiesFor, setManageSubActivitiesFor] = useState(null) // { moduleId, activityId, activityName }
+  const [inlineAddValues, setInlineAddValues] = useState({})
+  const [inlineAddErrors, setInlineAddErrors] = useState({})
   const [loading, setLoading] = useState(true)
   const [projectsError, setProjectsError] = useState(null)
   const [accessDenied, setAccessDenied] = useState(false)
@@ -102,10 +128,13 @@ export default function WorkProgram() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [viewMode, setViewMode] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    return params.get('view') === 'gantt' ? 'gantt' : 'list'
-  }) // 'list' | 'gantt'
-  const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState({})
+    const requested = params.get('view')
+    // 018-taskboard spec FR-008: Client gets no access to Taskboard at all —
+    // not even a manually-typed URL bypasses this; falls back to List.
+    if (requested === 'taskboard' && !isClient) return 'taskboard'
+    return requested === 'gantt' ? 'gantt' : 'list'
+  }) // 'list' | 'gantt' | 'taskboard'
+  const [editingCell, setEditingCell] = useState(null) // { taskId, field } — per-cell inline edit, List view only
   const [ganttDataLoading, setGanttDataLoading] = useState(false)
   const [ganttColWidth, setGanttColWidth] = useState(40)
   const [showBaseline, setShowBaseline] = useState(false)
@@ -762,6 +791,7 @@ export default function WorkProgram() {
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null) // { level: 'module'|..., id: 1, context: {...} }
+  const [deleteError, setDeleteError] = useState(null)
 
   // Reload Helpers
   const reloadModules = async () => {
@@ -857,6 +887,13 @@ export default function WorkProgram() {
         status: item.status || 'not_started',
         progress: item.progress || 0,
         client_visible: item.client_visible !== undefined ? !!item.client_visible : false,
+        // 020-list-view-groups: display-only — not among the backend's
+        // validated task-update fields (research.md D4's corrected
+        // decision), so it's silently dropped by the backend even though
+        // it rides along in the request body; shown in the task modal so
+        // Sub-Activity context isn't lost now that it's no longer a
+        // nesting level.
+        sub_activity_name: item.sub_activity_name || '',
       })
     } else {
       setModalTargetId(null)
@@ -911,6 +948,17 @@ export default function WorkProgram() {
         }
       }
       await reloadModules()
+      // 020-list-view-groups (research.md D2): reloadModules() only
+      // refetches the top-level `modules` array, not the per-Activity
+      // flattened task list this feature introduces — refresh it
+      // explicitly so List view's flattened groups reflect the change
+      // immediately instead of only after collapse/re-expand.
+      if (modalLevel === 'task' || modalLevel === 'sub-activity') {
+        const { moduleId, activityId } = modalParentId || {}
+        if (moduleId != null && activityId != null) {
+          await refreshActivityTasks(moduleId, activityId)
+        }
+      }
       setModalOpen(false)
       setFormValues({})
     } catch (err) {
@@ -920,7 +968,8 @@ export default function WorkProgram() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    const { level, id } = deleteTarget
+    const { level, id, context } = deleteTarget
+    setDeleteError(null)
     try {
       if (level === 'module') {
         await deleteModule(id)
@@ -932,10 +981,25 @@ export default function WorkProgram() {
         await deleteDetailedActivity(id)
       }
       await reloadModules()
+      // 020-list-view-groups (research.md D2): same explicit refresh as
+      // handleSubmit above, for the same reason.
+      if (level === 'task' || level === 'sub-activity') {
+        const { moduleId, activityId } = context || {}
+        if (moduleId != null && activityId != null) {
+          await refreshActivityTasks(moduleId, activityId)
+        }
+      }
       setDeleteConfirmOpen(false)
       setDeleteTarget(null)
     } catch (err) {
       console.error('Failed to delete:', err)
+      // Previously silent on failure — the dialog just sat there with no
+      // explanation (e.g. the backend correctly rejecting deletion of the
+      // reserved "Taskboard" Activity while it still holds tasks, a
+      // 409 from 018-taskboard, returned a real message that was never
+      // shown). Surface it and keep the dialog open instead of pretending
+      // nothing happened.
+      setDeleteError(err.response?.data?.message || 'Failed to delete. Please try again.')
     }
   }
 
@@ -1042,31 +1106,124 @@ export default function WorkProgram() {
     }
   }
 
-  const startEdit = (activity) => {
-    setEditingId(activity.id)
-    setEditForm({
-      status: activity.status || 'not_started',
-      progress: activity.progress || 0,
-      notes: activity.notes || '',
-      actual_start_date: activity.actual_start_date || '',
-      actual_end_date: activity.actual_end_date || '',
-    })
-  }
-
-  const cancelEdit = () => {
-    setEditingId(null)
-    setEditForm({})
-  }
-
-  const saveEdit = async (activityId) => {
+  // 020-list-view-groups: fetches an Activity's Sub-Activities fresh, then
+  // every Sub-Activity's tasks in parallel, merging into one flat array
+  // (each task annotated with its source Sub-Activity id/name) for the
+  // List view's flattened Activity-group table. Deliberately NOT a change
+  // to toggleActivity above — that function is shared with Gantt view
+  // (see its onClick at the Gantt row-click handler), and extending it
+  // would leak this fetch into Gantt, which must stay unchanged (FR-013).
+  const refreshActivityTasks = async (moduleId, activityId) => {
+    const key = `${moduleId}-${activityId}`
+    setActivityTasksLoading(prev => ({ ...prev, [key]: true }))
     try {
-      await updateDetailedActivity(activityId, editForm)
-      await reloadModules()
-      setEditingId(null)
-      setEditForm({})
+      const subRes = await fetchSubActivities(activityId)
+      const subActivityList = subRes.data.data || subRes.data
+      setSubActivities(prev => ({ ...prev, [key]: subActivityList }))
+      const taskResponses = await Promise.all(
+        subActivityList.map(sa => fetchDetailedActivities(sa.id))
+      )
+      const merged = subActivityList.flatMap((sa, i) => {
+        const tasks = taskResponses[i].data.data || taskResponses[i].data
+        return tasks.map(t => ({ ...t, sub_activity_name: sa.name }))
+      })
+      setActivityTasks(prev => ({ ...prev, [key]: merged }))
     } catch (err) {
-      console.error('Failed to update activity:', err)
+      console.error('Failed to load activity tasks:', err)
+      if (err.response?.status === 403) {
+        setAccessDenied(true)
+      }
+    } finally {
+      setActivityTasksLoading(prev => ({ ...prev, [key]: false }))
     }
+  }
+
+  // List view's Activity-group expand/collapse — separate from
+  // toggleActivity (shared with Gantt) so Gantt's own expand behavior is
+  // untouched by this feature.
+  const expandActivityGroup = (activityId, moduleId) => {
+    const key = `${moduleId}-${activityId}`
+    const newExpanded = { ...expandedActivities, [key]: !expandedActivities[key] }
+    setExpandedActivities(newExpanded)
+    if (newExpanded[key] && !activityTasks[key]) {
+      refreshActivityTasks(moduleId, activityId)
+    }
+  }
+
+  // Inline "+ Add item" (research.md D5): attaches to the Activity's first
+  // existing Sub-Activity, or silently provisions a default one ('General')
+  // if none exists yet — no user-facing extra step either way.
+  const handleInlineAddSubmit = async (moduleId, activityId) => {
+    const key = `${moduleId}-${activityId}`
+    const name = (inlineAddValues[key] || '').trim()
+    if (!name) return
+    setInlineAddErrors(prev => ({ ...prev, [key]: null }))
+    try {
+      const existingSubActivities = subActivities[key] || []
+      let subActivityId
+      if (existingSubActivities.length > 0) {
+        subActivityId = existingSubActivities[0].id
+      } else {
+        const res = await createSubActivity(activityId, { name: 'General', type: 'A' })
+        subActivityId = (res.data.data || res.data).id
+      }
+      await createDetailedActivity(subActivityId, { name })
+      setInlineAddValues(prev => ({ ...prev, [key]: '' }))
+      await refreshActivityTasks(moduleId, activityId)
+    } catch (err) {
+      console.error('Failed to add task inline:', err)
+      // Previously silent (console-only) — a failed create looked identical
+      // to a completely unresponsive button, since nothing changed on
+      // screen. Surface it so a real failure is distinguishable from a UI
+      // bug.
+      const message = err.response?.data?.message || 'Failed to add task. Please try again.'
+      setInlineAddErrors(prev => ({ ...prev, [key]: message }))
+    }
+  }
+
+  // Per-cell inline edit (List view only — Gantt doesn't use this):
+  // clicking a single cell edits just that field, saving immediately on
+  // change/blur rather than requiring the whole row to enter edit mode
+  // via a separate button. `editingCell` identifies which one cell (by
+  // task id + field name) is currently active; there is deliberately no
+  // draft state — editable controls read straight from the task's current
+  // value (uncontrolled `defaultValue`, or a Select bound to the value
+  // itself) and commit directly to the server, so there's nothing to keep
+  // in sync by hand.
+  const startCellEdit = (taskId, field) => setEditingCell({ taskId, field })
+  const cancelCellEdit = () => setEditingCell(null)
+
+  const saveCellField = async (taskId, payload, moduleId, activityId) => {
+    try {
+      await updateDetailedActivity(taskId, payload)
+      await reloadModules()
+      await refreshActivityTasks(moduleId, activityId)
+    } catch (err) {
+      console.error('Failed to update task field:', err)
+    } finally {
+      setEditingCell(null)
+    }
+  }
+
+  // Date-pair cells (Plan Dates, Actual Dates) hold two inputs. Saving
+  // independently per field on every blur — including the blur fired when
+  // tabbing from the first date to the second — caused two overlapping
+  // save+refresh cycles for the same row to race each other (confirmed:
+  // one call's async chain never resolved, leaving the cell stuck open).
+  // Instead, blur only *commits* while focus is leaving the pair entirely
+  // (checked via `relatedTarget` + the `data-inline-date-group` wrapper),
+  // and reads both inputs' current DOM values at that moment to send a
+  // single combined save — never two saves in flight for the same cell.
+  const commitDateGroup = async (event, taskId, fieldPrefix, moduleId, activityId) => {
+    const group = event.currentTarget.closest('[data-inline-date-group]')
+    const movingWithinGroup = event.relatedTarget && group?.contains(event.relatedTarget)
+    if (movingWithinGroup) return
+    const [startInput, endInput] = group.querySelectorAll('input[type="date"]')
+    const payload = {
+      [`${fieldPrefix}_start_date`]: startInput?.value || null,
+      [`${fieldPrefix}_end_date`]: endInput?.value || null,
+    }
+    await saveCellField(taskId, payload, moduleId, activityId)
   }
 
   const filterActivities = (items) => {
@@ -1178,6 +1335,29 @@ export default function WorkProgram() {
               <GanttChart className="h-3.5 w-3.5" />
               Gantt
             </Button>
+            {/* 018-taskboard spec FR-008: this pill (and the Taskboard mode
+                it switches to) is entirely absent for Client, not merely
+                disabled — Client's own field-visibility rules already hide
+                sprint_label, which would otherwise make every task
+                incorrectly appear as unscheduled Backlog. */}
+            {!isClient && (
+              <Button
+                size="sm"
+                aria-pressed={viewMode === 'taskboard'}
+                onClick={() => setViewMode('taskboard')}
+                className={[
+                  'h-8 px-3 gap-1.5 text-sm font-medium transition-all',
+                  viewMode === 'taskboard'
+                    ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/60',
+                ].join(' ')}
+                variant="ghost"
+                title="Switch to Taskboard view"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Taskboard
+              </Button>
+            )}
           </div>
 
           {/* Project selector with explicit label */}
@@ -1444,7 +1624,7 @@ export default function WorkProgram() {
                         className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
                         onClick={() => {
                           setDeleteTarget({ level: 'module', id: module.id })
-                          setDeleteConfirmOpen(true)
+                          setDeleteError(null); setDeleteConfirmOpen(true)
                         }}
                         aria-label={`Delete module: ${module.name}`}
                       >
@@ -1466,262 +1646,323 @@ export default function WorkProgram() {
                     )}
                   </div>
                   <div className="space-y-3 pl-8">
-                    {filterActivities(activities[module.id]).map(activity => (
-                      <Card key={activity.id} className="border-l-4 border-l-primary">
-                        <CardHeader
-                          className="cursor-pointer hover:bg-muted/50 transition-colors py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                          onClick={() => toggleActivity(activity.id, module.id)}
-                          role="button"
-                          tabIndex={0}
-                          aria-expanded={!!expandedActivities[`${module.id}-${activity.id}`]}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              toggleActivity(activity.id, module.id)
-                            }
-                          }}
-                        >
-                          <div className="flex items-center gap-3">
-                            {expandedActivities[`${module.id}-${activity.id}`] ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                            <Badge className={getTypeColor(activity.type)}>
-                              {getTypeLabel(activity.type)}
-                            </Badge>
-                            <div className="flex-1">
-                              <span className="font-medium">{activity.name}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span>{activity.responsible}</span>
-                            </div>
-                            {['Admin', 'Project Manager'].includes(userRole) && (
-                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => openFormModal('activity', 'edit', { moduleId: module.id }, activity)}
-                                  aria-label={`Edit activity: ${activity.name}`}
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                  onClick={() => {
-                                    setDeleteTarget({ level: 'activity', id: activity.id, context: { moduleId: module.id } })
-                                    setDeleteConfirmOpen(true)
-                                  }}
-                                  aria-label={`Delete activity: ${activity.name}`}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </CardHeader>
-
-                        {expandedActivities[`${module.id}-${activity.id}`] && subActivities[`${module.id}-${activity.id}`] && (
-                          <CardContent className="border-t pt-3 pb-3 pl-12">
-                            <div className="flex justify-between items-center mb-2 pl-2">
-                              <h4 className="text-xs font-semibold text-muted-foreground">Sub-Activities</h4>
-                              {['Admin', 'Project Manager'].includes(userRole) && (
-                                <Button size="sm" variant="outline" onClick={() => openFormModal('sub-activity', 'create', { moduleId: module.id, activityId: activity.id })}>
-                                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Sub-Activity
-                                </Button>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              {filterActivities(subActivities[`${module.id}-${activity.id}`]).map(subActivity => (
-                                <Card key={subActivity.id} className="border-l-4 border-l-secondary">
-                                  <CardHeader
-                                    className="cursor-pointer hover:bg-muted/50 transition-colors py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                    onClick={() => toggleSubActivity(subActivity.id, activity.id, module.id)}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-expanded={!!expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`]}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault()
-                                        toggleSubActivity(subActivity.id, activity.id, module.id)
-                                      }
-                                    }}
+                    {filterActivities(activities[module.id]).map((activity, activityIndex) => (
+                      (() => {
+                        const groupKey = `${module.id}-${activity.id}`
+                        const accent = GROUP_ACCENT_CLASSES[activityIndex % GROUP_ACCENT_CLASSES.length]
+                        const isExpanded = !!expandedActivities[groupKey]
+                        const tasks = filterActivities(activityTasks[groupKey] || [])
+                        return (
+                          <Collapsible key={activity.id} open={isExpanded} onOpenChange={() => expandActivityGroup(activity.id, module.id)}>
+                            <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+                              <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
+                              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className={`flex items-center gap-3 text-sm font-semibold ${accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
                                   >
-                                    <div className="flex items-center gap-3">
-                                      {expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`] ? (
-                                        <ChevronDown className="h-4 w-4" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4" />
-                                      )}
-                                      <Badge variant="outline">{subActivity.code || 'SA'}</Badge>
-                                      <div className="flex-1">
-                                        <span>{subActivity.name}</span>
-                                      </div>
-                                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                        <span>{subActivity.responsible}</span>
-                                      </div>
-                                      {['Admin', 'Project Manager'].includes(userRole) && (
-                                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-8 w-8 p-0"
-                                            onClick={() => openFormModal('sub-activity', 'edit', { moduleId: module.id, activityId: activity.id }, subActivity)}
-                                            aria-label={`Edit sub-activity: ${subActivity.name}`}
-                                          >
-                                            <Edit className="h-3.5 w-3.5" />
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                            onClick={() => {
-                                              setDeleteTarget({ level: 'sub-activity', id: subActivity.id, context: { moduleId: module.id, activityId: activity.id } })
-                                              setDeleteConfirmOpen(true)
-                                            }}
-                                            aria-label={`Delete sub-activity: ${subActivity.name}`}
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </Button>
-                                        </div>
-                                      )}
+                                    {isExpanded ? (
+                                      <ChevronDown className="h-4 w-4 transition-transform" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 transition-transform" />
+                                    )}
+                                    <Badge className={getTypeColor(activity.type)}>
+                                      {getTypeLabel(activity.type)}
+                                    </Badge>
+                                    {activity.name}
+                                  </button>
+                                </CollapsibleTrigger>
+                                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                  <span>{activity.responsible}</span>
+                                  {['Admin', 'Project Manager'].includes(userRole) && (
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => openFormModal('activity', 'edit', { moduleId: module.id }, activity)}
+                                        aria-label={`Edit activity: ${activity.name}`}
+                                      >
+                                        <Edit className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                        onClick={() => {
+                                          setDeleteTarget({ level: 'activity', id: activity.id, context: { moduleId: module.id } })
+                                          setDeleteError(null); setDeleteConfirmOpen(true)
+                                        }}
+                                        aria-label={`Delete activity: ${activity.name}`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
                                     </div>
-                                  </CardHeader>
+                                  )}
+                                </div>
+                              </div>
 
-                                  {expandedActivities[`${module.id}-${activity.id}-${subActivity.id}`] && detailedActivities[`${module.id}-${activity.id}-${subActivity.id}`] && (
-                                    <CardContent className="border-t pt-3 pl-12">
-                                      <div className="flex justify-between items-center mb-2">
-                                        <h5 className="text-xs font-semibold text-muted-foreground">Tasks</h5>
-                                        {userRole !== 'Client' && (
-                                          <Button size="sm" variant="outline" onClick={() => openFormModal('task', 'create', { moduleId: module.id, activityId: activity.id, subActivityId: subActivity.id })}>
-                                            <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
+                              <CollapsibleContent>
+                                {/* Content stays mounted during a refresh (inline add,
+                                    edit, delete) instead of being replaced by a
+                                    spinner-only state — that swap was what made the
+                                    group look like it was collapsing and reopening.
+                                    A blurred overlay communicates "updating" without
+                                    hiding what's already there. */}
+                                <div className="relative">
+                                  {activityTasksLoading[groupKey] && (
+                                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[2px] rounded-b-xl">
+                                      <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+                                    </div>
+                                  )}
+                                  <>
+                                    {['Admin', 'Project Manager'].includes(userRole) && (
+                                      <div className="flex justify-end items-center gap-1 px-3 pt-2">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 gap-1.5 text-xs text-muted-foreground"
+                                          onClick={() => setManageSubActivitiesFor({ moduleId: module.id, activityId: activity.id, activityName: activity.name })}
+                                        >
+                                          <Settings className="h-3.5 w-3.5" /> Manage Sub-Activities
+                                        </Button>
+                                        {(subActivities[groupKey] || []).length > 0 && (
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 gap-1.5 text-xs text-muted-foreground"
+                                            onClick={() => openFormModal('task', 'create', { moduleId: module.id, activityId: activity.id, subActivityId: subActivities[groupKey][0].id })}
+                                          >
+                                            <Plus className="h-3.5 w-3.5" /> Add Task (full form)
                                           </Button>
                                         )}
                                       </div>
+                                    )}
+                                    {tasks.length === 0 && (
+                                      <div className="py-6 px-4 text-sm text-muted-foreground text-center">
+                                        No tasks yet in this activity.
+                                      </div>
+                                    )}
+                                    {tasks.length > 0 && (
                                       <Table>
                                         <TableHeader>
                                           <TableRow>
-                                            <TableHead className="w-[300px]">Task</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Progress</TableHead>
-                                            {!isClient && <TableHead>Responsible</TableHead>}
-                                            <TableHead>Plan Dates</TableHead>
-                                            <TableHead>Actual Dates</TableHead>
-                                            <TableHead className="w-[120px]">Actions</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs w-[260px]">Task</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs">Sub-Activity</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs">Status</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs">Progress</TableHead>
+                                            {!isClient && <TableHead className="h-8 py-1.5 px-3 text-xs">Responsible</TableHead>}
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs">Plan Dates</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs">Actual Dates</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs w-[120px]">Actions</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                          {filterActivities(detailedActivities[`${module.id}-${activity.id}-${subActivity.id}`]).map(detail => (
-                                            <TableRow key={detail.id}>
-                                              <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
-                                                  <span>{detail.name}</span>
-                                                  {detail.client_visible && (
-                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-500 bg-blue-500/5 shrink-0">
-                                                      Shared with Client
+                                          {tasks.map(detail => {
+                                            const isEditableRole = userRole !== 'Client'
+                                            const isEditingField = (field) => editingCell?.taskId === detail.id && editingCell.field === field
+                                            const editableCellClass = isEditableRole ? 'cursor-pointer hover:bg-muted/40' : ''
+                                            return (
+                                              <TableRow key={detail.id}>
+                                                <TableCell
+                                                  className={`py-1.5 px-3 text-sm font-medium ${editableCellClass}`}
+                                                  onClick={() => isEditableRole && !isEditingField('name') && startCellEdit(detail.id, 'name')}
+                                                >
+                                                  {isEditingField('name') ? (
+                                                    <input
+                                                      autoFocus
+                                                      type="text"
+                                                      defaultValue={detail.name}
+                                                      onClick={(e) => e.stopPropagation()}
+                                                      onBlur={(e) => {
+                                                        const value = e.target.value.trim()
+                                                        if (value && value !== detail.name) {
+                                                          saveCellField(detail.id, { name: value }, module.id, activity.id)
+                                                        } else {
+                                                          cancelCellEdit()
+                                                        }
+                                                      }}
+                                                      onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') e.currentTarget.blur()
+                                                        if (e.key === 'Escape') cancelCellEdit()
+                                                      }}
+                                                      className="w-full bg-background border border-input rounded px-2 py-1 text-sm outline-none ring-2 ring-ring/40"
+                                                    />
+                                                  ) : (
+                                                    <div className="flex items-center gap-2">
+                                                      <span>{detail.name}</span>
+                                                      {detail.client_visible && (
+                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-500 bg-blue-500/5 shrink-0">
+                                                          Shared with Client
+                                                        </Badge>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </TableCell>
+
+                                                {/* Sub-Activity is intentionally read-only here — reassigning a
+                                                    task's Sub-Activity isn't a field the backend accepts on update
+                                                    (research.md D4); shown for context, editable only by moving
+                                                    the task via the full Sub-Activity management flow. */}
+                                                <TableCell className="py-1.5 px-3 text-xs text-muted-foreground whitespace-nowrap">{detail.sub_activity_name || '—'}</TableCell>
+
+                                                <TableCell
+                                                  className={`py-1.5 px-3 ${editableCellClass}`}
+                                                  onClick={() => isEditableRole && !isEditingField('status') && startCellEdit(detail.id, 'status')}
+                                                >
+                                                  {isEditingField('status') ? (
+                                                    <Select
+                                                      defaultValue={detail.status}
+                                                      defaultOpen
+                                                      onValueChange={(v) => saveCellField(detail.id, { status: v }, module.id, activity.id)}
+                                                      onOpenChange={(open) => { if (!open) cancelCellEdit() }}
+                                                    >
+                                                      <SelectTrigger className="w-[130px] h-8" onClick={(e) => e.stopPropagation()}>
+                                                        <SelectValue />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="not_started">Not Started</SelectItem>
+                                                        <SelectItem value="in_progress">In Progress</SelectItem>
+                                                        <SelectItem value="completed">Completed</SelectItem>
+                                                        <SelectItem value="delayed">Delayed</SelectItem>
+                                                      </SelectContent>
+                                                    </Select>
+                                                  ) : (
+                                                    <Badge className={getStatusColor(detail.status)}>
+                                                      {getStatusLabel(detail.status)}
                                                     </Badge>
                                                   )}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell>
-                                                {editingId === detail.id ? (
-                                                  <Select
-                                                    value={editForm.status}
-                                                    onValueChange={(v) => setEditForm(prev => ({ ...prev, status: v }))}
+                                                </TableCell>
+
+                                                <TableCell
+                                                  className={`py-1.5 px-3 ${editableCellClass}`}
+                                                  onClick={() => isEditableRole && !isEditingField('progress') && startCellEdit(detail.id, 'progress')}
+                                                >
+                                                  {isEditingField('progress') ? (
+                                                    <Input
+                                                      autoFocus
+                                                      type="number"
+                                                      min="0"
+                                                      max="100"
+                                                      defaultValue={detail.progress}
+                                                      onClick={(e) => e.stopPropagation()}
+                                                      onBlur={(e) => {
+                                                        const value = Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                                                        saveCellField(detail.id, { progress: value }, module.id, activity.id)
+                                                      }}
+                                                      onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') e.currentTarget.blur()
+                                                        if (e.key === 'Escape') cancelCellEdit()
+                                                      }}
+                                                      className="w-[80px] h-8"
+                                                    />
+                                                  ) : (
+                                                    <div className="flex items-center gap-2">
+                                                      <Progress value={detail.progress} className="w-[60px] h-2" />
+                                                      <span className="text-xs">{detail.progress}%</span>
+                                                    </div>
+                                                  )}
+                                                </TableCell>
+
+                                                {!isClient && (
+                                                  <TableCell
+                                                    className={`py-1.5 px-3 text-xs text-muted-foreground ${editableCellClass}`}
+                                                    onClick={() => isEditableRole && !isEditingField('responsible') && startCellEdit(detail.id, 'responsible')}
                                                   >
-                                                    <SelectTrigger className="w-[130px] h-8">
-                                                      <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="not_started">Not Started</SelectItem>
-                                                      <SelectItem value="in_progress">In Progress</SelectItem>
-                                                      <SelectItem value="completed">Completed</SelectItem>
-                                                      <SelectItem value="delayed">Delayed</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                ) : (
-                                                  <Badge className={getStatusColor(detail.status)}>
-                                                    {getStatusLabel(detail.status)}
-                                                  </Badge>
+                                                    {isEditingField('responsible') ? (
+                                                      <input
+                                                        autoFocus
+                                                        type="text"
+                                                        defaultValue={detail.responsible || ''}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onBlur={(e) => saveCellField(detail.id, { responsible: e.target.value }, module.id, activity.id)}
+                                                        onKeyDown={(e) => {
+                                                          if (e.key === 'Enter') e.currentTarget.blur()
+                                                          if (e.key === 'Escape') cancelCellEdit()
+                                                        }}
+                                                        className="w-full bg-background border border-input rounded px-2 py-1 text-xs outline-none ring-2 ring-ring/40"
+                                                      />
+                                                    ) : (
+                                                      detail.responsible || <span className="text-muted-foreground/50">—</span>
+                                                    )}
+                                                  </TableCell>
                                                 )}
-                                              </TableCell>
-                                              <TableCell>
-                                                {editingId === detail.id ? (
-                                                  <Input
-                                                    type="number"
-                                                    min="0"
-                                                    max="100"
-                                                    value={editForm.progress}
-                                                    onChange={(e) => setEditForm(prev => ({ ...prev, progress: parseInt(e.target.value) || 0 }))}
-                                                    className="w-[80px] h-8"
-                                                  />
-                                                ) : (
-                                                  <div className="flex items-center gap-2">
-                                                    <Progress value={detail.progress} className="w-[60px] h-2" />
-                                                    <span className="text-sm">{detail.progress}%</span>
-                                                  </div>
-                                                )}
-                                              </TableCell>
-                                              {!isClient && <TableCell>{detail.responsible}</TableCell>}
-                                              <TableCell className="text-sm">
-                                                {formatDate(detail.plan_start_date)} - {formatDate(detail.plan_end_date)}
-                                              </TableCell>
-                                              <TableCell className="text-sm">
-                                                {editingId === detail.id ? (
-                                                  <div className="flex gap-2">
-                                                    <Input
-                                                      type="date"
-                                                      value={editForm.actual_start_date}
-                                                      onChange={(e) => setEditForm(prev => ({ ...prev, actual_start_date: e.target.value }))}
-                                                      className="w-[140px] h-8"
-                                                    />
-                                                    <Input
-                                                      type="date"
-                                                      value={editForm.actual_end_date}
-                                                      onChange={(e) => setEditForm(prev => ({ ...prev, actual_end_date: e.target.value }))}
-                                                      className="w-[140px] h-8"
-                                                    />
-                                                  </div>
-                                                ) : (
-                                                  <>
-                                                    {detail.actual_start_date && formatDate(detail.actual_start_date)}
-                                                    {detail.actual_start_date && detail.actual_end_date && ' - '}
-                                                    {detail.actual_end_date && formatDate(detail.actual_end_date)}
-                                                    {!detail.actual_start_date && '-'}
-                                                  </>
-                                                )}
-                                              </TableCell>
-                                              <TableCell>
-                                                {editingId === detail.id ? (
-                                                  <div className="flex gap-1">
-                                                    <Button size="sm" variant="success" onClick={() => saveEdit(detail.id)} aria-label="Save">
-                                                      <Save className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button size="sm" variant="ghost" onClick={cancelEdit} aria-label="Cancel">
-                                                      <X className="h-4 w-4" />
-                                                    </Button>
-                                                  </div>
-                                                ) : (
+
+                                                <TableCell
+                                                  className={`py-1.5 px-3 text-xs ${editableCellClass}`}
+                                                  onClick={() => isEditableRole && !isEditingField('plan_dates') && startCellEdit(detail.id, 'plan_dates')}
+                                                >
+                                                  {isEditingField('plan_dates') ? (
+                                                    <div className="flex items-center gap-1" data-inline-date-group onClick={(e) => e.stopPropagation()}>
+                                                      <input
+                                                        type="date"
+                                                        autoFocus
+                                                        defaultValue={detail.plan_start_date ? detail.plan_start_date.substring(0, 10) : ''}
+                                                        onBlur={(e) => commitDateGroup(e, detail.id, 'plan', module.id, activity.id)}
+                                                        className="w-[130px] h-8 text-xs border border-input rounded px-1.5 bg-background"
+                                                      />
+                                                      <input
+                                                        type="date"
+                                                        defaultValue={detail.plan_end_date ? detail.plan_end_date.substring(0, 10) : ''}
+                                                        onBlur={(e) => commitDateGroup(e, detail.id, 'plan', module.id, activity.id)}
+                                                        className="w-[130px] h-8 text-xs border border-input rounded px-1.5 bg-background"
+                                                      />
+                                                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={cancelCellEdit} aria-label="Close date editor">
+                                                        <X className="h-3.5 w-3.5" />
+                                                      </Button>
+                                                    </div>
+                                                  ) : (
+                                                    `${formatDate(detail.plan_start_date)} - ${formatDate(detail.plan_end_date)}`
+                                                  )}
+                                                </TableCell>
+
+                                                <TableCell
+                                                  className={`py-1.5 px-3 text-xs ${editableCellClass}`}
+                                                  onClick={() => isEditableRole && !isEditingField('actual_dates') && startCellEdit(detail.id, 'actual_dates')}
+                                                >
+                                                  {isEditingField('actual_dates') ? (
+                                                    <div className="flex items-center gap-1" data-inline-date-group onClick={(e) => e.stopPropagation()}>
+                                                      <input
+                                                        type="date"
+                                                        autoFocus
+                                                        defaultValue={detail.actual_start_date ? detail.actual_start_date.substring(0, 10) : ''}
+                                                        onBlur={(e) => commitDateGroup(e, detail.id, 'actual', module.id, activity.id)}
+                                                        className="w-[130px] h-8 text-xs border border-input rounded px-1.5 bg-background"
+                                                      />
+                                                      <input
+                                                        type="date"
+                                                        defaultValue={detail.actual_end_date ? detail.actual_end_date.substring(0, 10) : ''}
+                                                        onBlur={(e) => commitDateGroup(e, detail.id, 'actual', module.id, activity.id)}
+                                                        className="w-[130px] h-8 text-xs border border-input rounded px-1.5 bg-background"
+                                                      />
+                                                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={cancelCellEdit} aria-label="Close date editor">
+                                                        <X className="h-3.5 w-3.5" />
+                                                      </Button>
+                                                    </div>
+                                                  ) : (
+                                                    <>
+                                                      {detail.actual_start_date && formatDate(detail.actual_start_date)}
+                                                      {detail.actual_start_date && detail.actual_end_date && ' - '}
+                                                      {detail.actual_end_date && formatDate(detail.actual_end_date)}
+                                                      {!detail.actual_start_date && '-'}
+                                                    </>
+                                                  )}
+                                                </TableCell>
+
+                                                <TableCell className="py-1.5 px-3">
                                                   <div className="flex items-center gap-1">
-                                                    {userRole !== 'Client' && (
-                                                      <>
-                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(detail)} title="Quick Status Edit" aria-label="Quick Status Edit">
-                                                          <Edit className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                          size="sm"
-                                                          variant="ghost"
-                                                          className="h-8 w-8 p-0 text-blue-500"
-                                                          onClick={() => openFormModal('task', 'edit', { moduleId: module.id, activityId: activity.id, subActivityId: subActivity.id }, detail)}
-                                                          title="Full Edit"
-                                                          aria-label={`Full edit: ${detail.name}`}
-                                                        >
-                                                          <Edit className="h-4 w-4" />
-                                                        </Button>
-                                                      </>
+                                                    {isEditableRole && (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 p-0 text-blue-500"
+                                                        onClick={() => openFormModal('task', 'edit', { moduleId: module.id, activityId: activity.id, subActivityId: detail.sub_activity_id }, detail)}
+                                                        title="Full Edit"
+                                                        aria-label={`Full edit: ${detail.name}`}
+                                                      >
+                                                        <Edit className="h-4 w-4" />
+                                                      </Button>
                                                     )}
                                                     {['Admin', 'Project Manager'].includes(userRole) && (
                                                       <Button
@@ -1732,9 +1973,9 @@ export default function WorkProgram() {
                                                           setDeleteTarget({
                                                             level: 'task',
                                                             id: detail.id,
-                                                            context: { moduleId: module.id, activityId: activity.id, subActivityId: subActivity.id }
+                                                            context: { moduleId: module.id, activityId: activity.id, subActivityId: detail.sub_activity_id }
                                                           })
-                                                          setDeleteConfirmOpen(true)
+                                                          setDeleteError(null); setDeleteConfirmOpen(true)
                                                         }}
                                                         title="Delete"
                                                         aria-label={`Delete task: ${detail.name}`}
@@ -1743,20 +1984,50 @@ export default function WorkProgram() {
                                                       </Button>
                                                     )}
                                                   </div>
-                                                )}
-                                              </TableCell>
-                                            </TableRow>
-                                          ))}
+                                                </TableCell>
+                                              </TableRow>
+                                            )
+                                          })}
                                         </TableBody>
                                       </Table>
-                                    </CardContent>
-                                  )}
-                                </Card>
-                              ))}
+                                    )}
+
+                                    {userRole !== 'Client' && (
+                                      <form
+                                        className="px-3 py-2 border-t border-border/60"
+                                        onSubmit={(e) => {
+                                          e.preventDefault()
+                                          handleInlineAddSubmit(module.id, activity.id)
+                                        }}
+                                      >
+                                        {/* Wrapping icon + input in a <label> so clicking
+                                            anywhere in the row (including the icon) focuses
+                                            the input — a bare sibling <Plus> icon doesn't
+                                            forward clicks/focus to the input on its own.
+                                            Styled as a visible field (border, hover/focus
+                                            states) rather than plain text, so it reads as
+                                            editable rather than decorative. */}
+                                        <label className="flex items-center gap-2 rounded-md border border-dashed border-border px-2.5 py-1.5 cursor-text hover:border-primary/50 hover:bg-muted/30 focus-within:border-primary focus-within:border-solid focus-within:bg-background focus-within:ring-2 focus-within:ring-ring/30 transition-colors">
+                                          <Plus className="h-3.5 w-3.5 text-primary shrink-0" />
+                                          <input
+                                            value={inlineAddValues[groupKey] || ''}
+                                            onChange={(e) => setInlineAddValues(prev => ({ ...prev, [groupKey]: e.target.value }))}
+                                            placeholder="Add task…"
+                                            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                          />
+                                        </label>
+                                        {inlineAddErrors[groupKey] && (
+                                          <p className="text-xs text-destructive mt-1 pl-5">{inlineAddErrors[groupKey]}</p>
+                                        )}
+                                      </form>
+                                    )}
+                                  </>
+                                </div>
+                              </CollapsibleContent>
                             </div>
-                          </CardContent>
-                        )}
-                      </Card>
+                          </Collapsible>
+                        )
+                      })()
                     ))}
                   </div>
                 </CardContent>
@@ -1765,7 +2036,7 @@ export default function WorkProgram() {
             </>
           ))}
         </div>
-      ) : (
+      ) : viewMode === 'gantt' ? (
         /* Gantt View */
         <div id="gantt-chart-container" className="relative border rounded-xl bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col">
           {/* Print/Export Styles */}
@@ -2257,6 +2528,11 @@ export default function WorkProgram() {
         </div>
         {/* End outer Gantt container */}
       </div>
+    ) : (
+      /* 018-taskboard: Client never reaches this branch — viewMode can't be
+         'taskboard' for Client (see the useState initializer and the hidden
+         toggle pill above). */
+      <TaskboardView project={selectedProjectRecord} modules={modules} userRole={userRole} />
     )}
   </>
 )}
@@ -2553,6 +2829,14 @@ export default function WorkProgram() {
 
             {modalLevel === 'task' && (
               <>
+                {modalMode === 'edit' && formValues.sub_activity_name && (
+                  <div className="space-y-2">
+                    <Label>Sub-Activity</Label>
+                    <p className="text-sm text-muted-foreground rounded-md border border-input bg-muted/30 px-3 py-2">
+                      {formValues.sub_activity_name}
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
@@ -2652,7 +2936,7 @@ export default function WorkProgram() {
       </Dialog>
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={deleteConfirmOpen} onOpenChange={(open) => { setDeleteConfirmOpen(open); if (!open) setDeleteError(null) }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-destructive">Confirm Delete</DialogTitle>
@@ -2660,13 +2944,81 @@ export default function WorkProgram() {
               Are you sure you want to delete this {deleteTarget?.level}? This action cannot be undone and will delete all nested child elements.
             </DialogDescription>
           </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+              {deleteError}
+            </p>
+          )}
           <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+            <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setDeleteError(null) }}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Sub-Activities Dialog (020-list-view-groups research.md D3)
+          — relocates Sub-Activity CRUD out of the main flattened flow,
+          since Sub-Activity is no longer its own expandable level. */}
+      <Dialog open={!!manageSubActivitiesFor} onOpenChange={(open) => !open && setManageSubActivitiesFor(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">
+              Sub-Activities — {manageSubActivitiesFor?.activityName}
+            </DialogTitle>
+            <DialogDescription>
+              Manage this activity's sub-activities. Tasks are grouped under
+              a sub-activity behind the scenes even though they no longer
+              appear as a separate expandable level.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {(subActivities[`${manageSubActivitiesFor?.moduleId}-${manageSubActivitiesFor?.activityId}`] || []).map(subActivity => (
+              <div key={subActivity.id} className="flex items-center justify-between rounded-lg border p-2.5">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{subActivity.code || 'SA'}</Badge>
+                  <span className="text-sm">{subActivity.name}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => openFormModal('sub-activity', 'edit', { moduleId: manageSubActivitiesFor.moduleId, activityId: manageSubActivitiesFor.activityId }, subActivity)}
+                    aria-label={`Edit sub-activity: ${subActivity.name}`}
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      setDeleteTarget({ level: 'sub-activity', id: subActivity.id, context: { moduleId: manageSubActivitiesFor.moduleId, activityId: manageSubActivitiesFor.activityId } })
+                      setDeleteError(null); setDeleteConfirmOpen(true)
+                    }}
+                    aria-label={`Delete sub-activity: ${subActivity.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {(subActivities[`${manageSubActivitiesFor?.moduleId}-${manageSubActivitiesFor?.activityId}`] || []).length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No sub-activities yet.</p>
+            )}
+          </div>
+          <DialogFooter className="pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => openFormModal('sub-activity', 'create', { moduleId: manageSubActivitiesFor.moduleId, activityId: manageSubActivitiesFor.activityId })}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Sub-Activity
+            </Button>
+            <Button onClick={() => setManageSubActivitiesFor(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
