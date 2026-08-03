@@ -39,6 +39,7 @@ import {
   Download,
   Send,
 } from 'lucide-react'
+import { GROUP_ACCENT_CLASSES } from '@/components/GroupSummaryBar'
 
 const SENTIMENTS = [
   { id: 'keep', label: 'Keep', color: 'border-t-emerald-500 bg-emerald-500/5' },
@@ -420,6 +421,14 @@ export default function Retrospectives() {
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
+  // Taskboard-style accent color, cycling by the selected session's position
+  // in the list — restyle-only per product decision (Retrospectives shows
+  // one session at a time via the pill selector above, not stacked groups
+  // like Taskboard/Bug Tracker, so there's no per-group segmented summary
+  // bar here, just the shared accent-bar/chevron visual language).
+  const sessionIndex = Math.max(0, sessions.findIndex((s) => s.id === selectedSessionId))
+  const sessionAccent = GROUP_ACCENT_CLASSES[sessionIndex % GROUP_ACCENT_CLASSES.length]
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -522,15 +531,16 @@ export default function Retrospectives() {
               Replaces the prior side-by-side Kanban lane layout and the
               since-superseded three-sentiment-groups layout. */}
           <Collapsible open={isTableOpen} onOpenChange={setIsTableOpen}>
-            <div className="rounded-xl border border-border/60 shadow-sm overflow-hidden">
+            <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+              <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${sessionAccent.bar}`} aria-hidden="true" />
               {/* CollapsibleTrigger wraps only the chevron — the label and
                   its rename button are siblings, not nested, since a
                   <button> cannot validly contain another <button>. */}
               <div className="flex w-full items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
-                <div className="flex items-center gap-2 text-sm font-semibold">
+                <div className={`flex items-center gap-2 text-sm font-semibold ${sessionAccent.label}`}>
                   <CollapsibleTrigger asChild>
                     <button type="button" aria-label={isTableOpen ? 'Collapse session' : 'Expand session'}>
-                      <ChevronDown className={`h-4 w-4 transition-transform ${isTableOpen ? '' : '-rotate-90'}`} />
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isTableOpen ? 'rotate-180' : ''}`} />
                     </button>
                   </CollapsibleTrigger>
                   {isEditingSessionLabel ? (

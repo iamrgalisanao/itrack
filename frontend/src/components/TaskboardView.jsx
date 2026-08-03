@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { LayoutGrid, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import TaskDetailModal from '@/components/TaskDetailModal'
+import { GROUP_ACCENT_CLASSES, buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
 
 const PRIORITY_BADGE_CLASSES = {
   Critical: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',
@@ -15,22 +16,56 @@ const PRIORITY_BADGE_CLASSES = {
   Low: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
 }
 
-// 019-taskboard-scannability: deterministic per-group color accent, drawn
-// from the same color families as PRIORITY_BADGE_CLASSES/SENTIMENT_BADGE_CLASSES
-// (research.md D2) — assigned by group index, cycling when groups > entries.
-// Rendered as an absolutely-positioned background bar (not a border-left
-// utility): index.css defines a global, unlayered `* { border-color: ... }`
-// reset that always outranks any Tailwind border-*-color utility regardless
-// of specificity (unlayered CSS beats all `@layer`-declared utilities per
-// the CSS Cascade Layers spec), so border-l-{color} utilities render inert
-// app-wide. A background-color bar sidesteps that constraint entirely.
-const GROUP_ACCENT_CLASSES = [
-  { bar: 'bg-emerald-500', label: 'text-emerald-700 dark:text-emerald-400' },
-  { bar: 'bg-amber-500', label: 'text-amber-700 dark:text-amber-400' },
-  { bar: 'bg-primary', label: 'text-primary' },
-  { bar: 'bg-rose-500', label: 'text-rose-700 dark:text-rose-400' },
-  { bar: 'bg-orange-500', label: 'text-orange-700 dark:text-orange-400' },
-]
+// Group-header visual summary: fixed status/type order + solid segment
+// colors so the collapsed group row still communicates its status/type mix
+// (matches the monday.com reference: a segmented bar per column, not a list).
+const STATUS_ORDER = ['backlog', 'not_started', 'in_progress', 'for_review', 'blocked', 'delayed', 'completed']
+const STATUS_SEGMENT_LABELS = {
+  backlog: 'Backlog',
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  for_review: 'For Review',
+  blocked: 'Blocked',
+  delayed: 'Delayed',
+  completed: 'Done',
+}
+const STATUS_SEGMENT_CLASSES = {
+  backlog: 'bg-slate-400',
+  not_started: 'bg-slate-400',
+  in_progress: 'bg-blue-500',
+  for_review: 'bg-purple-500',
+  blocked: 'bg-red-500',
+  delayed: 'bg-red-600',
+  completed: 'bg-emerald-500',
+}
+// Status column badge — same color families as STATUS_SEGMENT_CLASSES, in
+// the outline-badge style PRIORITY_BADGE_CLASSES already uses.
+const STATUS_BADGE_CLASSES = {
+  backlog: 'border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300',
+  not_started: 'border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300',
+  in_progress: 'border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400',
+  for_review: 'border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400',
+  blocked: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',
+  delayed: 'border-red-600/40 bg-red-600/10 text-red-800 dark:text-red-400',
+  completed: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
+}
+
+const PRIORITY_ORDER = ['Critical', 'High', 'Medium', 'Low', 'unset']
+const PRIORITY_SEGMENT_LABELS = { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low', unset: 'Unset' }
+const PRIORITY_SEGMENT_CLASSES = {
+  Critical: 'bg-red-500',
+  High: 'bg-orange-500',
+  Medium: 'bg-amber-500',
+  Low: 'bg-emerald-500',
+  unset: 'bg-muted-foreground/30',
+}
+
+// Column widths (px) shared between the group-header summary row and the
+// task table beneath it, so the Status/Priority/Points summaries line up
+// with their matching data columns. The task table uses `table-fixed` with
+// a <colgroup> using these same values, so they're authoritative for both,
+// not just a visual approximation.
+const COLUMN_WIDTHS = { epic: 128, status: 128, priority: 112, points: 80, assignee: 128 }
 
 const EMPTY_FORM = {
   module_id: '',
@@ -54,6 +89,10 @@ export default function TaskboardView({ project, modules = [], userRole }) {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState(EMPTY_FORM)
   const [selectedTask, setSelectedTask] = useState(null)
+  // Groups start expanded (matching prior defaultOpen behavior); the
+  // Status/Priority summary bars only render for groups in this set,
+  // since they'd otherwise duplicate the per-row data already visible below.
+  const [closedGroups, setClosedGroups] = useState(() => new Set())
 
   const loadTasks = () => {
     if (!project?.id) return
@@ -84,12 +123,17 @@ export default function TaskboardView({ project, modules = [], userRole }) {
     }
     const labels = [...byLabel.keys()].filter((l) => l !== 'Backlog').sort()
     const ordered = byLabel.has('Backlog') ? ['Backlog', ...labels] : labels
-    return ordered.map((label, index) => ({
-      label,
-      tasks: byLabel.get(label),
-      pointSum: byLabel.get(label).reduce((sum, t) => sum + (t.estimated_story_points || 0), 0),
-      accent: GROUP_ACCENT_CLASSES[index % GROUP_ACCENT_CLASSES.length],
-    }))
+    return ordered.map((label, index) => {
+      const groupTasks = byLabel.get(label)
+      return {
+        label,
+        tasks: groupTasks,
+        pointSum: groupTasks.reduce((sum, t) => sum + (t.estimated_story_points || 0), 0),
+        accent: GROUP_ACCENT_CLASSES[index % GROUP_ACCENT_CLASSES.length],
+        statusSegments: buildSegments(groupTasks, 'status', STATUS_ORDER, STATUS_SEGMENT_CLASSES),
+        prioritySegments: buildSegments(groupTasks, 'priority', PRIORITY_ORDER, PRIORITY_SEGMENT_CLASSES),
+      }
+    })
   }, [tasks])
 
   const handleCreate = async (e) => {
@@ -166,24 +210,72 @@ export default function TaskboardView({ project, modules = [], userRole }) {
         </div>
       )}
 
-      {!loading && groups.map((group) => (
-        <Collapsible key={group.label} defaultOpen>
+      {!loading && groups.map((group) => {
+        const isOpen = !closedGroups.has(group.label)
+        return (
+        <Collapsible
+          key={group.label}
+          open={isOpen}
+          onOpenChange={(open) => {
+            setClosedGroups((prev) => {
+              const next = new Set(prev)
+              if (open) next.delete(group.label)
+              else next.add(group.label)
+              return next
+            })
+          }}
+        >
           <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
             <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${group.accent.bar}`} aria-hidden="true" />
             <CollapsibleTrigger asChild>
-              <button type="button" className="flex w-full items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30 text-left">
-                <span className={`flex items-center gap-2 text-sm font-semibold ${group.accent.label}`}>
-                  <ChevronDown className="h-4 w-4 transition-transform" />
-                  {group.label}
+              <button type="button" className="flex w-full items-center gap-4 px-4 py-3 border-b border-border/60 bg-muted/30 text-left">
+                <span className={`flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 ${group.accent.label}`}>
+                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  <span className="truncate">
+                    {group.label}
+                    <span className="block text-[11px] font-normal text-muted-foreground">
+                      {group.tasks.length} {group.tasks.length === 1 ? 'Task' : 'Tasks'}
+                    </span>
+                  </span>
                 </span>
-                <span className="flex items-center gap-2">
-                  <Badge variant="secondary">{group.tasks.length}</Badge>
-                  <span className="text-xs text-muted-foreground">{group.pointSum} points</span>
-                </span>
+
+                {/* Epic column spacer — no group-level rollup for this column */}
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.epic }} aria-hidden="true" />
+
+                {isOpen ? (
+                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.status }} aria-hidden="true" />
+                ) : (
+                  <GroupSegmentBar title="Status" segments={group.statusSegments} labels={STATUS_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.status} />
+                )}
+
+                {isOpen ? (
+                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.priority }} aria-hidden="true" />
+                ) : (
+                  <GroupSegmentBar title="Priority" segments={group.prioritySegments} labels={PRIORITY_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.priority} />
+                )}
+
+                <div className="shrink-0 text-right" style={{ width: COLUMN_WIDTHS.points }}>
+                  {!isOpen && (
+                    <>
+                      <div className="text-xs font-semibold text-foreground">{group.pointSum} SP</div>
+                      <div className="text-[10px] text-muted-foreground">sum</div>
+                    </>
+                  )}
+                </div>
+
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.assignee }} aria-hidden="true" />
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <Table>
+              <Table className="table-fixed">
+                <colgroup>
+                  <col />
+                  <col style={{ width: COLUMN_WIDTHS.epic }} />
+                  <col style={{ width: COLUMN_WIDTHS.status }} />
+                  <col style={{ width: COLUMN_WIDTHS.priority }} />
+                  <col style={{ width: COLUMN_WIDTHS.points }} />
+                  <col style={{ width: COLUMN_WIDTHS.assignee }} />
+                </colgroup>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="h-8 py-1.5 px-3 text-xs">Task</TableHead>
@@ -199,7 +291,11 @@ export default function TaskboardView({ project, modules = [], userRole }) {
                     <TableRow key={task.id} className="cursor-pointer" onClick={() => setSelectedTask(task)}>
                       <TableCell className="py-1.5 px-3 text-sm font-medium">{task.name}</TableCell>
                       <TableCell className="py-1.5 px-3 text-xs text-muted-foreground whitespace-nowrap">{task.module?.name || '—'}</TableCell>
-                      <TableCell className="py-1.5 px-3 text-xs text-muted-foreground capitalize">{task.status}</TableCell>
+                      <TableCell className="py-1.5 px-3">
+                        <Badge variant="outline" className={STATUS_BADGE_CLASSES[task.status]}>
+                          {STATUS_SEGMENT_LABELS[task.status] || task.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="py-1.5 px-3">
                         {task.priority ? (
                           <Badge variant="outline" className={PRIORITY_BADGE_CLASSES[task.priority]}>{task.priority}</Badge>
@@ -216,7 +312,8 @@ export default function TaskboardView({ project, modules = [], userRole }) {
             </CollapsibleContent>
           </div>
         </Collapsible>
-      ))}
+        )
+      })}
 
       {/* New Task dialog — Epic (Module) picker + simplified fields only;
           the reserved Activity/SubActivity chain is resolved server-side. */}

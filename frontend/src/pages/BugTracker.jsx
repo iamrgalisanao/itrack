@@ -4,8 +4,10 @@ import { fetchProjects, fetchBugs, createBug, updateBug, deleteBug } from '@/lib
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Bug as BugIcon, Plus, Pencil, Trash2, AlertTriangle, Clock } from 'lucide-react'
+import { Bug as BugIcon, Plus, Pencil, Trash2, AlertTriangle, Clock, ChevronDown } from 'lucide-react'
+import { GROUP_ACCENT_CLASSES, buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
 
 const STATUSES = ['Awaiting Review', 'Ready for Dev', 'Fixing', 'Fixed']
 const PRIORITIES = ['Critical', 'High', 'Medium', 'Low']
@@ -17,6 +19,32 @@ const PRIORITY_BADGE_CLASSES = {
   Medium: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
   Low: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
 }
+
+// Taskboard-style group-header summary: same fixed-order + solid-color
+// pattern as TaskboardView's Status/Priority bars (GroupSummaryBar.jsx),
+// applied to this page's own Status/Priority value sets.
+const PRIORITY_ORDER = PRIORITIES
+const PRIORITY_SEGMENT_LABELS = { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low' }
+const PRIORITY_SEGMENT_CLASSES = {
+  Critical: 'bg-red-500',
+  High: 'bg-orange-500',
+  Medium: 'bg-amber-500',
+  Low: 'bg-emerald-500',
+}
+
+const STATUS_ORDER = STATUSES
+const STATUS_SEGMENT_LABELS = { 'Awaiting Review': 'Awaiting Review', 'Ready for Dev': 'Ready for Dev', Fixing: 'Fixing', Fixed: 'Fixed' }
+const STATUS_SEGMENT_CLASSES = {
+  'Awaiting Review': 'bg-slate-400',
+  'Ready for Dev': 'bg-blue-500',
+  Fixing: 'bg-amber-500',
+  Fixed: 'bg-emerald-500',
+}
+
+// Column widths (px) shared between the group-header summary row and the
+// bug table beneath it — same alignment technique as TaskboardView
+// (table-fixed + matching <colgroup>).
+const COLUMN_WIDTHS = { reporter: 112, priority: 112, status: 128, owner: 112, due: 140, actions: 64 }
 
 const EMPTY_FORM = {
   title: '',
@@ -78,6 +106,9 @@ export default function BugTracker() {
 
   const [editingBug, setEditingBug] = useState(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
+  // Groups start expanded; the Status/Priority summary bars only render for
+  // groups in this set — matches TaskboardView's collapsed-only behavior.
+  const [closedGroups, setClosedGroups] = useState(() => new Set())
 
   // No canWrite()-accessible "list this project's internal users" endpoint
   // exists today (matches Retrospectives' owner-assignment shortlist
@@ -274,80 +305,139 @@ export default function BugTracker() {
         </div>
       )}
 
-      {!loading && bugs.length > 0 && GROUPS.map((group) => {
+      {!loading && bugs.length > 0 && GROUPS.map((group, index) => {
         const groupBugs = bugs.filter((b) => b.group === group)
         if (groupBugs.length === 0) return null
+        const accent = GROUP_ACCENT_CLASSES[index % GROUP_ACCENT_CLASSES.length]
+        const isOpen = !closedGroups.has(group)
+        const statusSegments = buildSegments(groupBugs, 'status', STATUS_ORDER, STATUS_SEGMENT_CLASSES)
+        const prioritySegments = buildSegments(groupBugs, 'priority', PRIORITY_ORDER, PRIORITY_SEGMENT_CLASSES)
         return (
-          <div key={group} className="rounded-xl border border-border/60 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
-              <span className="text-sm font-semibold">{group}</span>
-              <Badge variant="secondary">{groupBugs.length}</Badge>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Bug</TableHead>
-                  <TableHead>Reporter</TableHead>
-                  <TableHead>Priority</TableHead>
-                  {!isClient && <TableHead>Status</TableHead>}
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Due</TableHead>
-                  {canManage && <TableHead />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {groupBugs.map((bug) => (
-                  <TableRow key={bug.id}>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-mono text-muted-foreground">{bug.bug_id}</span>
-                        <span className="text-sm font-medium">{bug.title}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{bug.reporter}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={PRIORITY_BADGE_CLASSES[bug.priority]}>
-                        {bug.priority}
-                      </Badge>
-                    </TableCell>
-                    {!isClient && (
-                      <TableCell>
-                        {canManage ? (
-                          <select
-                            value={bug.status}
-                            onChange={(e) => handleStatusChange(bug, e.target.value)}
-                            className="text-xs rounded-md border border-border bg-background px-1.5 py-1 focus:outline-none"
-                          >
-                            {STATUSES.map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">{bug.status}</span>
+          <Collapsible
+            key={group}
+            open={isOpen}
+            onOpenChange={(open) => {
+              setClosedGroups((prev) => {
+                const next = new Set(prev)
+                if (open) next.delete(group)
+                else next.add(group)
+                return next
+              })
+            }}
+          >
+            <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+              <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
+              <CollapsibleTrigger asChild>
+                <button type="button" className="flex w-full items-center gap-4 px-4 py-3 border-b border-border/60 bg-muted/30 text-left">
+                  <span className={`flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 ${accent.label}`}>
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                    <span className="truncate">
+                      {group}
+                      <span className="block text-[11px] font-normal text-muted-foreground">
+                        {groupBugs.length} {groupBugs.length === 1 ? 'Bug' : 'Bugs'}
+                      </span>
+                    </span>
+                  </span>
+
+                  {/* Reporter column spacer — no group-level rollup for this column */}
+                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.reporter }} aria-hidden="true" />
+
+                  {isOpen ? (
+                    <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.priority }} aria-hidden="true" />
+                  ) : (
+                    <GroupSegmentBar title="Priority" segments={prioritySegments} labels={PRIORITY_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.priority} />
+                  )}
+
+                  {!isClient && (
+                    isOpen ? (
+                      <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.status }} aria-hidden="true" />
+                    ) : (
+                      <GroupSegmentBar title="Status" segments={statusSegments} labels={STATUS_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.status} />
+                    )
+                  )}
+
+                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.owner }} aria-hidden="true" />
+                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.due }} aria-hidden="true" />
+                  {canManage && <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.actions }} aria-hidden="true" />}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <Table className="table-fixed">
+                  <colgroup>
+                    <col />
+                    <col style={{ width: COLUMN_WIDTHS.reporter }} />
+                    <col style={{ width: COLUMN_WIDTHS.priority }} />
+                    {!isClient && <col style={{ width: COLUMN_WIDTHS.status }} />}
+                    <col style={{ width: COLUMN_WIDTHS.owner }} />
+                    <col style={{ width: COLUMN_WIDTHS.due }} />
+                    {canManage && <col style={{ width: COLUMN_WIDTHS.actions }} />}
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bug</TableHead>
+                      <TableHead>Reporter</TableHead>
+                      <TableHead>Priority</TableHead>
+                      {!isClient && <TableHead>Status</TableHead>}
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Due</TableHead>
+                      {canManage && <TableHead />}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {groupBugs.map((bug) => (
+                      <TableRow key={bug.id}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-mono text-muted-foreground">{bug.bug_id}</span>
+                            <span className="text-sm font-medium">{bug.title}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{bug.reporter}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={PRIORITY_BADGE_CLASSES[bug.priority]}>
+                            {bug.priority}
+                          </Badge>
+                        </TableCell>
+                        {!isClient && (
+                          <TableCell>
+                            {canManage ? (
+                              <select
+                                value={bug.status}
+                                onChange={(e) => handleStatusChange(bug, e.target.value)}
+                                className="text-xs rounded-md border border-border bg-background px-1.5 py-1 focus:outline-none"
+                              >
+                                {STATUSES.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{bug.status}</span>
+                            )}
+                          </TableCell>
                         )}
-                      </TableCell>
-                    )}
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{bug.owner || '—'}</TableCell>
-                    <TableCell>
-                      <DueCountdown dueDate={bug.due_date} isOverdue={bug.is_overdue} />
-                    </TableCell>
-                    {canManage && (
-                      <TableCell>
-                        <span className="flex items-center gap-1 justify-end">
-                          <button type="button" onClick={() => openEdit(bug)} className="text-muted-foreground hover:text-foreground" aria-label="Edit bug">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" onClick={() => handleDelete(bug.id)} className="text-muted-foreground hover:text-destructive" aria-label="Delete bug">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </span>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{bug.owner || '—'}</TableCell>
+                        <TableCell>
+                          <DueCountdown dueDate={bug.due_date} isOverdue={bug.is_overdue} />
+                        </TableCell>
+                        {canManage && (
+                          <TableCell>
+                            <span className="flex items-center gap-1 justify-end">
+                              <button type="button" onClick={() => openEdit(bug)} className="text-muted-foreground hover:text-foreground" aria-label="Edit bug">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" onClick={() => handleDelete(bug.id)} className="text-muted-foreground hover:text-destructive" aria-label="Delete bug">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         )
       })}
 
