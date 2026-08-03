@@ -69,6 +69,7 @@ import {
   ZoomOut,
   Maximize2,
   Settings,
+  Shield,
   GanttChart,
   FolderOpen,
   LayoutList,
@@ -110,6 +111,7 @@ export default function WorkProgram() {
   const [showBaseline, setShowBaseline] = useState(false)
   const [showCriticalPath, setShowCriticalPath] = useState(false)
   const [projectModalOpen, setProjectModalOpen] = useState(false)
+  const [clientAccessModalOpen, setClientAccessModalOpen] = useState(false)
   const [projectEditingId, setProjectEditingId] = useState(null)
   const [projectForm, setProjectForm] = useState({ name: '', location: '', updated_date: '' })
   const [projectSaving, setProjectSaving] = useState(false)
@@ -1215,6 +1217,18 @@ export default function WorkProgram() {
             >
               <Settings className="h-4 w-4" />
             </Button>
+            {selectedProject && canManageSelectedProjectClientAccess && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setClientAccessModalOpen(true)}
+                title="Client Access"
+                aria-label="Client Access"
+                className="h-9 w-9 shrink-0"
+              >
+                <Shield className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           {/* Primary action */}
@@ -1283,16 +1297,6 @@ export default function WorkProgram() {
       )}
 
       {/* ── No project selected ─────────────────────────────────────── */}
-      {selectedProject && canManageSelectedProjectClientAccess && (
-        <>
-          <ProjectClientAccessPanel
-            projectId={selectedProject}
-            clientOrganizationId={selectedProjectRecord?.client_organization_id}
-          />
-          {canReviewClientMemberships && <ClientMembershipReviewQueue />}
-        </>
-      )}
-
       {!selectedProject && (
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted py-20 text-center gap-4">
           <div className="rounded-full bg-muted/60 p-4">
@@ -2381,6 +2385,30 @@ export default function WorkProgram() {
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Client Access — kept out of the main workspace so Work Program stays
+          focused on Project Tasks; opened via the shield icon next to the
+          gear (Manage Projects) button. */}
+      <Dialog open={clientAccessModalOpen} onOpenChange={setClientAccessModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Client Access</DialogTitle>
+            <DialogDescription>
+              Invitations, memberships, and pending client access reviews for this project.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedProject && canManageSelectedProjectClientAccess && (
+            <div className="space-y-6">
+              <ProjectClientAccessPanel
+                projectId={selectedProject}
+                clientOrganizationId={selectedProjectRecord?.client_organization_id}
+              />
+              {canReviewClientMemberships && <ClientMembershipReviewQueue />}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
