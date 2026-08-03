@@ -43,7 +43,7 @@ class AuditLogger
         ?int $entityId = null,
         ?string $description = null,
         ?array $metadata = null
-    ): void {
+    ): AuditLog {
         $user = $request->user();
 
         // Derive actor identity from the authenticated user (real auth via Sanctum).
@@ -51,7 +51,7 @@ class AuditLogger
         $dept      = $user?->department;
         $actorName = $user?->name      ?? $role; // fall back to role when no real user (e.g. unauthenticated)
 
-        AuditLog::create([
+        return AuditLog::create([
             'action'       => $action,
             'entity_type'  => $entityType,
             'entity_id'    => $entityId,

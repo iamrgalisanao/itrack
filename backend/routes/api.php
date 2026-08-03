@@ -14,6 +14,7 @@ use App\Http\Controllers\GlossaryTermController;
 use App\Http\Controllers\SupportOpsController;
 use App\Http\Controllers\RetrospectiveController;
 use App\Http\Controllers\BugController;
+use App\Http\Controllers\TaskboardController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ClientDomainController;
 use App\Http\Controllers\ClientMembershipReviewController;
@@ -130,6 +131,10 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
     Route::get('bugs/{bug}', [BugController::class, 'show']);
     Route::patch('bugs/{bug}', [BugController::class, 'update']);
     Route::delete('bugs/{bug}', [BugController::class, 'destroy']);
+
+    // Taskboard (018-taskboard)
+    Route::get('projects/{project}/taskboard/tasks', [TaskboardController::class, 'index']);
+    Route::post('projects/{project}/taskboard/tasks', [TaskboardController::class, 'store']);
 
     // Notifications
     Route::get('notifications', [App\Http\Controllers\NotificationController::class, 'index']);

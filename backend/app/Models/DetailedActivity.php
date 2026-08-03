@@ -6,11 +6,24 @@ use App\Models\Concerns\BelongsToProject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DetailedActivity extends Model
 {
     use HasFactory;
     use BelongsToProject;
+
+    public const PRIORITY_CRITICAL = 'Critical';
+    public const PRIORITY_HIGH     = 'High';
+    public const PRIORITY_MEDIUM   = 'Medium';
+    public const PRIORITY_LOW      = 'Low';
+
+    public const PRIORITIES = [
+        self::PRIORITY_CRITICAL,
+        self::PRIORITY_HIGH,
+        self::PRIORITY_MEDIUM,
+        self::PRIORITY_LOW,
+    ];
 
     protected $fillable = [
         'sub_activity_id',
@@ -42,6 +55,10 @@ class DetailedActivity extends Model
         'evidence',
         'root_cause',
         'resolution',
+        'priority',
+        'estimated_story_points',
+        'sprint_label',
+        'assignee_user_id',
     ];
 
     protected $casts = [
@@ -51,11 +68,17 @@ class DetailedActivity extends Model
         'actual_end_date'       => 'date',
         'client_visible'        => 'boolean',
         'last_client_update_at' => 'datetime',
+        'estimated_story_points' => 'integer',
     ];
 
     public function subActivity()
     {
         return $this->belongsTo(SubActivity::class);
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assignee_user_id');
     }
 
     public function comments()

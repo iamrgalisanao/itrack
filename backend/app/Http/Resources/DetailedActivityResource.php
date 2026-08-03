@@ -50,6 +50,20 @@ class DetailedActivityResource extends JsonResource
             'evidence' => $this->evidence,
             'root_cause' => $this->root_cause,
             'resolution' => $this->resolution,
+            // 018-taskboard: internal-only fields, same treatment as
+            // notes/responsible above — never added to the Client branch.
+            'priority' => $this->priority,
+            'estimated_story_points' => $this->estimated_story_points,
+            'sprint_label' => $this->sprint_label,
+            'assignee_user_id' => $this->assignee_user_id,
+            'assignee' => $this->whenLoaded('assignee', fn () => $this->assignee ? [
+                'id' => $this->assignee->id,
+                'name' => $this->assignee->name,
+            ] : null),
+            'module' => $this->whenLoaded('subActivity', function () {
+                $module = $this->subActivity?->activity?->module;
+                return $module ? ['id' => $module->id, 'name' => $module->name] : null;
+            }),
         ];
     }
 }
