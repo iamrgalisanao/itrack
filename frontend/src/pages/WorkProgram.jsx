@@ -64,6 +64,7 @@ import {
   deleteProject,
 } from '@/lib/api'
 import { formatDate, getStatusColor, getStatusLabel, getTypeColor, getTypeLabel } from '@/lib/utils'
+import { buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
 import {
   ChevronDown,
   ChevronRight,
@@ -106,6 +107,31 @@ const GROUP_ACCENT_CLASSES = [
   { bar: 'bg-rose-500', label: 'text-rose-700 dark:text-rose-400' },
   { bar: 'bg-orange-500', label: 'text-orange-700 dark:text-orange-400' },
 ]
+
+// List view's Activity-group summary: same fixed-order/solid-color/
+// equal-share-segment pattern Taskboard and Bug Tracker use (buildSegments/
+// GroupSegmentBar, imported from GroupSummaryBar.jsx), applied to this
+// table's own 4-value Status set (getStatusLabel/getStatusColor only cover
+// these four — there's no second fixed-value axis here like Taskboard's
+// Priority, so this view gets a single Status bar).
+const LIST_STATUS_ORDER = ['not_started', 'in_progress', 'completed', 'delayed']
+const LIST_STATUS_SEGMENT_LABELS = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  delayed: 'Delayed',
+}
+const LIST_STATUS_SEGMENT_CLASSES = {
+  not_started: 'bg-slate-400',
+  in_progress: 'bg-blue-500',
+  completed: 'bg-emerald-500',
+  delayed: 'bg-red-500',
+}
+
+// Column widths (px) shared between the Activity-group header summary row
+// and the task table beneath it — same table-fixed + <colgroup> alignment
+// technique as TaskboardView/BugTracker.
+const LIST_COLUMN_WIDTHS = { actions: 32, task: 260, subActivity: 140, status: 130, progress: 130, responsible: 130, planDates: 200, actualDates: 200 }
 
 export default function WorkProgram() {
   // 007-permission-hardening: reflects the previewed target during an
@@ -1058,6 +1084,29 @@ export default function WorkProgram() {
     }
   }, [selectedProject])
 
+  // List view's Activity groups start collapsed with no task data loaded
+  // (tasks are otherwise fetched lazily on first manual expand, D1) — but
+  // the collapsed-state Status summary bar (below) needs real counts the
+  // moment a Module opens, not only after a group has been clicked at
+  // least once. This mirrors expandAllGroups' existing "fetch if
+  // uncached" logic, just triggered by the Module expanding rather than
+  // an explicit "Expand all" click, and only for the currently active
+  // List view (no reason to prefetch this while viewing Gantt/Taskboard).
+  useEffect(() => {
+    if (viewMode !== 'list') return
+    Object.keys(expandedModules).forEach((moduleId) => {
+      if (!expandedModules[moduleId]) return
+      const moduleActivities = activities[moduleId] || []
+      moduleActivities.forEach((a) => {
+        const key = `${moduleId}-${a.id}`
+        if (!activityTasks[key] && !activityTasksLoading[key]) {
+          refreshActivityTasks(Number(moduleId), a.id)
+        }
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, expandedModules, activities])
+
   const toggleModule = async (moduleId) => {
     const newExpanded = { ...expandedModules, [moduleId]: !expandedModules[moduleId] }
     setExpandedModules(newExpanded)
@@ -1708,28 +1757,68 @@ export default function WorkProgram() {
                         const accent = GROUP_ACCENT_CLASSES[activityIndex % GROUP_ACCENT_CLASSES.length]
                         const isExpanded = !!expandedActivities[groupKey]
                         const tasks = filterActivities(activityTasks[groupKey] || [])
+                        const statusSegments = buildSegments(tasks, 'status', LIST_STATUS_ORDER, LIST_STATUS_SEGMENT_CLASSES)
                         return (
                           <Collapsible key={activity.id} open={isExpanded} onOpenChange={() => expandActivityGroup(activity.id, module.id)}>
                             <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
                               <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
-                              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
+                              {/* No gap between children — a flex `gap` would
+                                  consume space the real table's contiguous <td>
+                                  columns don't lose, drifting every spacer after
+                                  it out of alignment. The responsible-text +
+                                  "..." menu block is taken out of flex flow
+                                  (absolute) for the same reason: it has no
+                                  matching table column, so letting it compete
+                                  for flex-1's leftover space would shift every
+                                  spacer before it too. */}
+                              <div className="relative flex items-center px-4 py-3 border-b border-border/60 bg-muted/30">
+                                {/* Leading spacer matches the data table's leading
+                                    row-actions column so everything after it lines
+                                    up with the real columns beneath. */}
+                                <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.actions }} aria-hidden="true" />
                                 <CollapsibleTrigger asChild>
                                   <button
                                     type="button"
-                                    className={`flex items-center gap-3 text-sm font-semibold ${accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
+                                    className={`flex items-center gap-3 text-sm font-semibold flex-1 min-w-0 ${accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
                                   >
                                     {isExpanded ? (
-                                      <ChevronDown className="h-4 w-4 transition-transform" />
+                                      <ChevronDown className="h-4 w-4 shrink-0 transition-transform" />
                                     ) : (
-                                      <ChevronRight className="h-4 w-4 transition-transform" />
+                                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform" />
                                     )}
                                     <Badge className={getTypeColor(activity.type)}>
                                       {getTypeLabel(activity.type)}
                                     </Badge>
-                                    {activity.name}
+                                    <span className="truncate">
+                                      {activity.name}
+                                      <span className="block text-[11px] font-normal text-muted-foreground">
+                                        {tasks.length} {tasks.length === 1 ? 'Task' : 'Tasks'}
+                                      </span>
+                                    </span>
                                   </button>
                                 </CollapsibleTrigger>
-                                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+
+                                {/* Sub-Activity column spacer — no group-level rollup for this column */}
+                                <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.subActivity }} aria-hidden="true" />
+
+                                {isExpanded ? (
+                                  <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.status }} aria-hidden="true" />
+                                ) : (
+                                  <GroupSegmentBar title="Status" segments={statusSegments} labels={LIST_STATUS_SEGMENT_LABELS} widthPx={LIST_COLUMN_WIDTHS.status} />
+                                )}
+
+                                {/* Remaining column spacers — no group-level rollup for
+                                    these, but they must still be reserved so the flex-1
+                                    trigger button above absorbs the same leftover width
+                                    here as the Task column does in the real table below. */}
+                                <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.progress }} aria-hidden="true" />
+                                {!isClient && (
+                                  <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.responsible }} aria-hidden="true" />
+                                )}
+                                <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.planDates }} aria-hidden="true" />
+                                <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.actualDates }} aria-hidden="true" />
+
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3 text-sm text-muted-foreground shrink-0">
                                   <span>{activity.responsible}</span>
                                   {['Admin', 'Project Manager'].includes(userRole) && (
                                     <DropdownMenu>
@@ -1810,7 +1899,17 @@ export default function WorkProgram() {
                                       </div>
                                     )}
                                     {tasks.length > 0 && (
-                                      <Table>
+                                      <Table className="table-fixed">
+                                        <colgroup>
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.actions }} />
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.task }} />
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.subActivity }} />
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.status }} />
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.progress }} />
+                                          {!isClient && <col style={{ width: LIST_COLUMN_WIDTHS.responsible }} />}
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.planDates }} />
+                                          <col style={{ width: LIST_COLUMN_WIDTHS.actualDates }} />
+                                        </colgroup>
                                         <TableHeader>
                                           <TableRow>
                                             <TableHead className="h-8 py-1.5 px-1 text-xs w-[32px]" />

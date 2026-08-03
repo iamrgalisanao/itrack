@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -38,8 +39,9 @@ import {
   Paperclip,
   Download,
   Send,
+  MoreHorizontal,
 } from 'lucide-react'
-import { GROUP_ACCENT_CLASSES } from '@/components/GroupSummaryBar'
+import { GROUP_ACCENT_CLASSES, buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
 
 const SENTIMENTS = [
   { id: 'keep', label: 'Keep', color: 'border-t-emerald-500 bg-emerald-500/5' },
@@ -54,6 +56,24 @@ const SENTIMENT_BADGE_CLASSES = {
   improve: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
   discuss: 'border-primary/40 bg-primary/10 text-primary',
 }
+
+// Taskboard-style collapsed-group summary (GroupSummaryBar.jsx), applied to
+// this table's own Type/sentiment set — a single bar, since Type is the
+// only fixed-value axis here (no second field like Taskboard's Priority).
+// A blank/unset sentiment (see SENTIMENT_BADGE_CLASSES' one-directional
+// rule above) buckets under 'unset' like Taskboard's Priority does.
+const SENTIMENT_ORDER = ['keep', 'improve', 'discuss', 'unset']
+const SENTIMENT_SEGMENT_LABELS = { keep: 'Keep', improve: 'Improve', discuss: 'Discuss', unset: 'Unset' }
+const SENTIMENT_SEGMENT_CLASSES = {
+  keep: 'bg-emerald-500',
+  improve: 'bg-amber-500',
+  discuss: 'bg-primary',
+  unset: 'bg-muted-foreground/30',
+}
+// Column width (px) shared between the session-header summary row and the
+// Type column beneath it — same alignment technique as Taskboard/Bug
+// Tracker/Work Program List view.
+const RETRO_COLUMN_WIDTHS = { actions: 32, submitter: 128, type: 128, repeating: 110, vote: 90, owner: 140 }
 
 export default function Retrospectives() {
   // FR-006/US4: reads the effective (previewed, when applicable) user, same
@@ -428,6 +448,9 @@ export default function Retrospectives() {
   // bar here, just the shared accent-bar/chevron visual language).
   const sessionIndex = Math.max(0, sessions.findIndex((s) => s.id === selectedSessionId))
   const sessionAccent = GROUP_ACCENT_CLASSES[sessionIndex % GROUP_ACCENT_CLASSES.length]
+  const sentimentSegments = sessionDetail
+    ? buildSegments(sessionDetail.entries, 'sentiment', SENTIMENT_ORDER, SENTIMENT_SEGMENT_CLASSES)
+    : []
 
   if (error) {
     return (
@@ -536,8 +559,19 @@ export default function Retrospectives() {
               {/* CollapsibleTrigger wraps only the chevron — the label and
                   its rename button are siblings, not nested, since a
                   <button> cannot validly contain another <button>. */}
-              <div className="flex w-full items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/30">
-                <div className={`flex items-center gap-2 text-sm font-semibold ${sessionAccent.label}`}>
+              {/* No gap between children here — a flex `gap` would consume
+                  space the real table's contiguous <td> columns don't lose,
+                  drifting every spacer after it out of alignment. The entry
+                  count badge is taken out of flex flow entirely (absolute)
+                  for the same reason: it has no matching table column, so
+                  letting it compete for flex-1's leftover space would shift
+                  every spacer before it too. */}
+              <div className="relative flex w-full items-center px-4 py-3 border-b border-border/60 bg-muted/30">
+                {/* Leading spacer matches the table's leading row-actions
+                    column so everything after it lines up with the real
+                    columns beneath. */}
+                <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.actions }} aria-hidden="true" />
+                <div className={`flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 ${sessionAccent.label}`}>
                   <CollapsibleTrigger asChild>
                     <button type="button" aria-label={isTableOpen ? 'Collapse session' : 'Expand session'}>
                       <ChevronDown className={`h-4 w-4 transition-transform ${isTableOpen ? 'rotate-180' : ''}`} />
@@ -568,12 +602,39 @@ export default function Retrospectives() {
                     <span>{sessionDetail.session.label}</span>
                   )}
                 </div>
-                <Badge variant="secondary">{sessionDetail.entries.length}</Badge>
+
+                {/* Submitter column spacer — no group-level rollup for this column */}
+                <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.submitter }} aria-hidden="true" />
+
+                {!isTableOpen && (
+                  <GroupSegmentBar title="Type" segments={sentimentSegments} labels={SENTIMENT_SEGMENT_LABELS} widthPx={RETRO_COLUMN_WIDTHS.type} />
+                )}
+
+                {/* Remaining column spacers — no group-level rollup for these,
+                    but they must still be reserved so the flex-1 label above
+                    absorbs the same leftover width here as it does in the
+                    real table below (matching total fixed-width content is
+                    what keeps the Type bar's boundaries aligned). */}
+                <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.repeating }} aria-hidden="true" />
+                <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.vote }} aria-hidden="true" />
+                <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.owner }} aria-hidden="true" />
+
+                <Badge variant="secondary" className="absolute right-4 top-1/2 -translate-y-1/2">{sessionDetail.entries.length}</Badge>
               </div>
               <CollapsibleContent>
-                <Table>
+                <Table className="table-fixed">
+                  <colgroup>
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.actions }} />
+                    <col />
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.submitter }} />
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.type }} />
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.repeating }} />
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.vote }} />
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.owner }} />
+                  </colgroup>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[32px]" />
                       <TableHead>Feedback</TableHead>
                       <TableHead>Submitter</TableHead>
                       <TableHead>Type</TableHead>
@@ -585,33 +646,53 @@ export default function Retrospectives() {
                   <TableBody>
                     {sessionDetail.entries.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-6">
+                        <TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-6">
                           No entries yet
                         </TableCell>
                       </TableRow>
                     )}
                     {sessionDetail.entries.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>
-                          <div className="flex items-start gap-2">
-                            <span className="text-sm">{entry.body}</span>
-                            <span className="flex items-center gap-1 shrink-0 ml-auto pl-2">
-                              {/* 015-retro-entry-context: opens Comments/Files/Decision detail — visible to every viewer, not just moderators */}
-                              <button type="button" onClick={() => openEntryDetail(entry)} className="text-muted-foreground hover:text-foreground" aria-label="View comments and files">
-                                <MessageSquareText className="h-3.5 w-3.5" />
-                              </button>
+                      <TableRow key={entry.id} className="group">
+                        {/* Work Program List view's row-actions pattern: a leading
+                            "..." menu column, visible only on hover/focus/while
+                            open — replaces three always-visible icon buttons.
+                            View is available to every viewer; Edit/Delete stay
+                            gated. */}
+                        <TableCell className="py-1.5 px-1 w-[32px]">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                                aria-label="Entry actions"
+                              >
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onClick={() => openEntryDetail(entry)}>
+                                <MessageSquareText className="h-3.5 w-3.5" /> Comments & Files
+                              </DropdownMenuItem>
                               {canModerateEntry(entry) && (
                                 <>
-                                  <button type="button" onClick={() => openEdit(entry)} className="text-muted-foreground hover:text-foreground" aria-label="Edit entry">
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button type="button" onClick={() => handleDeleteEntry(entry.id)} className="text-muted-foreground hover:text-destructive" aria-label="Delete entry">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => openEdit(entry)}>
+                                    <Pencil className="h-3.5 w-3.5" /> Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => handleDeleteEntry(entry.id)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                                  </DropdownMenuItem>
                                 </>
                               )}
-                            </span>
-                          </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{entry.body}</span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{entry.author}</TableCell>
                         <TableCell>

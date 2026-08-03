@@ -90,11 +90,14 @@ export function useTheme() {
 
 /* ─── Nav items shared by sidebar + mobile drawer ─────────────────────────────
    Grouped by task frequency/audience, not alphabetically or by add-order:
-   - Workspace: the daily task-flow loop, visible to everyone.
+   - Workspace: the daily task-flow loop, visible to everyone — including
+     Bug Tracker, since individual bugs can be marked client-visible
+     (BugTracker.jsx's `visibility` field), unlike everything in Team Ops.
    - Team Ops: internal execution views — invisible to Clients entirely, so
-     the whole group disappears rather than leaving a partially-filtered list.
-     "Today" and "Knowledge Base" are nested sub-views of Support Ops
-     (subItems, not flat peers), rendered indented beneath it.
+     the whole group disappears rather than leaving a partially-filtered
+     list. Every item here MUST be internalOnly (or adminOnly) to preserve
+     that invariant. "Today" and "Knowledge Base" are nested sub-views of
+     Support Ops (subItems, not flat peers), rendered indented beneath it.
    - Insights: read-heavy reference/reporting material, checked not worked in.
    - People & Admin: lowest-frequency, roster/account administration. */
 const NAV_GROUPS = [
@@ -104,6 +107,7 @@ const NAV_GROUPS = [
       { path: '/',             label: 'Dashboard',     icon: LayoutDashboard },
       { path: '/work-program', label: 'Work Program',  icon: FolderKanban },
       { path: '/schedule',     label: 'Schedule View', icon: Calendar },
+      { path: '/bug-tracker',  label: 'Bug Tracker',   icon: Bug },
     ],
   },
   {
@@ -118,7 +122,6 @@ const NAV_GROUPS = [
         ],
       },
       { path: '/retrospectives', label: 'Retrospectives', icon: MessageSquareQuote, internalOnly: true },
-      { path: '/bug-tracker', label: 'Bug Tracker', icon: Bug },
     ],
   },
   {
@@ -239,7 +242,11 @@ function SidebarNavGroups({ collapsed, userRole }) {
         return (
           <div
             key={group.label}
-            className={collapsed && groupIndex > 0 ? 'mt-3 pt-3 border-t border-border/60' : 'mt-0.5'}
+            className={
+              collapsed
+                ? groupIndex > 0 ? 'mt-3 pt-3 border-t border-border/60' : ''
+                : groupIndex > 0 ? 'mt-4' : ''
+            }
           >
             {!collapsed && (
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-3 mb-1.5">
