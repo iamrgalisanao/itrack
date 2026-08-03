@@ -12,6 +12,13 @@ import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueu
 import TaskboardView from '@/components/TaskboardView'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -79,6 +86,9 @@ import {
   SearchX,
   Layers,
   AlertTriangle,
+  MoreHorizontal,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from 'lucide-react'
 
 // 020-list-view-groups: deterministic per-group color accent for List
@@ -1127,6 +1137,14 @@ export default function WorkProgram() {
         const tasks = taskResponses[i].data.data || taskResponses[i].data
         return tasks.map(t => ({ ...t, sub_activity_name: sa.name }))
       })
+      // Explicit stable sort by id (ascending) — the backend's index()
+      // endpoint has no ORDER BY, so row order isn't guaranteed, and
+      // merging multiple Sub-Activities' task lists interleaves whatever
+      // order each happened to come back in. Sorting by id (creation
+      // order for an auto-increment PK) guarantees newly-added tasks
+      // always land at the bottom instead of wherever the unordered
+      // fetch/merge put them.
+      merged.sort((a, b) => a.id - b.id)
       setActivityTasks(prev => ({ ...prev, [key]: merged }))
     } catch (err) {
       console.error('Failed to load activity tasks:', err)
@@ -1148,6 +1166,32 @@ export default function WorkProgram() {
     if (newExpanded[key] && !activityTasks[key]) {
       refreshActivityTasks(moduleId, activityId)
     }
+  }
+
+  // Module-scoped "Collapse/Expand all groups" — operates on every
+  // Activity group under one Module, matching the monday.com semantic of
+  // "board" = the set of groups currently in view (this file already
+  // scopes everything else per-Module too).
+  const collapseAllGroups = (moduleId) => {
+    const groupActivities = activities[moduleId] || []
+    setExpandedActivities(prev => {
+      const next = { ...prev }
+      groupActivities.forEach(a => { next[`${moduleId}-${a.id}`] = false })
+      return next
+    })
+  }
+
+  const expandAllGroups = (moduleId) => {
+    const groupActivities = activities[moduleId] || []
+    setExpandedActivities(prev => {
+      const next = { ...prev }
+      groupActivities.forEach(a => { next[`${moduleId}-${a.id}`] = true })
+      return next
+    })
+    groupActivities.forEach(a => {
+      const key = `${moduleId}-${a.id}`
+      if (!activityTasks[key]) refreshActivityTasks(moduleId, a.id)
+    })
   }
 
   // Inline "+ Add item" (research.md D5): attaches to the Activity's first
@@ -1639,11 +1683,23 @@ export default function WorkProgram() {
                 <CardContent className="border-t pt-4">
                   <div className="flex justify-between items-center mb-3 pl-8">
                     <h3 className="text-sm font-semibold text-muted-foreground">Activities</h3>
-                    {['Admin', 'Project Manager'].includes(userRole) && (
-                      <Button size="sm" variant="outline" onClick={() => openFormModal('activity', 'create', module.id)}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Add Activity
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {(activities[module.id] || []).length > 1 && (
+                        <>
+                          <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={() => collapseAllGroups(module.id)}>
+                            <ChevronsDownUp className="h-3.5 w-3.5" /> Collapse all
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={() => expandAllGroups(module.id)}>
+                            <ChevronsUpDown className="h-3.5 w-3.5" /> Expand all
+                          </Button>
+                        </>
+                      )}
+                      {['Admin', 'Project Manager'].includes(userRole) && (
+                        <Button size="sm" variant="outline" onClick={() => openFormModal('activity', 'create', module.id)}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Add Activity
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-3 pl-8">
                     {filterActivities(activities[module.id]).map((activity, activityIndex) => (
@@ -1676,29 +1732,46 @@ export default function WorkProgram() {
                                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                   <span>{activity.responsible}</span>
                                   {['Admin', 'Project Manager'].includes(userRole) && (
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-8 w-8 p-0"
-                                        onClick={() => openFormModal('activity', 'edit', { moduleId: module.id }, activity)}
-                                        aria-label={`Edit activity: ${activity.name}`}
-                                      >
-                                        <Edit className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                        onClick={() => {
-                                          setDeleteTarget({ level: 'activity', id: activity.id, context: { moduleId: module.id } })
-                                          setDeleteError(null); setDeleteConfirmOpen(true)
-                                        }}
-                                        aria-label={`Delete activity: ${activity.name}`}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0"
+                                          aria-label={`Group actions for: ${activity.name}`}
+                                        >
+                                          <MoreHorizontal className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => openFormModal('activity', 'edit', { moduleId: module.id }, activity)}>
+                                          <Edit className="h-3.5 w-3.5" /> Rename Activity
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => {
+                                            // Manage Sub-Activities reads live subActivities[groupKey]
+                                            // state reactively — if this group was never expanded,
+                                            // that key doesn't exist yet, so trigger the same fetch
+                                            // expandActivityGroup would have; the dialog re-renders
+                                            // once it resolves rather than showing a false "empty".
+                                            if (!subActivities[groupKey]) refreshActivityTasks(module.id, activity.id)
+                                            setManageSubActivitiesFor({ moduleId: module.id, activityId: activity.id, activityName: activity.name })
+                                          }}
+                                        >
+                                          <Settings className="h-3.5 w-3.5" /> Manage Sub-Activities
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-destructive focus:text-destructive"
+                                          onClick={() => {
+                                            setDeleteTarget({ level: 'activity', id: activity.id, context: { moduleId: module.id } })
+                                            setDeleteError(null); setDeleteConfirmOpen(true)
+                                          }}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" /> Delete Activity
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   )}
                                 </div>
                               </div>
@@ -1719,14 +1792,6 @@ export default function WorkProgram() {
                                   <>
                                     {['Admin', 'Project Manager'].includes(userRole) && (
                                       <div className="flex justify-end items-center gap-1 px-3 pt-2">
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 gap-1.5 text-xs text-muted-foreground"
-                                          onClick={() => setManageSubActivitiesFor({ moduleId: module.id, activityId: activity.id, activityName: activity.name })}
-                                        >
-                                          <Settings className="h-3.5 w-3.5" /> Manage Sub-Activities
-                                        </Button>
                                         {(subActivities[groupKey] || []).length > 0 && (
                                           <Button
                                             size="sm"
@@ -1748,6 +1813,7 @@ export default function WorkProgram() {
                                       <Table>
                                         <TableHeader>
                                           <TableRow>
+                                            <TableHead className="h-8 py-1.5 px-1 text-xs w-[32px]" />
                                             <TableHead className="h-8 py-1.5 px-3 text-xs w-[260px]">Task</TableHead>
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Sub-Activity</TableHead>
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Status</TableHead>
@@ -1755,7 +1821,6 @@ export default function WorkProgram() {
                                             {!isClient && <TableHead className="h-8 py-1.5 px-3 text-xs">Responsible</TableHead>}
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Plan Dates</TableHead>
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Actual Dates</TableHead>
-                                            <TableHead className="h-8 py-1.5 px-3 text-xs w-[120px]">Actions</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -1764,7 +1829,45 @@ export default function WorkProgram() {
                                             const isEditingField = (field) => editingCell?.taskId === detail.id && editingCell.field === field
                                             const editableCellClass = isEditableRole ? 'cursor-pointer hover:bg-muted/40' : ''
                                             return (
-                                              <TableRow key={detail.id}>
+                                              <TableRow key={detail.id} className="group">
+                                                <TableCell className="py-1.5 px-1 w-[32px]">
+                                                  {isEditableRole && (
+                                                    <DropdownMenu>
+                                                      <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                          size="sm"
+                                                          variant="ghost"
+                                                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                                                          aria-label={`Task actions: ${detail.name}`}
+                                                        >
+                                                          <MoreHorizontal className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                      </DropdownMenuTrigger>
+                                                      <DropdownMenuContent align="start">
+                                                        <DropdownMenuItem
+                                                          onClick={() => openFormModal('task', 'edit', { moduleId: module.id, activityId: activity.id, subActivityId: detail.sub_activity_id }, detail)}
+                                                        >
+                                                          <Edit className="h-3.5 w-3.5" /> Edit
+                                                        </DropdownMenuItem>
+                                                        {['Admin', 'Project Manager'].includes(userRole) && (
+                                                          <DropdownMenuItem
+                                                            className="text-destructive focus:text-destructive"
+                                                            onClick={() => {
+                                                              setDeleteTarget({
+                                                                level: 'task',
+                                                                id: detail.id,
+                                                                context: { moduleId: module.id, activityId: activity.id, subActivityId: detail.sub_activity_id }
+                                                              })
+                                                              setDeleteError(null); setDeleteConfirmOpen(true)
+                                                            }}
+                                                          >
+                                                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                                                          </DropdownMenuItem>
+                                                        )}
+                                                      </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                  )}
+                                                </TableCell>
                                                 <TableCell
                                                   className={`py-1.5 px-3 text-sm font-medium ${editableCellClass}`}
                                                   onClick={() => isEditableRole && !isEditingField('name') && startCellEdit(detail.id, 'name')}
@@ -1948,42 +2051,6 @@ export default function WorkProgram() {
                                                       {!detail.actual_start_date && '-'}
                                                     </>
                                                   )}
-                                                </TableCell>
-
-                                                <TableCell className="py-1.5 px-3">
-                                                  <div className="flex items-center gap-1">
-                                                    {isEditableRole && (
-                                                      <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 p-0 text-blue-500"
-                                                        onClick={() => openFormModal('task', 'edit', { moduleId: module.id, activityId: activity.id, subActivityId: detail.sub_activity_id }, detail)}
-                                                        title="Full Edit"
-                                                        aria-label={`Full edit: ${detail.name}`}
-                                                      >
-                                                        <Edit className="h-4 w-4" />
-                                                      </Button>
-                                                    )}
-                                                    {['Admin', 'Project Manager'].includes(userRole) && (
-                                                      <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
-                                                        onClick={() => {
-                                                          setDeleteTarget({
-                                                            level: 'task',
-                                                            id: detail.id,
-                                                            context: { moduleId: module.id, activityId: activity.id, subActivityId: detail.sub_activity_id }
-                                                          })
-                                                          setDeleteError(null); setDeleteConfirmOpen(true)
-                                                        }}
-                                                        title="Delete"
-                                                        aria-label={`Delete task: ${detail.name}`}
-                                                      >
-                                                        <Trash2 className="h-4 w-4" />
-                                                      </Button>
-                                                    )}
-                                                  </div>
                                                 </TableCell>
                                               </TableRow>
                                             )
