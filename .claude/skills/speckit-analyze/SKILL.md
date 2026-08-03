@@ -148,6 +148,7 @@ Focus on high-signal findings. Limit to 50 findings total; aggregate remainder i
 - Requirements with zero associated tasks
 - Tasks with no mapped requirement/story
 - Success Criteria requiring buildable work (performance, security, availability) not reflected in tasks
+- For features with a frontend-interface surface (Constitution: Frontend Design and Review Governance): plan.md missing a Frontend Design Constraints subsection, tasks.md collapsing frontend work into a single generic task instead of the traceable breakdown (component reuse, states, responsive, accessibility, visual verification, frontend review), or no task covering resolution/acceptance of Critical/Major frontend review findings
 
 #### F. Inconsistency
 

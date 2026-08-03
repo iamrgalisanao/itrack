@@ -201,6 +201,17 @@ Every task MUST strictly follow this format:
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
 
+5. **From frontend-interface surface** (Constitution: Frontend Design and Review Governance) — applies whenever a user story creates or substantially changes a page, dashboard, layout, form, dialog, or reusable component. A single generic task such as "implement frontend" is NOT sufficient. Break the story's frontend work into separate, traceable tasks covering:
+   - inspection of existing frontend conventions/components to reuse (feeds plan.md's Frontend Design Constraints)
+   - component reuse analysis (what's reused vs. genuinely new, and why)
+   - layout/component implementation
+   - required interface states (loading, empty, error, validation, disabled, success, permission-denied) — call out only the ones that actually apply to this story, not a boilerplate checklist
+   - responsive behavior
+   - accessibility (semantic HTML, keyboard interaction, labels)
+   - visual/browser verification
+   - a frontend review pass (Critical/Major/Minor/Suggestion findings against spec, constitution, plan, and comparable existing pages) with a follow-up task to resolve or explicitly accept any Critical/Major findings
+   Skip this breakdown for stories with no frontend-interface surface — do not manufacture frontend tasks where there's nothing to design.
+
 ### Phase Structure
 
 - **Phase 1**: Setup (project initialization)
