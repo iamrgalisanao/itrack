@@ -64,7 +64,7 @@ import {
   deleteProject,
 } from '@/lib/api'
 import { formatDate, getStatusColor, getStatusLabel, getTypeColor, getTypeLabel } from '@/lib/utils'
-import { buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { buildSegments, GroupProgressBar, GroupSegmentBar } from '@/components/GroupSummaryBar'
 import {
   ChevronDown,
   ChevronRight,
@@ -1758,6 +1758,7 @@ export default function WorkProgram() {
                         const isExpanded = !!expandedActivities[groupKey]
                         const tasks = filterActivities(activityTasks[groupKey] || [])
                         const statusSegments = buildSegments(tasks, 'status', LIST_STATUS_ORDER, LIST_STATUS_SEGMENT_CLASSES)
+                        const groupProgressPct = rolledUpData.rolledUpActivities[groupKey]?.progress ?? 0
                         return (
                           <Collapsible key={activity.id} open={isExpanded} onOpenChange={() => expandActivityGroup(activity.id, module.id)}>
                             <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
@@ -1807,11 +1808,16 @@ export default function WorkProgram() {
                                   <GroupSegmentBar title="Status" segments={statusSegments} labels={LIST_STATUS_SEGMENT_LABELS} widthPx={LIST_COLUMN_WIDTHS.status} />
                                 )}
 
+                                {isExpanded ? (
+                                  <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.progress }} aria-hidden="true" />
+                                ) : (
+                                  <GroupProgressBar title="Progress" pct={groupProgressPct} widthPx={LIST_COLUMN_WIDTHS.progress} />
+                                )}
+
                                 {/* Remaining column spacers — no group-level rollup for
                                     these, but they must still be reserved so the flex-1
                                     trigger button above absorbs the same leftover width
                                     here as the Task column does in the real table below. */}
-                                <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.progress }} aria-hidden="true" />
                                 {!isClient && (
                                   <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.responsible }} aria-hidden="true" />
                                 )}

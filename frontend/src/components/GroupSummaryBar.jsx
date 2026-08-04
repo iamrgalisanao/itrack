@@ -35,6 +35,26 @@ export function buildSegments(items, field, order, classes) {
   return present.map((key) => ({ key, count: counts.get(key), pct: equalPct, className: classes[key] }))
 }
 
+// Single continuous fill for a rolled-up percentage (e.g. average task
+// progress across a group) — same footprint (label + h-7 bar) as
+// GroupSegmentBar so the two sit flush in the same collapsed header row,
+// but progress is a continuous 0-100 value, not a categorical distribution,
+// so it gets one fill + a centered percentage instead of equal-share segments.
+export function GroupProgressBar({ title, pct, widthPx }) {
+  const clamped = Math.max(0, Math.min(100, pct || 0))
+  return (
+    <div className="hidden sm:block shrink-0" style={{ width: widthPx }}>
+      <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
+      <div className="relative h-7 w-full overflow-hidden rounded-md bg-muted" title={`${Math.round(clamped)}% average progress`}>
+        <div className="h-full bg-primary transition-all" style={{ width: `${clamped}%` }} />
+        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-foreground">
+          {Math.round(clamped)}%
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export function GroupSegmentBar({ title, segments, labels, widthPx }) {
   if (segments.length === 0) {
     return (
