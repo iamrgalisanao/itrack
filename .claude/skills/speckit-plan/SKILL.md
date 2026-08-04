@@ -61,12 +61,43 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 2. **Load context**: Read FEATURE_SPEC and `.specify/memory/constitution.md`. Load IMPL_PLAN template (already copied).
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
+3. **Detect actual repository architecture** (before writing Technical Context):
+   - Read `backend/composer.json` (and `backend/composer.lock` if present) to determine the actual installed Laravel version — do not assume the version named in the constitution or in prior specs is still current.
+   - Read `frontend/package.json` to confirm the actual React/Vite/build-tool versions and whether TypeScript is present (check for `typescript` in dependencies and any `.ts`/`.tsx` files).
+   - The plan MUST build on the repository's existing Laravel and React architecture (existing controllers/models/routes conventions, existing frontend routing/state patterns) rather than introducing a parallel structure.
+   - **Do not use Laravel-version-specific APIs, syntax, or package features unless the detected installed Laravel version actually supports them.** If Technical Context or research.md is tempted to reference a Laravel 13-only API, verify against the detected version first; if the repo is on an earlier version, use the equivalent API for that version instead.
+
+4. **Apply installed coding-standard skills**: Load and apply the rules from the project's installed skills relevant to this feature's surface:
+   - `.claude/skills/php-best-practices` and `.claude/skills/laravel-best-practices` — for any backend PHP/Laravel work
+   - `.claude/skills/react-vite-best-practices` — for any frontend React/Vite work
+   - `.claude/skills/typescript-react-patterns` — for any frontend work, applied prospectively if the repo is not yet on TypeScript (see Technical Context detection above)
+   - `.claude/skills/laravel-testing` — to shape the test-task requirements below
+   - `.claude/skills/laravel-owasp-security` — for any endpoint, auth, file-upload, or data-exposure surface
+   - `.claude/skills/code-slop` — to shape review/validation expectations, not just implementation style
+
+   Convert the applicable rules from each skill into concrete, feature-specific output in the plan artifacts — not a generic restatement of the skill:
+   - **Technical constraints**: add a "Coding-Standard Constraints" subsection under Technical Context in plan.md, listing the specific rules from the applicable skills that bind this feature (e.g., a specific validation pattern, a specific N+1-avoidance rule, a specific typed-props rule).
+   - **Test requirements**: research.md and data-model.md/contracts must call out the specific test cases `laravel-testing` and `laravel-owasp-security` imply for this feature's surface (e.g., authorization-denied cases, mass-assignment guards, an OWASP-relevant case such as IDOR/broken access control on a new endpoint) — these feed directly into `/speckit-tasks`' test tasks (Constitution Principle III and VIII).
+   - **Validation tasks**: quickstart.md must include the manual/automated validation steps implied by `laravel-owasp-security` and `code-slop` for this feature (e.g., "verify the new endpoint rejects a user without project access", "confirm no unexplained defensive/mock-heavy code was introduced") so they carry forward into `/speckit-tasks` as explicit tasks, satisfying Constitution Principle VIII's Definition-of-Done Gate.
+
+5. **Apply the `frontend-design` skill for any feature that creates or substantially changes a frontend interface** (Constitution: Frontend Design and Review Governance). This is automatic — the user does not need to ask for it. Before writing Technical Context:
+   - Inspect the existing application for comparable pages, shared components, design tokens, typography, spacing, and responsive conventions already in use (`frontend/src/components/ui/`, sibling pages) — identify what's reusable before proposing anything new.
+   - Determine page purpose, intended users, primary workflow/action, and a deliberate visual direction consistent with the existing product, not a new one.
+   - Determine the interface states this feature must account for: loading, empty, error, validation, disabled, success, and permission-denied.
+   - Determine responsive behavior (desktop/tablet/mobile) and accessibility/keyboard-interaction requirements.
+   - Confirm the proposed design does not introduce a parallel or conflicting design system; if an existing pattern doesn't satisfy the requirements and a new one is genuinely needed, document why.
+
+   Convert this into concrete plan output, not a generic restatement:
+   - Add a **"Frontend Design Constraints"** subsection under Technical Context (sibling to "Coding-Standard Constraints" from step 4) naming the specific existing patterns/components this feature reuses, the visual direction, the page/component hierarchy, and which required states apply.
+   - quickstart.md must include the responsive and accessibility verification steps implied by this feature's interface, plus a **frontend review pass**: compare the implementation against the spec, this constitution, the plan, and comparable existing pages/components, and classify any findings as Critical/Major/Minor/Suggestion. Critical/Major findings block completion unless explicitly documented and accepted (Constitution Completion Gate).
+   - Skip this step entirely for features with no frontend-interface surface (e.g., a pure backend/API-only change) — do not force a Frontend Design Constraints subsection where there's nothing to design.
+
+6. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
+   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION"), including the Coding-Standard Constraints subsection from step 4 and the Frontend Design Constraints subsection from step 5 where applicable
+   - Fill Constitution Check section from constitution (Principles VII and VIII apply to every feature touching PHP/Laravel or React/TypeScript code; the Frontend Design and Review Governance section applies to every feature with a frontend-interface surface)
    - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
+   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION, including skill-derived test requirements)
+   - Phase 1: Generate data-model.md, contracts/, quickstart.md (including skill-derived validation tasks and the frontend review pass from step 5)
    - Re-evaluate Constitution Check post-design
 
 ## Mandatory Post-Execution Hooks
@@ -161,6 +192,10 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, and generated 
 
 - Use absolute paths for filesystem operations; use project-relative paths for references in documentation
 - ERROR on gate failures or unresolved clarifications
+- Build on the repository's existing Laravel and React architecture; do not introduce a parallel structure or a new framework/library without a constitution amendment (Delivery Constraints)
+- Do not introduce Laravel-version-specific APIs (e.g., Laravel 13-only syntax) unless the version detected in `backend/composer.json`/`composer.lock` actually supports them
+- Every plan touching PHP/Laravel or React/TypeScript code must translate `php-best-practices`, `laravel-best-practices`, `react-vite-best-practices`, `typescript-react-patterns`, `laravel-testing`, `laravel-owasp-security`, and `code-slop` into concrete constraints, test requirements, and validation tasks per step 4 above — not just cite the skill names
+- Every plan for a feature with a frontend-interface surface must apply the `frontend-design` skill per step 5 above automatically, without the user asking — existing design conventions and shared components take priority over new patterns, and the plan must not introduce a parallel design system
 
 ## Done When
 

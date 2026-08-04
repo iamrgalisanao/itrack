@@ -146,6 +146,14 @@ class SubActivityController extends Controller
             return response()->json(['message' => 'Unauthorized: Only Admin and Project Manager roles can delete sub-activities.'], 403);
         }
 
+        // 018-taskboard data-model.md: "Unclassified Tasks" is a reserved,
+        // application-owned container auto-created per Activity — reject
+        // deletion while it still holds any DetailedActivity children. An
+        // empty SubActivity sharing this name is unaffected.
+        if ($subActivity->name === 'Unclassified Tasks' && $subActivity->detailedActivities()->exists()) {
+            return response()->json(['message' => 'This SubActivity is reserved for Taskboard and cannot be deleted while it contains tasks.'], 409);
+        }
+
         $subActivityId = $subActivity->id;
         $subActivity->delete();
 

@@ -19,6 +19,8 @@ import {
   ShieldCheck,
   LogOut,
   MessagesSquare,
+  MessageSquareQuote,
+  Bug,
   Sunrise,
   Library,
   PanelLeftClose,
@@ -38,6 +40,8 @@ import SupportOps from './pages/SupportOps'
 import TodayDashboard from './pages/TodayDashboard'
 import SupportOpsKnowledgeBase from './pages/SupportOpsKnowledgeBase'
 import Login from './pages/Login'
+import Retrospectives from './pages/Retrospectives'
+import BugTracker from './pages/BugTracker'
 import NotificationBell from './components/NotificationBell'
 import RequireAuth from './components/RequireAuth'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -86,11 +90,14 @@ export function useTheme() {
 
 /* ─── Nav items shared by sidebar + mobile drawer ─────────────────────────────
    Grouped by task frequency/audience, not alphabetically or by add-order:
-   - Workspace: the daily task-flow loop, visible to everyone.
+   - Workspace: the daily task-flow loop, visible to everyone — including
+     Bug Tracker, since individual bugs can be marked client-visible
+     (BugTracker.jsx's `visibility` field), unlike everything in Team Ops.
    - Team Ops: internal execution views — invisible to Clients entirely, so
-     the whole group disappears rather than leaving a partially-filtered list.
-     "Today" and "Knowledge Base" are nested sub-views of Support Ops
-     (subItems, not flat peers), rendered indented beneath it.
+     the whole group disappears rather than leaving a partially-filtered
+     list. Every item here MUST be internalOnly (or adminOnly) to preserve
+     that invariant. "Today" and "Knowledge Base" are nested sub-views of
+     Support Ops (subItems, not flat peers), rendered indented beneath it.
    - Insights: read-heavy reference/reporting material, checked not worked in.
    - People & Admin: lowest-frequency, roster/account administration. */
 const NAV_GROUPS = [
@@ -100,6 +107,7 @@ const NAV_GROUPS = [
       { path: '/',             label: 'Dashboard',     icon: LayoutDashboard },
       { path: '/work-program', label: 'Work Program',  icon: FolderKanban },
       { path: '/schedule',     label: 'Schedule View', icon: Calendar },
+      { path: '/bug-tracker',  label: 'Bug Tracker',   icon: Bug },
     ],
   },
   {
@@ -113,6 +121,7 @@ const NAV_GROUPS = [
           { path: '/support-ops/knowledge-base', label: 'Knowledge Base', icon: Library },
         ],
       },
+      { path: '/retrospectives', label: 'Retrospectives', icon: MessageSquareQuote, internalOnly: true },
     ],
   },
   {
@@ -233,7 +242,11 @@ function SidebarNavGroups({ collapsed, userRole }) {
         return (
           <div
             key={group.label}
-            className={collapsed && groupIndex > 0 ? 'mt-3 pt-3 border-t border-border/60' : 'mt-0.5'}
+            className={
+              collapsed
+                ? groupIndex > 0 ? 'mt-3 pt-3 border-t border-border/60' : ''
+                : groupIndex > 0 ? 'mt-4' : ''
+            }
           >
             {!collapsed && (
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-3 mb-1.5">
@@ -620,6 +633,23 @@ function SupportOpsGuard({ children }) {
   return children
 }
 
+/**
+ * 013-sprint-retrospectives: same internal-only audience as Kanban/Support
+ * Ops — a Client hitting the URL directly is denied here, not just hidden
+ * from the sidebar (internalOnly on the nav item alone wouldn't stop that).
+ */
+function RetrospectivesGuard({ children }) {
+  const user = useEffectiveUser()
+
+  if (!KANBAN_INTERNAL_ROLES.includes(user?.role)) {
+    return (
+      <AccessDenied message="Retrospectives is restricted to internal team members. Client accounts do not have access." />
+    )
+  }
+
+  return children
+}
+
 /* ─── Root App ──────────────────────────────────────────────────────────────── */
 function AppShell() {
   // 007-permission-hardening: NotificationBell's polling should restart
@@ -652,7 +682,7 @@ function AppShell() {
 
         <MobileBar />
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="px-[50px] py-8">
             <Routes>
               <Route path="/"             element={<Dashboard />} />
               <Route path="/work-program" element={<WorkProgram />} />
@@ -660,6 +690,12 @@ function AppShell() {
               <Route path="/support-ops"  element={<SupportOpsGuard><SupportOps /></SupportOpsGuard>} />
               <Route path="/support-ops/today" element={<SupportOpsGuard><TodayDashboard /></SupportOpsGuard>} />
               <Route path="/support-ops/knowledge-base" element={<SupportOpsGuard><SupportOpsKnowledgeBase /></SupportOpsGuard>} />
+              <Route path="/retrospectives" element={<RetrospectivesGuard><Retrospectives /></RetrospectivesGuard>} />
+              {/* 017-bug-tracker: no route guard — every role has a legitimate
+                  path (Client gets read-only, client_visible bugs); all
+                  enforcement is server-side in BugController and in the
+                  page's own conditional rendering. */}
+              <Route path="/bug-tracker"  element={<BugTracker />} />
               <Route path="/schedule"     element={<Schedule />} />
               <Route path="/reports"      element={<Reports />} />
               <Route path="/glossary"     element={<Glossary />} />

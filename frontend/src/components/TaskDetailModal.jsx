@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
 import { getSupportCompletion, getResolutionCompletion, computeMissing } from '@/lib/supportTemplates'
+import { fetchProjectAssignments } from '@/lib/api'
 
 const SUPPORT_WORK_TYPES = ['support', 'learning']
 
@@ -49,6 +50,11 @@ export default function TaskDetailModal({
   supportFields,
   resolutionFields,
   readOnly = false,
+  // 018-taskboard: optional — only Taskboard's caller (TaskboardView) passes
+  // this. Without it, the assignee field still displays the current
+  // assignee but offers no picker (Kanban/Support Ops/Today Dashboard don't
+  // have a project id readily on hand to fetch project members with).
+  projectId,
 }) {
   const [form, setForm] = useState(task)
   const [modalTab, setModalTab] = useState('details')
@@ -102,6 +108,27 @@ export default function TaskDetailModal({
     typeof supportFields === 'function' &&
     typeof resolutionFields === 'function'
   const isClient = userRole === 'Client'
+  // 018-taskboard plan.md: matches the backend's isPmOrAdmin() gate exactly
+  // — Team Member/Department Head see these fields read-only, Client never
+  // sees them at all (handled by the same !isClient guards as other
+  // internal-only fields in this modal).
+  const canManageTaskboardFields = userRole === 'Admin' || userRole === 'Project Manager'
+  const [assigneeOptions, setAssigneeOptions] = useState([])
+
+  useEffect(() => {
+    if (!canManageTaskboardFields || !projectId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clears stale options from a previously-open task with a different projectId
+      setAssigneeOptions([])
+      return
+    }
+    fetchProjectAssignments({ project_id: projectId })
+      .then((res) => {
+        const list = res.data.data || res.data
+        // A Client is never a valid assignee (backend's internalUserExistsRule) — filtered client-side too.
+        setAssigneeOptions(list.map((a) => a.user).filter((u) => u && u.role !== 'Client'))
+      })
+      .catch((err) => console.error('Failed to load project assignments:', err))
+  }, [canManageTaskboardFields, projectId])
 
   // Dev-only diagnostic, moved into an effect (found during review) so a
   // mismatched task logs once per actual change instead of on every render.
@@ -488,7 +515,11 @@ export default function TaskDetailModal({
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <label htmlFor="modal-task-priority" className="text-xs font-bold text-foreground">Priority</label>
+                    {/* 018-taskboard research.md D7: this was mislabeled
+                        "Priority" while actually storing `type` — relabeled
+                        to its true meaning so it doesn't collide with the
+                        new, real Priority field below. No data change. */}
+                    <label htmlFor="modal-task-priority" className="text-xs font-bold text-foreground">Type</label>
                     <select
                       id="modal-task-priority"
                       value={form.type || ''}
@@ -504,6 +535,79 @@ export default function TaskDetailModal({
                     </select>
                   </div>
                 </div>
+
+                {/* 018-taskboard: Priority/Points/Sprint Label/Assignee —
+                    internal-only (never shown to Client), read-only for
+                    Team Member/Department Head, editable for Admin/PM. */}
+                {!isClient && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label htmlFor="modal-task-taskboard-priority" className="text-xs font-bold text-foreground">Priority</label>
+                      <select
+                        id="modal-task-taskboard-priority"
+                        value={form.priority || ''}
+                        disabled={readOnly || !canManageTaskboardFields}
+                        onChange={(e) => setForm((prev) => ({ ...prev, priority: e.target.value || null }))}
+                        className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <option value="">None</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor="modal-task-points" className="text-xs font-bold text-foreground">Story Points</label>
+                      <input
+                        id="modal-task-points"
+                        type="number"
+                        min="0"
+                        max="100"
+                        disabled={readOnly || !canManageTaskboardFields}
+                        value={form.estimated_story_points ?? ''}
+                        onChange={(e) => setForm((prev) => ({ ...prev, estimated_story_points: e.target.value === '' ? null : parseInt(e.target.value, 10) }))}
+                        className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor="modal-task-sprint-label" className="text-xs font-bold text-foreground">Sprint Label</label>
+                      <input
+                        id="modal-task-sprint-label"
+                        type="text"
+                        placeholder="e.g. Sprint 1"
+                        disabled={readOnly || !canManageTaskboardFields}
+                        value={form.sprint_label || ''}
+                        onChange={(e) => setForm((prev) => ({ ...prev, sprint_label: e.target.value }))}
+                        className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor="modal-task-assignee" className="text-xs font-bold text-foreground">Assignee</label>
+                      {canManageTaskboardFields && projectId ? (
+                        <select
+                          id="modal-task-assignee"
+                          value={form.assignee_user_id || ''}
+                          disabled={readOnly}
+                          onChange={(e) => setForm((prev) => ({ ...prev, assignee_user_id: e.target.value ? Number(e.target.value) : null }))}
+                          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          <option value="">Unassigned</option>
+                          {assigneeOptions.map((u) => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          disabled
+                          value={form.assignee?.name || 'Unassigned'}
+                          className="w-full text-sm rounded-lg border border-border bg-background text-foreground px-3 py-2 opacity-60 cursor-not-allowed"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Planned Dates */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\NotificationResource;
 use App\Models\AuditLog;
+use App\Models\Bug;
 use App\Models\DetailedActivity;
 use App\Models\Notification;
 use App\Models\Project;
@@ -36,6 +37,7 @@ class NotificationController extends Controller
         // Run dynamic notification checks
         $this->generateOverdueNotifications();
         $this->generateDueSoonNotifications();
+        $this->generateBugBreachNotifications();
         $this->generateSupportOverdueEntries($user);
         $this->generateDailySummary($user);
         $this->generateWeeklyReport($user);
@@ -505,6 +507,53 @@ class NotificationController extends Controller
                     $task->plan_end_date
                 );
             }
+        }
+    }
+
+    /**
+     * Helper: Generate 'overdue' (SLA breach) notifications for Bug Tracker
+     * bugs (017-bug-tracker, research.md D3). Mirrors
+     * generateOverdueNotifications()'s shape exactly — the lazy,
+     * request-triggered pattern already established in this controller,
+     * not a new scheduled-command dependency.
+     */
+    private function generateBugBreachNotifications(): void
+    {
+        $overdueBugs = Bug::where('status', '!=', Bug::STATUS_FIXED)
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now())
+            ->whereNull('breach_notified_at')
+            ->with(['reporter', 'owner'])
+            ->get();
+
+        foreach ($overdueBugs as $bug) {
+            $dueDateStr = $bug->due_date->format('Y-m-d');
+            $recipients = collect([$bug->reporter, $bug->owner])
+                ->filter()
+                ->unique('id');
+
+            foreach ($recipients as $recipient) {
+                $eventKey = "bug_breach:bug:{$bug->id}:{$recipient->id}";
+
+                Notification::sendNotification(
+                    $recipient->role,
+                    Notification::TYPE_OVERDUE,
+                    Notification::SEVERITY_CRITICAL,
+                    'Bug Overdue',
+                    "Bug \"{$bug->title}\" ({$bug->bug_id}) is overdue (Due: {$dueDateStr}).",
+                    null,
+                    "/bug-tracker?bug={$bug->id}",
+                    $eventKey,
+                    $dueDateStr,
+                    null,
+                    $recipient->id
+                );
+            }
+
+            // breach_notified_at is deliberately excluded from Bug::$fillable
+            // (never client-settable) — set directly, not via update().
+            $bug->breach_notified_at = now();
+            $bug->save();
         }
     }
 

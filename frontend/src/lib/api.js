@@ -109,9 +109,13 @@ export const deleteGlossaryTerm = (id) => api.delete(`/glossary-terms/${id}`)
 export const fetchAttachments  = (detailedActivityId) =>
   api.get(`/detailed-activities/${detailedActivityId}/attachments`)
 
-// Note: do NOT set Content-Type manually — Axios sets it with the correct multipart boundary
+// Content-Type must be cleared per-request (not left as the shared api instance's
+// default 'application/json') so the browser sets the correct multipart boundary.
 export const uploadAttachment  = (detailedActivityId, formData, onUploadProgress) =>
-  api.post(`/detailed-activities/${detailedActivityId}/attachments`, formData, { onUploadProgress })
+  api.post(`/detailed-activities/${detailedActivityId}/attachments`, formData, {
+    onUploadProgress,
+    headers: { 'Content-Type': undefined },
+  })
 
 export const deleteAttachment  = (id) => api.delete(`/attachments/${id}`)
 
@@ -240,5 +244,62 @@ export const createSupportIssue = (data) => api.post('/support-ops', data)
 export const logSupportGeneration = (issueId, { artifact_type, template_stage, issue_updated_at }) =>
   api.post(`/support-ops/${issueId}/generation-log`, { artifact_type, template_stage, issue_updated_at })
 export const fetchTodayDashboard = () => api.get('/support-ops/today')
+
+// Sprint Retrospectives (013-sprint-retrospectives)
+export const fetchRetroSessions = (projectId) => api.get('/retro-sessions', { params: { project_id: projectId } })
+export const createRetroSession = (projectId, label) => api.post('/retro-sessions', { project_id: projectId, label })
+export const updateRetroSession = (id, label) => api.patch(`/retro-sessions/${id}`, { label })
+export const fetchRetroSession = (id) => api.get(`/retro-sessions/${id}`)
+// 014-retro-table-view Phase 8/FR-018: sentiment is no longer set at
+// creation — it's assigned afterward via updateRetroEntry's Type cell.
+export const createRetroEntry = (sessionId, body) => api.post(`/retro-sessions/${sessionId}/entries`, { body })
+export const updateRetroEntry = (id, patch) => api.patch(`/retro-entries/${id}`, patch)
+export const deleteRetroEntry = (id) => api.delete(`/retro-entries/${id}`)
+export const toggleRetroVote = (id) => api.post(`/retro-entries/${id}/vote`)
+
+// Retro Entry Discussion, Attachments & Decision (015-retro-entry-context)
+export const fetchRetroEntryComments = (entryId) => api.get(`/retro-entries/${entryId}/comments`)
+export const createRetroEntryComment = (entryId, body) => api.post(`/retro-entries/${entryId}/comments`, { body })
+
+export const fetchRetroEntryAttachments = (entryId) => api.get(`/retro-entries/${entryId}/attachments`)
+// The shared `api` instance defaults to 'Content-Type: application/json' on
+// every request; axios does not override an already-set header just because
+// the body is FormData, so without clearing it here the multipart boundary
+// never gets attached and the server sees no file at all. Setting it to
+// `undefined` lets the browser/axios compute the correct multipart boundary.
+export const uploadRetroEntryAttachment = (entryId, formData, onUploadProgress) =>
+  api.post(`/retro-entries/${entryId}/attachments`, formData, {
+    onUploadProgress,
+    headers: { 'Content-Type': undefined },
+  })
+export const deleteRetroEntryAttachment = (id) => api.delete(`/retro-entry-attachments/${id}`)
+
+/**
+ * Download a protected retro attachment via Axios (preserves session cookie
+ * auth) — matches downloadAttachment's blob approach; <a href> would bypass
+ * auth and fail access control.
+ */
+export const downloadRetroEntryAttachment = async (id, filename) => {
+  const response = await api.get(`/retro-entry-attachments/${id}/download`, { responseType: 'blob' })
+  const url = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// Bug Tracker (017-bug-tracker)
+export const fetchBugs = (projectId) => api.get(`/projects/${projectId}/bugs`)
+export const createBug = (projectId, data) => api.post(`/projects/${projectId}/bugs`, data)
+export const fetchBug = (id) => api.get(`/bugs/${id}`)
+export const updateBug = (id, data) => api.patch(`/bugs/${id}`, data)
+export const deleteBug = (id) => api.delete(`/bugs/${id}`)
+
+// Taskboard (018-taskboard)
+export const fetchTaskboardTasks = (projectId) => api.get(`/projects/${projectId}/taskboard/tasks`)
+export const createTaskboardTask = (projectId, data) => api.post(`/projects/${projectId}/taskboard/tasks`, data)
 
 export default api

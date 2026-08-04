@@ -146,6 +146,14 @@ class ActivityController extends Controller
             return response()->json(['message' => 'Unauthorized: Only Admin and Project Manager roles can delete activities.'], 403);
         }
 
+        // 018-taskboard data-model.md: "Taskboard" is a reserved, application-owned
+        // container auto-created per Module — reject deletion while it still holds
+        // any SubActivity/DetailedActivity descendants. An empty Activity that
+        // happens to share this name is unaffected.
+        if ($activity->name === 'Taskboard' && $activity->subActivities()->exists()) {
+            return response()->json(['message' => 'This Activity is reserved for Taskboard and cannot be deleted while it contains tasks.'], 409);
+        }
+
         $activityId = $activity->id;
         $activity->delete();
 

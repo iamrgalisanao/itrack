@@ -4,11 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\DetailedActivityResource;
 use App\Models\DetailedActivity;
+use App\Models\Notification;
+use App\Models\Project;
 use App\Models\SubActivity;
 use App\Services\AuditLogger;
 use App\Models\User;
 use App\Support\AccessContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class DetailedActivityController extends Controller
 {
@@ -21,6 +26,40 @@ class DetailedActivityController extends Controller
     private function user(Request $request): User
     {
         return AccessContext::user($request);
+    }
+
+    /**
+     * 018-taskboard data-model.md: assignee_user_id must reference a real,
+     * non-Client user — duplicated from TaskboardController rather than
+     * extracted, matching this codebase's established preference for small
+     * duplication over premature abstraction at two call sites.
+     */
+    private function internalUserExistsRule(): Exists
+    {
+        return Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', '!=', User::ROLE_CLIENT));
+    }
+
+    private function assigneeHasProjectAccess(?int $assigneeUserId, int $projectId): bool
+    {
+        if ($assigneeUserId === null) {
+            return true;
+        }
+
+        $candidate = User::find($assigneeUserId);
+
+        return $candidate !== null
+            && Project::query()->accessibleTo($candidate)->whereKey($projectId)->exists();
+    }
+
+    private function normalizeSprintLabel(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     // ─── GET /sub-activities/{subActivity}/detailed-activities ───────────────
@@ -198,6 +237,14 @@ class DetailedActivityController extends Controller
             'evidence'             => 'nullable|string',
             'root_cause'           => 'nullable|string',
             'resolution'           => 'nullable|string',
+            // 018-taskboard: not in $allowedForTeamMember above, so a Team
+            // Member's request never reaches this validation with these keys
+            // present at all (research.md D3 — stripped before validation,
+            // not merely hidden from the response afterward).
+            'priority'                => ['nullable', Rule::in(DetailedActivity::PRIORITIES)],
+            'estimated_story_points'  => 'nullable|integer|min:0|max:100',
+            'sprint_label'            => 'nullable|string|max:100',
+            'assignee_user_id'        => ['nullable', 'integer', $this->internalUserExistsRule()],
         ]);
 
         // Only PM/Admin can change client_visible
@@ -205,9 +252,21 @@ class DetailedActivityController extends Controller
             unset($validated['client_visible']);
         }
 
+        if (array_key_exists('assignee_user_id', $validated)) {
+            $projectId = $detailedActivity->resolveProjectId();
+            if (!$this->assigneeHasProjectAccess($validated['assignee_user_id'], $projectId)) {
+                return response()->json(['message' => 'The selected assignee does not have access to this project.'], 422);
+            }
+        }
+
+        if (array_key_exists('sprint_label', $validated)) {
+            $validated['sprint_label'] = $this->normalizeSprintLabel($validated['sprint_label']);
+        }
+
         $oldStatus      = $detailedActivity->status;
         $oldResponsible = $detailedActivity->responsible;
         $oldClientVisible = $detailedActivity->client_visible;
+        $oldAssigneeUserId = $detailedActivity->assignee_user_id;
 
         $detailedActivity->update($validated);
 
@@ -267,6 +326,40 @@ class DetailedActivityController extends Controller
                     $eventKey
                 );
             }
+        }
+
+        // Notification: Taskboard assignee changed (018-taskboard research.md D5)
+        // — distinct from the "responsible" string-based notification above.
+        // Fires only when assignee_user_id actually changes to a new non-null
+        // value; the event_key is keyed off a persisted AuditLog row id, not
+        // a permanent task+recipient pair or a timestamp, so reassigning back
+        // to a previous assignee correctly notifies them again.
+        if (array_key_exists('assignee_user_id', $validated)
+            && $detailedActivity->assignee_user_id !== null
+            && $detailedActivity->assignee_user_id !== $oldAssigneeUserId) {
+            $auditEntry = AuditLogger::record($request, 'task.assigned', 'detailed_activity', $detailedActivity->id, null, [
+                'from' => $oldAssigneeUserId,
+                'to' => $detailedActivity->assignee_user_id,
+            ]);
+
+            DB::afterCommit(function () use ($detailedActivity, $auditEntry) {
+                $recipient = $detailedActivity->assignee;
+                if ($recipient) {
+                    Notification::sendNotification(
+                        $recipient->role,
+                        Notification::TYPE_ASSIGNMENT,
+                        Notification::SEVERITY_INFO,
+                        'Task Assignment Updated',
+                        "You have been assigned to task: \"{$detailedActivity->name}\".",
+                        $detailedActivity->id,
+                        "/work-program?view=taskboard&task={$detailedActivity->id}",
+                        "assignment:event:{$auditEntry->id}",
+                        null,
+                        null,
+                        $recipient->id
+                    );
+                }
+            });
         }
 
         // Notification: task blocked
