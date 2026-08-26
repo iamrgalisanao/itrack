@@ -61,11 +61,26 @@ bug and was purely an artifact. Using the real control, it vanished.
 **Automated contrast sweep of rendered pages** — every leaf text node, foreground measured against
 its true composited background walked up the ancestor chain:
 
-| Page | Theme | Failures |
-|---|---|---|
-| Dashboard | dark | 0 |
-| Work Program (Gantt) | dark | 0 |
-| Work Program (Gantt) | light | 0 real (1 artifact — see below) |
+| Page | Theme | Rendered | Failures |
+|---|---|---|---|
+| Dashboard | dark | yes | 0 |
+| Work Program — Gantt | dark | yes | 0 |
+| Work Program — Gantt | light | yes | 0 real (1 artifact — see below) |
+| Work Program — Taskboard | dark | 7,574 chars | 0 |
+| Bug Tracker | dark | yes | 0 |
+| Retrospectives | dark | 664 chars | 0 |
+| Support Ops | dark | 427 chars | 0 |
+| Kanban | dark | 7,858 chars | 0 |
+| Schedule | dark | 641 chars | 0 |
+| Admin | dark | 749 chars | 0 |
+| Team | dark | 344 chars | 0 |
+| Glossary | dark | 3,094 chars | 0 |
+
+All six screens named in spec.md's Independent Test are covered, plus the Admin/Team/Glossary tint
+callouts quickstart Gate 3 adds. Taskboard is reached as a tab inside Work Program, not the
+`/taskboard` route — that route renders an empty main, so a sweep of it would have reported a clean
+zero while testing nothing. Rendered-character counts are recorded for exactly that reason: a
+zero-failure result on an unrendered page is not evidence.
 
 **Direct contract probe.** Rendered pages under-test the contract: most status colouring in this app
 goes through the *palette* class maps (`STATUS_BADGE_CLASSES` and friends), not the semantic
