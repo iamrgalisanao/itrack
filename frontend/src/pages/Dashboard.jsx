@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { fetchDashboard } from '@/lib/api'
 import { getStatusColor, getStatusLabel } from '@/lib/utils'
 import AccessDenied from '@/components/AccessDenied'
+import MyWorkPanel from '@/components/MyWorkPanel'
 import {
   FolderKanban,
   Layers,
@@ -359,11 +360,15 @@ export default function Dashboard() {
   const [accessDenied, setAccessDenied] = useState(false)
   const [activityTab, setActivityTab] = useState('all')
 
-  const load = () => {
-    setLoading(true)
+  // `silent` keeps the already-rendered dashboard on screen while refetching.
+  // My Work calls this after every inline status change; showing the
+  // full-page spinner there would make a two-click status change look like a
+  // page reload.
+  const fetchInto = (silent) => {
+    if (!silent) setLoading(true)
     setError(null)
     setAccessDenied(false)
-    fetchDashboard()
+    return fetchDashboard()
       .then(res => { setData(res.data); setLoading(false) })
       .catch((err) => {
         // 007-permission-hardening (FR-010): a 403 mid-session (an
@@ -380,7 +385,10 @@ export default function Dashboard() {
       })
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+  const load = () => fetchInto(false)
+  const refresh = () => fetchInto(true)
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- established data-load-on-mount idiom used throughout this codebase
   useEffect(() => { load() }, [])
 
   if (loading) {
@@ -563,6 +571,10 @@ export default function Dashboard() {
         <StatCard title="Team Members"  value={stats.team_members  || 0} description="Active contributors" icon={Users}     iconBg="bg-orange-100 dark:bg-orange-950/40" iconColor="text-orange-600 dark:text-orange-400" />
         <StatCard title="Glossary Terms" value={stats.glossary_terms || 0} description="Defined terms"     icon={BookOpen}  iconBg="bg-pink-100 dark:bg-pink-950/40"   iconColor="text-pink-600 dark:text-pink-400" />
       </div>
+
+      {/* ── My Work — the page's only actionable panel, above the heatmap so
+             an overdue task is visible without scrolling (SC-003). ── */}
+      <MyWorkPanel onTaskMutated={refresh} />
 
       {/* ── 6. Task Status by Module Heatmap ── */}
       <Card>
