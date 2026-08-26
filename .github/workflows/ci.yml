@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Lets CI be re-run from the Actions tab without inventing a commit —
+  # needed when a run is lost to a platform incident, or when a re-run is
+  # blocked because GitHub still considers the stuck run in progress.
+  workflow_dispatch:
+
+# Superseded PR runs are cancelled so a queue of stale ones cannot build up.
+# Pushes to main are never cancelled: every commit on the default branch
+# should end up with its own verdict rather than inheriting a later run's.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   backend-tests:
