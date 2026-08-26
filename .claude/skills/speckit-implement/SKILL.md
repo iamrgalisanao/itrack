@@ -99,6 +99,11 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **IF EXISTS**: Read .specify/memory/constitution.md for governance constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
 
+3a. **Precondition: Software Architect verification gate on this plan.** `/speckit-plan`'s step 7 requires plan.md to carry a `## Software Architect Verification` section recording that gate's outcome. Check it now, before touching any task:
+   - **Section absent, or present but not recording `PASSED (clean)` or `PASSED (accepted exceptions)`**: this plan has not cleared review (predates the gate, was interrupted mid-iteration, or is genuinely unresolved). **STOP.** Do not execute any task. Tell the user the plan needs the Software Architect gate run (or resumed) via `/speckit-plan` before implementation can start, and offer to run that verification now (dispatch the Software Architect subagent per `speckit-plan` step 7, iterating revise → re-verify the same way, then write the section into plan.md) rather than silently proceeding.
+   - **Section present and `PASSED`**: proceed to step 4. If it recorded accepted exceptions, treat those exact exceptions as known/expected — do not re-litigate them as new Code Reviewer findings in step 10 unless the implementation touches the excepted area differently than what was accepted.
+   - This check exists so a plan that was never actually reviewed (or whose review never converged) cannot silently reach implementation just because tasks.md happens to exist.
+
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
 
@@ -232,6 +237,7 @@ Report final status with summary of completed work, plus the Code Reviewer verif
 
 ## Done When
 
+- [ ] Software Architect verification gate (step 3a) confirmed `PASSED` on plan.md before any task ran
 - [ ] All tasks in tasks.md completed and marked `[X]`
 - [ ] Implementation validated against specification, plan, and test coverage
 - [ ] Code Reviewer verification (step 10) dispatched, and every Critical/Major finding resolved or documented as accepted
