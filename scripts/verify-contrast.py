@@ -55,6 +55,34 @@ for theme, sel in (('light', ':root'), ('dark', '.dark')):
         print('%-6s%-12s %6.2f %6.2f %6.2f   %s'
               % (theme, state, as_text, on_tint, as_fill, 'FAIL' if bad else 'ok'))
 
+# --primary is governed by the same AA Floor Rule but does NOT satisfy it in light
+# mode. It is a recorded exception, not an oversight (DESIGN.md, beside the rule).
+# It is printed here rather than omitted for three reasons: the exception stays
+# visible on every PR instead of decaying into folklore; if someone fixes it this
+# row fails and forces promotion to a real checked row; and if someone makes it
+# worse, the drift check catches that too. It never fails the build on its own.
+# Recorded worst case per theme, and whether that theme is expected to fail.
+# Only light is the exception; dark passes and is shown for completeness.
+XFAIL = {'light': (3.40, True), 'dark': (4.78, False)}
+xfail_drift = []
+print()
+for theme, sel in (('light', ':root'), ('dark', '.dark')):
+    t = block(sel)
+    surfaces = [t[k] for k in ('background', 'card', 'muted') if k in t]
+    col = t['primary']
+    worst = min([ratio(col, s) for s in surfaces]
+                + [ratio(col, blend(col, s, a)) for s in surfaces for a in (0.10, 0.15)])
+    expected, should_fail = XFAIL[theme]
+    fails_now = worst < 4.5
+    if abs(worst - expected) > 0.005:
+        xfail_drift.append('%s --primary: recorded worst case %.2f, computed %.2f'
+                           % (theme, expected, worst))
+    if should_fail and not fails_now:
+        xfail_drift.append('%s --primary now passes at %.2f - fix DESIGN.md and drop it '
+                           'from XFAIL' % (theme, worst))
+    note = 'xfail (known exception, see DESIGN.md)' if fails_now else 'ok'
+    print('%-6s%-12s %6.2f %6s %6s   %s' % (theme, 'primary', worst, '-', '-', note))
+
 # Every state must be documented in both themes: 4 states x 2 themes = 8 rows.
 drift = []
 for (theme, state), (col, t_, ti, f_) in sorted(measured.items()):
@@ -76,6 +104,14 @@ if drift:
     print('\nDOCUMENTED RATIOS DO NOT MATCH THE VALUES:')
     for d in drift:
         print('  ' + d)
+
+if xfail_drift:
+    ok = False
+    print('\nTHE --primary EXCEPTION HAS MOVED:')
+    for d in xfail_drift:
+        print('  ' + d)
+    print('  Update DESIGN.md and this script together, or fix --primary and'
+          ' remove it from XFAIL.')
 
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)

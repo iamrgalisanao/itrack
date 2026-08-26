@@ -21,7 +21,7 @@ Gate 2 was introduced exactly that way.
 Recomputes every ratio from the **committed** CSS rather than trusting the plan:
 
 ```bash
-cd g:/Dev/projects/itrack && python specs/022-dark-status-contrast/contracts/verify-contrast.py; echo "gate exit: $?"
+cd g:/Dev/projects/itrack && python scripts/verify-contrast.py; echo "gate exit: $?"
 ```
 
 **Expected**: every row `ok`, final line `CONTRACT HOLDS`, `gate exit: 0`.

@@ -112,7 +112,7 @@ so the two halves of each pair move in opposite directions.
 Ratios are recorded beside the tokens in `frontend/src/index.css`. They are not just prose: the
 gate script parses that comment and fails if any documented figure drifts from the computed one, so
 the numbers cannot rot silently. Checkable without running the app:
-`python specs/022-dark-status-contrast/contracts/verify-contrast.py`.
+`python scripts/verify-contrast.py`.
 
 ### Named Rules
 **The AA Floor Rule.** No status or accent color ships at a lightness that fails 4.5:1 against

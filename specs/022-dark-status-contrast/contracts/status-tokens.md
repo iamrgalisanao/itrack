@@ -59,7 +59,8 @@ restructured.** Every existing call site keeps working untouched; only the value
 ## Verification
 
 The contract is checkable by calculation from the committed values alone — no running app needed.
-`contracts/verify-contrast.py` implements it: run it from the repo root, and it exits non-zero if
+`scripts/verify-contrast.py` implements it (it lived at `contracts/verify-contrast.py` while 022
+was in flight): run it from the repo root, and it exits non-zero if
 any pairing falls below 4.5:1.
 
 ```

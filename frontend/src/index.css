@@ -44,7 +44,7 @@
        --info        #1d4ed8 6.02  4.79  6.70
 
      Verify, do not trust this comment:
-       python specs/022-dark-status-contrast/contracts/verify-contrast.py */
+       python scripts/verify-contrast.py */
   --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
   --success: #166534;

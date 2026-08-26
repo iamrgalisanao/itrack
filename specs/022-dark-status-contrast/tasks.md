@@ -11,6 +11,10 @@ this repo, and the objective check for this feature is a contrast calculation
 (`contracts/verify-contrast.py`), which already exists and is committed. The backend suite appears
 once, as a regression check that nothing unrelated moved.
 
+**Path note**: the gate script moved to `scripts/verify-contrast.py` when it became a CI gate. The
+paths in the task transcript below are the ones in force when those tasks ran, and are deliberately
+not rewritten — a record that cites a path which did not exist at the time is a record that lies.
+
 **Format**: `[ID] [P?] [Story?] Description with file path`
 
 ---

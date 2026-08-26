@@ -76,9 +76,9 @@ destructive. The thinnest result afterwards is destructive on its own tint at 4.
 "As text" is worst-case against `#1f2028`; "on tint" is worst-case on a 10–15% tint of the state
 over any base surface. Every value to the right of an arrow clears 4.5:1.
 
-Every figure in both tables is `contracts/verify-contrast.py`'s output, not a hand calculation. An
+Every figure in both tables is `scripts/verify-contrast.py`'s output, not a hand calculation. An
 earlier draft transcribed this column's before-values wrong in all four cells; the script found it.
-Regenerate rather than retype: `python specs/022-dark-status-contrast/contracts/verify-contrast.py`.
+Regenerate rather than retype: `python scripts/verify-contrast.py`.
 
 Read the fill column carefully: today's dark fills **pass** (4.83–5.17, white on the dark values).
 They are not part of the problem — they become the problem the moment the fill is lightened and
