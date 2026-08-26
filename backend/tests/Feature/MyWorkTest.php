@@ -465,6 +465,182 @@ class MyWorkTest extends TestCase
         $this->assertFalse($canWrite, 'Previewing a Client must not expose write affordances');
     }
 
+    // ─── Quick-add: POST /api/my-work/tasks ──────────────────────────────────
+
+    private function quickAdd(User $actor, array $payload)
+    {
+        return $this->actingAs($actor)->postJson('/api/my-work/tasks', $payload);
+    }
+
+    public function test_quick_add_role_matrix(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+
+        foreach (['Admin' => 201, 'Project Manager' => 201, 'Team Member' => 201,
+                  'Department Head' => 403, User::ROLE_CLIENT => 403] as $role => $expected) {
+            $actor = $this->createUser($role);
+            $this->assign($actor, $project);
+
+            $this->quickAdd($actor, ['name' => "Task by {$role}", 'module_id' => $module->id])
+                ->assertStatus($expected);
+        }
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'task.created']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'permission.denied']);
+    }
+
+    public function test_quick_add_forces_assignment_to_the_acting_user(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $other = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        // A client-supplied assignee must be ignored, not honoured and not 422 —
+        // the endpoint's contract is "always mine".
+        $response = $this->quickAdd($member, [
+            'name'             => 'Self assigned',
+            'module_id'        => $module->id,
+            'assignee_user_id' => $other->id,
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('detailed_activities', [
+            'name'             => 'Self assigned',
+            'assignee_user_id' => $member->id,
+        ]);
+        $this->assertDatabaseMissing('detailed_activities', [
+            'name'             => 'Self assigned',
+            'assignee_user_id' => $other->id,
+        ]);
+    }
+
+    public function test_quick_add_persists_the_bucket_due_date_and_appears_in_my_work(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $created = $this->quickAdd($member, [
+            'name'          => 'Due this week',
+            'module_id'     => $module->id,
+            'plan_end_date' => '2026-08-28',
+        ])->assertCreated()->json();
+
+        $this->assertSame('2026-08-28', $created['data']['plan_end_date'] ?? $created['plan_end_date']);
+
+        $json = $this->myWork($member)->assertOk()->json();
+        $this->assertSame(1, $json['buckets']['this_week']['count']);
+    }
+
+    public function test_quick_add_without_due_date_lands_in_no_due_date(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $this->quickAdd($member, ['name' => 'Someday', 'module_id' => $module->id])->assertCreated();
+
+        $json = $this->myWork($member)->assertOk()->json();
+        $this->assertSame(1, $json['buckets']['no_due_date']['count']);
+    }
+
+    public function test_quick_add_into_inaccessible_module_is_denied(): void
+    {
+        ['project' => $accessible] = $this->makeChain();
+        ['module' => $foreignModule] = $this->makeChain();
+
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $accessible);
+
+        $this->quickAdd($member, ['name' => 'Sneaky', 'module_id' => $foreignModule->id])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('detailed_activities', ['name' => 'Sneaky']);
+    }
+
+    public function test_quick_add_ignores_smuggled_fields(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $this->quickAdd($member, [
+            'name'           => 'Smuggler',
+            'module_id'      => $module->id,
+            'client_visible' => true,
+            'priority'       => 'Critical',
+            'status'         => 'completed',
+            'progress'       => 99,
+            'root_cause'     => 'nope',
+        ])->assertCreated();
+
+        $row = DetailedActivity::where('name', 'Smuggler')->firstOrFail();
+        $this->assertFalse((bool) $row->client_visible);
+        $this->assertSame('not_started', $row->status);
+        $this->assertNull($row->root_cause);
+    }
+
+    public function test_quick_add_validation_errors(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $this->quickAdd($member, ['module_id' => $module->id])
+            ->assertStatus(422)->assertJsonValidationErrors('name');
+        $this->quickAdd($member, ['name' => 'x'])
+            ->assertStatus(422)->assertJsonValidationErrors('module_id');
+        $this->quickAdd($member, ['name' => 'x', 'module_id' => $module->id, 'plan_end_date' => 'not-a-date'])
+            ->assertStatus(422)->assertJsonValidationErrors('plan_end_date');
+    }
+
+    public function test_quick_add_reuses_the_reserved_placement_chain(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $this->quickAdd($member, ['name' => 'First', 'module_id' => $module->id])->assertCreated();
+        $this->quickAdd($member, ['name' => 'Second', 'module_id' => $module->id])->assertCreated();
+
+        // One reserved Activity/SubActivity pair per module, not one per task.
+        $this->assertSame(1, $module->activities()->where('name', 'Taskboard')->count());
+        $reserved = $module->activities()->where('name', 'Taskboard')->firstOrFail();
+        $this->assertSame(1, $reserved->subActivities()->where('name', 'Unclassified Tasks')->count());
+    }
+
+    public function test_quick_add_does_not_notify_the_self_assignee(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $this->quickAdd($member, ['name' => 'No ping', 'module_id' => $module->id])->assertCreated();
+
+        // Telling someone they assigned themselves a task is noise.
+        $this->assertDatabaseMissing('notifications', ['user_id' => $member->id]);
+    }
+
+    public function test_quick_add_during_preview_is_blocked(): void
+    {
+        ['project' => $project, 'module' => $module] = $this->makeChain();
+        $admin = $this->createUser('Admin');
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        $token = $this->startPreview($admin, $member);
+
+        $this->actingAs($admin)->json(
+            'POST',
+            '/api/my-work/tasks',
+            ['name' => 'Preview write', 'module_id' => $module->id],
+            ['X-Preview-Session' => $token]
+        )->assertForbidden();
+
+        $this->assertDatabaseMissing('detailed_activities', ['name' => 'Preview write']);
+    }
+
     public function test_expired_preview_token_returns_409_with_no_domain_data(): void
     {
         $admin = $this->createUser('Admin');

@@ -11,6 +11,7 @@ use App\Models\SubActivity;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Support\TaskboardPlacement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,9 +19,6 @@ use Illuminate\Validation\Rules\Exists;
 
 class TaskboardController extends Controller
 {
-    private const RESERVED_ACTIVITY_NAME = 'Taskboard';
-    private const RESERVED_SUB_ACTIVITY_NAME = 'Unclassified Tasks';
-
     private function user(Request $request): User
     {
         return AccessContext::user($request);
@@ -64,25 +62,6 @@ class TaskboardController extends Controller
         $trimmed = trim($value);
 
         return $trimmed === '' ? null : $trimmed;
-    }
-
-    /**
-     * data-model.md / research.md D2: reuses-or-creates one reserved,
-     * application-owned Activity/SubActivity pair per Module so the
-     * existing required Module->Activity->SubActivity->DetailedActivity
-     * chain stays intact — the Taskboard UI never exposes these levels.
-     * Deliberately does not open its own transaction; the caller
-     * (store()) owns the single transaction for the whole create flow.
-     */
-    private function resolveDefaultSubActivity(int $moduleId): SubActivity
-    {
-        $module = Module::query()->whereKey($moduleId)->lockForUpdate()->firstOrFail();
-
-        $activity = $module->activities()->where('name', self::RESERVED_ACTIVITY_NAME)->first()
-            ?? $module->activities()->create(['name' => self::RESERVED_ACTIVITY_NAME, 'sort_order' => 0]);
-
-        return $activity->subActivities()->where('name', self::RESERVED_SUB_ACTIVITY_NAME)->first()
-            ?? $activity->subActivities()->create(['name' => self::RESERVED_SUB_ACTIVITY_NAME, 'sort_order' => 0]);
     }
 
     // ─── GET /projects/{project}/taskboard/tasks ────────────────────────────
@@ -148,7 +127,7 @@ class TaskboardController extends Controller
         $validated['sprint_label'] = $this->normalizeSprintLabel($validated['sprint_label'] ?? null);
 
         $task = DB::transaction(function () use ($validated) {
-            $subActivity = $this->resolveDefaultSubActivity($validated['module_id']);
+            $subActivity = TaskboardPlacement::resolveDefaultSubActivity($validated['module_id']);
 
             return $subActivity->detailedActivities()->create([
                 'name' => $validated['name'],

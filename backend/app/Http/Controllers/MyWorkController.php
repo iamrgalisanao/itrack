@@ -4,11 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\MyWorkTaskResource;
 use App\Models\DetailedActivity;
+use App\Models\Module;
 use App\Models\Project;
+use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Support\TaskboardPlacement;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -85,6 +89,60 @@ class MyWorkController extends Controller
                 'can_write'  => $user->canWrite(),
             ],
         ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $user = AccessContext::user($request);
+
+        if (!$user->canWrite()) {
+            AuditLogger::denied($request, 'my_work.task.create', 'detailed_activity');
+
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
+        $validated = $request->validate([
+            'name'          => ['required', 'string', 'max:255'],
+            'module_id'     => ['required', 'integer', 'exists:modules,id'],
+            'plan_end_date' => ['nullable', 'date'],
+        ]);
+
+        $accessible = Module::query()
+            ->whereKey($validated['module_id'])
+            ->whereIn('project_id', Project::query()->accessibleTo($user)->select('id'))
+            ->exists();
+
+        if (!$accessible) {
+            AuditLogger::denied($request, 'my_work.task.create', 'detailed_activity');
+
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
+        $task = DB::transaction(function () use ($request, $validated): DetailedActivity {
+            $subActivity = TaskboardPlacement::resolveDefaultSubActivity($validated['module_id']);
+
+            // Explicit create array, never the request payload: assignee is
+            // forced to the real authenticated user so "assigned to me" is a
+            // server invariant rather than a promise the client keeps, and a
+            // smuggled client_visible/priority/status cannot ride along.
+            return $subActivity->detailedActivities()->create([
+                'name'             => $validated['name'],
+                'plan_end_date'    => $validated['plan_end_date'] ?? null,
+                'assignee_user_id' => $request->user()->id,
+                'status'           => 'not_started',
+                'progress'         => 0,
+                'client_visible'   => false,
+            ]);
+        });
+
+        AuditLogger::record($request, 'task.created', 'detailed_activity', $task->id, 'Task created via My Work quick-add.');
+
+        // No assignment notification: the assignee is the person who just
+        // typed the task, and telling them about their own action is noise.
+
+        $task->load('subActivity.activity.module.project');
+
+        return response()->json(new MyWorkTaskResource($task), 201);
     }
 
     /**

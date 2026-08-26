@@ -103,6 +103,7 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
 
     // My Work (021-dashboard-my-work)
     Route::get('my-work', [MyWorkController::class, 'index']);
+    Route::post('my-work/tasks', [MyWorkController::class, 'store']);
 
     // Support Ops
     Route::get('support-ops', [SupportOpsController::class, 'index']);
