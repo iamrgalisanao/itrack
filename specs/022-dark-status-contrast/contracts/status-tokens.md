@@ -16,9 +16,15 @@ contrast(--{state}-foreground, --{state})     ≥ 4.5:1
 ```
 
 `surfaces` = `--background`, `--card`, `--muted`/`--secondary`, **plus** the state colour
-composited at 10% and 15% over each of those (the `bg-{state}/10` and `/15` tints that ~10 call
-sites render status text on). A tint of the colour is a surface like any other; omitting it was a
-verification finding, not a design choice.
+composited at 10% and 15% over each of those (the tints that 26 call sites across 15 files render
+status text on). A tint of the colour is a surface like any other; omitting it was a verification
+finding, not a design choice.
+
+Two opacity variants sit outside that set deliberately. `bg-{state}/5` needs no separate check —
+a lighter tint strictly raises text-on-tint contrast, so 10% is binding. `bg-{state}/90` (4 hover
+states in `button.jsx`) is a **fill**, not a tint, and satisfies invariant 2 as measured: dark
+ink-on-/90 5.44-8.93, light white-on-/90 5.45-5.68.
+
 Threshold is WCAG AA for **normal** text; the 3:1 large-text allowance does not apply, because
 status labels in this product are routinely rendered below body size.
 

@@ -5,17 +5,23 @@ Contract: [contracts/status-tokens.md](./contracts/status-tokens.md). Values and
 
 ## Prerequisites
 
+Gates 1, 2 and 4 need **no running server** — they read files. Start the app only for Gate 3:
+
 ```bash
-cd backend && composer run dev     # API on :8011 + Vite; ports must be in SANCTUM_STATEFUL_DOMAINS
+cd g:/Dev/projects/itrack/backend && composer run dev   # blocking; API on :8011 + Vite.
+                                                        # Ports must be in SANCTUM_STATEFUL_DOMAINS.
 ```
+
+Run it in its own terminal. Every gate below uses an absolute path so it does not matter which
+directory the previous command left you in — the one shell bug this file already documents at
+Gate 2 was introduced exactly that way.
 
 ## Gate 1 — Contrast calculation (the objective check)
 
-Recomputes every ratio from the **committed** CSS rather than trusting the plan. Run from the repo
-root:
+Recomputes every ratio from the **committed** CSS rather than trusting the plan:
 
 ```bash
-python specs/022-dark-status-contrast/contracts/verify-contrast.py; echo "gate exit: $?"
+cd g:/Dev/projects/itrack && python specs/022-dark-status-contrast/contracts/verify-contrast.py; echo "gate exit: $?"
 ```
 
 **Expected**: every row `ok`, final line `CONTRACT HOLDS`, `gate exit: 0`.
@@ -29,12 +35,14 @@ code**, not the printed text.
 ## Gate 2 — Build and lint
 
 ```bash
-cd frontend && npm run build; echo "build exit: $?"
-cd frontend && npm run lint;  echo "lint exit: $?"
+cd g:/Dev/projects/itrack/frontend && npm run build; echo "build exit: $?"
+cd g:/Dev/projects/itrack/frontend && npm run lint;  echo "lint exit: $?"
 ```
 
 Two separate commands on purpose: chained with `&&`, `$?` reports the **build's** status when the
-build fails, so a lint failure can be masked by a green-looking line.
+build fails, so a lint failure can be masked by a green-looking line. Both paths are absolute —
+the first command leaves the shell in `frontend/`, where a second bare `cd frontend` resolves
+`frontend/frontend` and fails before lint ever runs.
 
 **Check the exit code, not the summary text.** ESLint prints `0 errors and N warnings potentially
 fixable`, which counts auto-fixable items — not total errors. Misreading that line hid a real error
@@ -58,21 +66,40 @@ Visit each surface in **light and dark**, toggling with the sidebar control:
 | Retrospectives | status/label colours |
 | Support Ops | SLA and triage colouring |
 | Dashboard | Delayed metric card, My Work overdue dates, inline error text |
+| Admin, Team, Glossary | inline validation/error callouts on a tint of their own colour |
 
 Confirm for each: status text is comfortably readable in **both** themes; filled badges have
-legible text on them; status text sitting on a tint of its own colour (the `bg-{state}/10`
-callouts in `AccessDenied`, `PreviewBanner`, `Login`, `Kanban`, `Reports`, `Schedule`,
-`SupportOps`, `TodayDashboard`) is readable.
+legible text on them; and status text sitting on a tint of its own colour is readable. That last
+pattern appears at 26 sites across 15 files — `App`, `AccessDenied`, `PreviewBanner`,
+`TaskComments`, `TaskFiles`, `ui/button`, and pages `Admin`, `Glossary`, `Kanban`, `Login`,
+`Reports`, `Schedule`, `SupportOps`, `Team`, `TodayDashboard`, `WorkProgram`. An earlier draft of
+this list named eight of them and omitted Work Program, which is one of the six screens above.
 
 Light mode **is expected to change**: each status colour is one palette step deeper. Confirm the
 shift is uniform and the hues still read as red/green/amber/blue (FR-003) — a colour that now
 reads as a different state is a Critical finding.
 
-## Gate 4 — The four removals
+**Expected drift, not a finding**: Work Program's Gantt bars and the Reports progress bar keep
+their pre-change colours in both themes. They are a separate hard-coded palette this feature
+deliberately excludes (plan.md Complexity Tracking; research.md follow-up 4). Look at them anyway
+and judge whether the drift is tolerable until that follow-up lands — if it is not, say so, because
+that is a scope decision rather than a defect.
+
+## Gate 4 — The five deletions
 
 `frontend/src/components/MyWorkPanel.jsx` lines 88, 91, 101, 169 carried
 `text-destructive dark:text-red-400`. With the `dark:` half deleted, each must render the same or
 better in dark mode.
+
+The fifth is `frontend/src/pages/Schedule.jsx:655` — a dead `text-white` on `bg-destructive` in the
+overdue timeline marker. The branch renders `null`, so nothing changes visually; it is deleted
+because white would measure 2.77:1 on the new dark fill the moment anyone put a glyph there, and
+the gate script cannot see a class attribute.
+
+```bash
+cd g:/Dev/projects/itrack/frontend
+grep -n "text-white" src/pages/Schedule.jsx    # the bg-destructive branch must not appear
+```
 
 Confirm no genuine workaround remains, and that legitimate palette pairs were left alone:
 
@@ -92,7 +119,7 @@ grep -rho "dark:text-[a-z]*-400" src --include=*.jsx | wc -l
 
 1. **Tests green** — Gate 2 above. Backend suite is a regression check; there is no frontend suite.
 2. **Authorization review** — **N/A**, justified: no endpoint, no role check, no data access. This
-   change is twelve CSS values and four class-attribute deletions.
+   change is twelve CSS values and five class-attribute deletions.
 3. **Tenant-isolation review** — **N/A**, justified: no query, no scoping surface.
 4. **OWASP review** — **N/A**, justified: no endpoint, auth, upload, or data-exposure surface. The
    diff contains no PHP. Recorded as N/A rather than skipped.

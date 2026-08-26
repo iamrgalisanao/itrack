@@ -34,7 +34,7 @@
 - The input named specific files, tokens and hex values. The spec deliberately states these as
   capability requirements ("semantic status colours meet AA against the surfaces they render
   on") rather than prescribing values, leaving the concrete token choices to plan.md. The
-  measured baseline (3.25:1–3.48:1, 20 overrides) is retained in Success Criteria because it is
+  measured baseline (3.14:1–3.36:1 dark, 4.34:1 light destructive, 4 overrides) is retained in Success Criteria because it is
   the evidence the change is needed and the yardstick for verifying it.
 - Named-colour semantics (FR-003) were made an explicit requirement rather than an assumption:
   contrast can trivially be "fixed" by shifting hue, which would silently break the product's

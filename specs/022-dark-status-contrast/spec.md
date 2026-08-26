@@ -30,8 +30,9 @@ size. Repeat in light mode to confirm nothing regressed there.
 1. **Given** the app is in dark mode, **When** a user views any screen showing delayed, error,
    success, warning or informational status text, **Then** that text meets WCAG AA contrast
    against the surface it sits on.
-2. **Given** the app is in light mode, **When** the same screens are viewed, **Then** contrast is
-   unchanged from today and still meets AA.
+2. **Given** the app is in light mode, **When** the same screens are viewed, **Then** every status
+   colour meets AA against every surface it renders on — including a tint of itself — which today
+   it does not.
 3. **Given** a status colour is used as a background (a filled badge or button) rather than as
    text, **When** it renders in either theme, **Then** the text on top of it still meets AA.
 
@@ -68,7 +69,8 @@ itself should carry the correct value in each theme.
   threshold for large text does not apply.
 - A user with a high-contrast or forced-colours OS setting — the fix must not conflict with it.
 - Elements that use a status colour as a border or background tint rather than as text.
-- Light mode must not regress: the same tokens serve both themes and only the dark values change.
+- Light mode must not regress. It is not frozen: each light colour moves exactly one palette step
+  darker to clear AA, and nothing else about it changes.
 
 ## Requirements *(mandatory)*
 
@@ -104,8 +106,10 @@ itself should carry the correct value in each theme.
 ### Measurable Outcomes
 
 - **SC-001**: Every semantic status colour meets or exceeds the WCAG AA contrast threshold (4.5:1
-  for normal text) against every surface it renders on, in both themes. Today four of four fail
-  in dark mode, measuring between 3.25:1 and 3.48:1.
+  for normal text) against every surface it renders on, in both themes. Today eight of eight
+  pairings fail: in dark mode all four measure 3.14:1-3.36:1 against the worst-case surface
+  (`--muted` `#1f2028`), and in light mode destructive fails as text at 4.34:1 while all four fail
+  on a tint of themselves at 3.45:1-3.79:1.
 - **SC-002**: Zero component-level dark-mode colour overrides remain whose only purpose is to
   work around an incorrect token. Today there are 4, all pairing a semantic colour with a palette
   override (`text-destructive dark:text-red-400`). Deliberate light/dark pairs on palette colours

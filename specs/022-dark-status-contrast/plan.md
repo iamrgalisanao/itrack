@@ -18,8 +18,7 @@ The fix moves **twelve** token values:
 - **Four in light mode.** Verification, and then the gate script itself, found light mode was never
   held to the rule either: `--destructive` fails as text (4.34:1 against `--muted`), and **all
   four** fail where status text sits on a tint of its own colour (3.45–3.79:1) — a pattern used at
-  ~10 call sites. Each light colour moves one palette step darker, which is precisely the
-  correction `DESIGN.md`'s AA Floor Rule already prescribes.
+  26 call sites across 15 files. Each light colour moves one palette step darker.
 
 Four call-site workarounds then come out — all in `MyWorkPanel.jsx`, all added during 021 — leaving
 the token as the single source of truth.
@@ -42,9 +41,9 @@ No new tokens, no hue changes, no backend surface.
 
 **Performance Goals**: N/A — no runtime cost; values are static custom properties.
 
-**Constraints**: Light-mode colours move exactly one palette step darker each and nothing else changes (SC-004, as amended). No hue reassignment in either theme (FR-003). Hues must stay recognisable (FR-003) — lighten within the hue, never reassign. Every status colour must clear AA against the **lightest** dark surface (`#1f2028`), which is the worst case, not merely against the card.
+**Constraints**: Light-mode colours move exactly one palette step darker each and nothing else changes (SC-004, as amended). Hues must stay recognisable in both themes (FR-003) — move within the hue family, never reassign. Every status colour must clear AA against the **lightest** dark surface (`#1f2028`) and the **darkest** light surface (`#f4f3ec`), plus a 10-15% tint of itself over either — those are the worst cases, not the card.
 
-**Scale/Scope**: 12 token values in one file; **4** workaround overrides removed from **one** file (`MyWorkPanel.jsx` lines 88, 91, 101, 169). 28 files consume the tokens. Fill usage is far more contained than first scoped: of 47 `bg-{state}` occurrences, 37 are opacity tints and only **8** are solid fills paired with a `-foreground`, all of them variant definitions in `components/ui/badge.jsx` and `components/ui/button.jsx`.
+**Scale/Scope**: 12 token values in one file; **5** class deletions across **two** files — 4 workaround overrides in `MyWorkPanel.jsx` (lines 88, 91, 101, 169) and 1 dead `text-white` in `Schedule.jsx` (line 655). 28 files consume the tokens. Fill usage is far more contained than first scoped: of 47 `bg-{state}` occurrences, 37 are opacity tints and only **8** are solid fills paired with a `-foreground`, all of them variant definitions in `components/ui/badge.jsx` and `components/ui/button.jsx`.
 
 ### Coding-Standard Constraints
 
@@ -72,11 +71,22 @@ surfaces, not persuasion surfaces), per constitution 1.3.0.
 - **Existing system reused**: the `:root` / `.dark` token pair in `frontend/src/index.css`, the
   `@theme inline` mapping, and the existing semantic Tailwind utilities. Nothing new is introduced;
   no component is restyled.
-- **The design-system rule this enforces**: `DESIGN.md`'s stated **AA Floor Rule** — "No status or
-  accent color ships at a lightness that fails 4.5:1 against its paired foreground. Where a common
-  default fails, use one step darker instead of picking a new hue." This change applies that rule
-  in the direction the dark theme needs (one step *lighter*), which the rule's intent covers but
-  its wording does not; `DESIGN.md` is updated to say so.
+- **The design-system rule this change amends**: `DESIGN.md`'s **AA Floor Rule** reads "No status
+  or accent color ships at a lightness that fails 4.5:1 *against its paired foreground*. Where a
+  common default (e.g. Tailwind's 500-weight green/amber/blue) fails, use *one step darker* instead
+  of picking a new hue." Verification established that neither clause reaches this bug, so the plan
+  does not get to claim the rule already prescribes the fix:
+  - **Surface**: the rule constrains only fill-vs-foreground. By that literal test today's light
+    values *pass* (white-on-fill 4.83-5.17). What actually fails is text on `--muted` (4.34) and
+    text on a tint of itself (3.45-3.79) — surfaces the rule never mentions.
+  - **Magnitude**: the dark values are **two steps** (red 600→400, blue 600→400) and **three**
+    (green 700→400, amber 700→400), not one. One step was measured and rejected: 500-weight red
+    reaches 4.31 and blue 4.41 against `#1f2028` (R1 alternative (a)).
+
+  So R5 widens the rule on both axes — to "against **every surface it renders on, including a tint
+  of itself**, and against its paired foreground" and "**as many steps as measurement requires**, in
+  the direction the theme needs". Shipping 2-3 step values under a rule that says one step would
+  otherwise violate the rule in the same commit that restates it.
 - **Chosen values** (400-weight, verified worst-case against `#1f2028`): destructive `#f87171`
   (5.86:1), success `#4ade80` (9.30:1), warning `#fbbf24` (9.71:1), info `#60a5fa` (6.38:1).
   500-weight was rejected: red `#ef4444` (4.31:1) and blue `#3b82f6` (4.41:1) both fail.
@@ -112,7 +122,7 @@ surfaces, not persuasion surfaces), per constitution 1.3.0.
   `reference/shape.md` consulted; the `shape` pass is what surfaced the composited-tint surfaces
   now covered by the contract. `polish` and `harden` are **N/A** for this change and recorded as
   such in Complexity Tracking rather than claimed — there is no component structure or interaction
-  to polish or harden; the diff is nine CSS values and four class-attribute deletions.
+  to polish or harden; the diff is twelve CSS values and five class-attribute deletions.
 
 ## Constitution Check
 
@@ -153,19 +163,30 @@ specs/022-dark-status-contrast/
 
 ```text
 frontend/
-├── src/index.css                       # MODIFIED — 8 values in the .dark block,
-│                                       #   plus a comment recording the ratios
-└── src/components/MyWorkPanel.jsx      # MODIFIED — delete the dark: half at lines 88, 91,
-                                        #   101, 169. No other frontend file changes; every
-                                        #   other dark:text-*-400 is a legitimate palette pair.
+├── src/index.css                       # MODIFIED — 8 values in .dark and 4 in :root, and the
+│                                       #   stale "one Tailwind shade darker" comment at lines
+│                                       #   31-34 REPLACED (not appended to) by the ratio table
+├── src/components/MyWorkPanel.jsx      # MODIFIED — delete the dark: half at lines 88, 91,
+│                                       #   101, 169. Every other dark:text-*-400 in the repo
+│                                       #   is a legitimate palette pair and stays.
+└── src/pages/Schedule.jsx              # MODIFIED — delete the dead `text-white` at line 655,
+                                        #   which sits on bg-destructive and would measure
+                                        #   2.77:1 against the new dark fill if it ever rendered
 
-DESIGN.md                               # MODIFIED — AA Floor Rule stated to cover both
-                                        #   directions; dark-mode values recorded
+DESIGN.md                               # MODIFIED — four edits, all required:
+                                        #   1. AA Floor Rule widened on both axes (see above)
+                                        #   2. front-matter colors: block, lines 14-17
+                                        #   3. line 70 "darkened one step from their common
+                                        #      defaults"
+                                        #   4. lines 87-90 Signal Red/Green/Amber/Blue values,
+                                        #      which gain their dark-theme counterparts
 ```
 
 **Structure Decision**: A values-only change to the existing token file plus deletions at call
 sites. No new files, no new components, no restructuring. `DESIGN.md` is updated because it is now
-governing documentation (constitution 1.3.0) and currently records only the light-mode reasoning.
+governing documentation (constitution 1.3.0), currently records only the light-mode reasoning, and
+states the rule this change has to widen — quickstart pre-registers "`DESIGN.md` not updated" as a
+blocking Major, so leaving any of its four stale spots would fail the feature's own gate.
 
 ## Complexity Tracking
 
@@ -173,8 +194,8 @@ No constitution violations. Two items recorded for transparency rather than as e
 
 | Item | Why | Alternative rejected |
 |---|---|---|
-| `impeccable` `polish` and `harden` not run | The diff is nine CSS values and four class-attribute deletions. There is no component structure, interaction, or motion to polish or harden — both commands operate on a surface this change does not have. `context.mjs`, `shape`, `audit` and `critique` all are applied. | Running them anyway to claim full coverage — rejected as ceremony that would produce findings about components this feature does not touch. |
-| Light `--success` and `--warning` left at 4.51:1 | They **pass** AA. Changing a passing value on a 0.01 margin is a judgement call this feature has no evidence to make, and every light-mode change widens a diff whose stated goal is "no perceptible light-mode change". | Darkening them one step alongside destructive — rejected as scope creep; recorded as research.md follow-up 4 so the thin margin is not forgotten. |
+| `impeccable` `polish` and `harden` not run | The diff is twelve CSS values and five class-attribute deletions. There is no component structure, interaction, or motion to polish or harden — both commands operate on a surface this change does not have. `context.mjs`, `shape`, `audit` and `critique` all are applied. | Running them anyway to claim full coverage — rejected as ceremony that would produce findings about components this feature does not touch. |
+| **Accepted exclusion**: seven hard-coded status hex literals stay as they are — the Gantt bar palette in `WorkProgram.jsx:580-611` and the progress-bar colour in `Reports.jsx:239` | These are a **separate decorative palette**, not the semantic tokens: two-stop gradients (`linear-gradient(135deg, #ef4444, #dc2626)`) that no single token maps onto, plus a stale accent (`#aa3bff`, superseded by `#a631ff`). Retokenising them is a visual redesign of the Gantt bars, which this feature is explicitly not. They carry no text, so no AA text pairing is at stake. | Swapping them for `var(--destructive)` etc. — rejected: it changes the bars' appearance and would smuggle a redesign into a contrast fix. **Consequence accepted and stated**: after 022 these two files keep the pre-change colours in both themes while every other status surface moves, so Work Program's Gantt and the Reports bar will visibly drift from the rest of the app. Recorded as research.md follow-up 5, not left implicit. |
 
 ### Verification outcome
 
@@ -189,3 +210,31 @@ artifacts, all resolved above. The three that changed the plan materially:
   now better contained.
 - **F4** — 37 opacity-tinted surfaces were outside the contract despite the spec naming them as an
   edge case. Now measured (worst case 4.67:1) and added to both the contract and the gate.
+
+**Second pass** (required: the first pass grew scope from 9 token values to 12, so verification was
+re-dispatched on the changed surface). It confirmed the arithmetic, the gate script, the Tailwind
+palette steps, the call-site counts and that the tokens are defined in exactly two places — then
+raised **11 more findings**, all resolved above. The four that changed something real:
+
+- **F1/F2 — the plan's stated justification did not cover its own values.** It claimed the AA Floor
+  Rule already prescribed the fix. It does not, on either axis: the rule as written constrains only
+  fill-vs-foreground (by which today's light values *pass*), and says "one step", while the dark
+  values are two steps for red/blue and three for green/amber — one step having been measured and
+  rejected at 4.31/4.41. The values were right; the reasoning was not. R5 now widens the rule on
+  both axes, and the plan no longer claims cover it does not have.
+- **F3 — four wrong numbers in the one table whose purpose is recorded measurement.** The dark
+  "on tint" before-column was scrambled (2.75/3.26/3.24/2.94 vs the true 3.03/2.83/2.83/2.75). The
+  feature's own gate script had been printing the correct values the whole time. Both artifacts now
+  quote its output instead of hand-transcribing.
+- **F8 — the tint call-site list was 8 files, the reality is 15.** The omissions included
+  `WorkProgram.jsx` — one of the six screens spec.md's Independent Test names — so four Work Program
+  callouts would have gone unlooked-at in the browser pass. No ratio changes; the coverage does.
+- **F9/F10 — two surfaces outside the token system.** The Gantt bar palette
+  (`WorkProgram.jsx:580-611`) and the Reports progress bar hard-code status hex literals the token
+  change cannot reach; they are now an explicit accepted exclusion with the resulting visual drift
+  stated, not an unexamined gap behind "no other frontend file changes". `Schedule.jsx:655`'s dead
+  `text-white` on `bg-destructive` is deleted, making this five class deletions rather than four.
+
+Both passes are recorded because the pattern matters more than either finding: the parts of this
+plan that were wrong were the parts asserted from memory, and the parts that caught them were the
+parts computed from the committed file.

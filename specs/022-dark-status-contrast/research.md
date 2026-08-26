@@ -1,7 +1,8 @@
 # Research — 022 Dark-Mode Contrast for Semantic Status Colours
 
-**Date**: 2026-08-27. All ratios below were computed from the committed hex values using the WCAG
-relative-luminance formula, not estimated. Surfaces read from `frontend/src/index.css`'s `.dark`
+**Date**: 2026-08-27. All ratios below are the output of `contracts/verify-contrast.py` run
+against the committed values, not hand-transcribed — an earlier draft mis-copied the dark tint
+column and the script caught it. Surfaces read from `frontend/src/index.css`'s `.dark`
 block on `main` at `b00ac23`.
 
 ## Verified ground truths
@@ -17,13 +18,17 @@ block on `main` at `b00ac23`.
 - 28 files consume these tokens. Fill usage is narrower than a raw grep suggests: of 47
   `bg-{state}` occurrences, **37 are opacity tints** (`bg-destructive/10`, `/15`) and only **8**
   are solid fills paired with a `-foreground` — all variant definitions in
-  `components/ui/badge.jsx` and `components/ui/button.jsx`. Two more are bare fills with no text
-  on them (`pages/Schedule.jsx`). The foreground flip is therefore contained to two primitive
-  files, not spread across the app.
-- The design system already states an **AA Floor Rule** (`DESIGN.md`): "No status or accent color
-  ships at a lightness that fails 4.5:1 against its paired foreground. Where a common default
-  fails, use one step darker instead of picking a new hue." The rule exists; only the light theme
-  was held to it.
+  `components/ui/badge.jsx` and `components/ui/button.jsx`. Two more are timeline markers in `pages/Schedule.jsx`; one of
+  them (line 655) carries a hard-coded `text-white` that is currently inert because the branch
+  renders `null`, but would measure 2.77:1 on the new dark fill — it is deleted here rather than
+  left armed. The foreground flip itself is contained to two primitive files.
+- The design system states an **AA Floor Rule** (`DESIGN.md`): "No status or accent color ships at
+  a lightness that fails 4.5:1 against its paired foreground. Where a common default (e.g.
+  Tailwind's 500-weight green/amber/blue) fails, use one step darker instead of picking a new hue."
+  Read literally it governs **only** fill-vs-foreground and **only** one-step moves — so it covers
+  neither the surfaces that actually fail here (text on `--muted`, text on a tint of itself) nor
+  the magnitude the dark theme needs (2-3 steps). R5 widens it on both axes; this plan does not
+  claim it already prescribed the fix.
 
 ### Measured failure (the reason for this change)
 
@@ -38,8 +43,6 @@ Four of four fail against every dark surface. None is marginal.
 
 ### Measured failure in **light** mode (found during verification, originally missed)
 
-| Token | Value | vs `#ffffff` | vs `#f4f3ec` (darkest) | White-on-fill | AA |
-|---|---|---|---|---|---|
 | Token | Value | vs `#f4f3ec` (darkest) | on own 10–15% tint | AA |
 |---|---|---|---|---|
 | `--destructive` | `#dc2626` | **4.34** | **3.45** | FAIL (both) |
@@ -50,7 +53,7 @@ Four of four fail against every dark surface. None is marginal.
 The first scoping assumed light mode was correct and froze it. It is not. Destructive fails as
 text against `--muted`; success and warning clear that bar by 0.01; and **all four** fail where
 status text sits on a tint of its own colour — the `bg-{state}/10`+`text-{state}` pattern used at
-~10 call sites (R6). The tint failures were found by the gate script itself, after the manual
+26 call sites across 15 files (R6). The tint failures were found by the gate script itself, after the manual
 review had already expanded scope once — which is the argument for having a mechanical gate rather
 than a checklist.
 
@@ -59,16 +62,18 @@ than a checklist.
   `--info` `#1d4ed8`.
 - **Measured**: text 5.82 / 6.41 / 6.37 / 6.02; on own tint 4.54 / 5.14 / 5.07 / 4.79. All clear
   4.5:1 on both counts.
-- **Rationale**: this is verbatim what `DESIGN.md`'s AA Floor Rule prescribes — "use one step
-  darker instead of picking a new hue". The rule existed and the light values were simply never
-  measured against `--muted` or against their own tints. Applying it is a correction, not a
-  redesign.
+- **Rationale**: one step darker is the *magnitude* the AA Floor Rule prescribes, and here one step
+  is enough — unlike the dark theme, where measurement forced 2-3 (R1). But the rule's stated
+  *scope* is fill-vs-foreground only, and by that test these values already pass; what fails is
+  text on `--muted` and text on a tint of itself. So this is the rule's magnitude applied to
+  surfaces the rule does not yet cover, which is exactly the gap R5 closes. Calling it "verbatim
+  what the rule prescribes" would be overstating it.
 - **Cost, stated plainly**: light mode changes perceptibly. Status colours become slightly deeper.
   SC-004 was amended from "no light-mode change" to "exactly one palette step, nothing else".
 - **Alternatives considered**: (a) two steps darker (`#991b1b` etc.) — better margin (5.76:1) but a
   larger visual departure than the rule calls for; the thin case is destructive-on-tint at 4.54:1,
-  which passes. (b) Leaving light tints failing and documenting the exception — rejected: they
-  carry body text at ~10 call sites, and the fix is one palette step. (c) Lightening the tint
+  which passes by 0.039. (b) Leaving light tints failing and documenting the exception — rejected:
+  they carry body text at 26 call sites, and the fix is one palette step. (c) Lightening the tint
   opacity instead of darkening the colour — rejected: it changes every tinted surface's appearance
   to avoid changing four values.
 
@@ -79,9 +84,12 @@ than a checklist.
   `--warning: #fbbf24`, `--info: #60a5fa`.
 - **Measured result** (worst case, against `#1f2028`): 5.86 / 9.30 / 9.71 / 6.38 — all clear AA
   with margin.
-- **Rationale**: preserves hue identity (FR-003) and applies the existing AA Floor Rule in the
-  direction the dark theme needs. These are the same families already used by the codebase's
-  legitimate light/dark palette pairs, so the dark theme gains no new colours.
+- **Rationale**: preserves hue identity (FR-003) — same hue family, moved in lightness until
+  measurement clears 4.5:1. That took **two** steps for red and blue (600→400) and **three** for
+  green and amber (700→400); the AA Floor Rule's "one step" wording does not cover this, which is
+  why R5 widens it rather than this decision claiming cover it does not have. These are the same
+  families already used by the codebase's legitimate light/dark palette pairs, so the dark theme
+  gains no new colours.
 - **Alternatives considered**: (a) **500-weight** (`#ef4444`, `#22c55e`, `#f59e0b`, `#3b82f6`) —
   rejected on measurement: red reaches only 4.31:1 and blue 4.41:1 against `#1f2028`, both below
   4.5:1. Tempting because it is a smaller visual jump, but it would leave two of four still
@@ -112,8 +120,8 @@ than a checklist.
 - **Decision**: remove only overrides that pair a **semantic token** with a palette override —
   `text-destructive dark:text-red-400`. All four are in `MyWorkPanel.jsx` (lines 88, 91, 101, 169).
   Leave every `text-red-700 dark:text-red-400`-style pair untouched.
-- **Rationale**: a first pass counted 20 `dark:text-*-400` occurrences and treated them all as
-  workarounds. Reading them showed 16 are deliberate light/dark pairs on **Tailwind palette
+- **Rationale**: a first pass counted 50 `dark:text-*-400` occurrences and treated them all as
+  workarounds. Reading them showed 46 are deliberate light/dark pairs on **Tailwind palette
   colours** (in `STATUS_BADGE_CLASSES`, `PRIORITY_BADGE_CLASSES` and similar maps) — correct design
   that this change must not disturb. Only the four that pair a semantic token with a palette
   override are compensating for the broken token. The spec's SC-002 was corrected from 20 to 4.
@@ -139,22 +147,51 @@ than a checklist.
 
 ### R6 — Composited tint surfaces are part of the contract
 - **Decision**: the contract's surface set includes `--{state}` composited at 10% and 15% over each
-  base surface, because at least 10 call sites render `text-{state}` directly on `bg-{state}/10`
-  or `/15` (`AccessDenied.jsx`, `PreviewBanner.jsx`, `Kanban.jsx`, `Login.jsx`, `Reports.jsx`,
-  `Schedule.jsx`, `SupportOps.jsx`, `TodayDashboard.jsx`).
+  base surface, because **26 call sites across 15 files** render `text-{state}` directly on a
+  same-colour tint. Reproduce the list with:
+
+  ```bash
+  cd g:/Dev/projects/itrack/frontend
+  grep -rEl "text-(destructive|success|warning|info)[^\"']*bg-(destructive|success|warning|info)/(5|10|15|20|25|30)\b|bg-(destructive|success|warning|info)/(5|10|15|20|25|30)\b[^\"']*text-(destructive|success|warning|info)\b" src --include=*.jsx
+  ```
+
+  It covers `App.jsx`, `AccessDenied.jsx`, `PreviewBanner.jsx`, `TaskComments.jsx`,
+  `TaskFiles.jsx`, `ui/button.jsx`, and pages `Admin.jsx`, `Glossary.jsx`, `Kanban.jsx`,
+  `Login.jsx`, `Reports.jsx`, `Schedule.jsx`, `SupportOps.jsx`, `Team.jsx`, `TodayDashboard.jsx`
+  and `WorkProgram.jsx`. An earlier draft listed eight of these and said "~10 call sites", which
+  would have left Work Program — one of the six screens spec.md's Independent Test names — out of
+  the browser pass.
 - **Measured**: with the chosen values these pass — worst case is destructive on a 15% tint over
-  `#1f2028` at **4.67:1**; info 4.92, success 6.78, warning 6.94. Today the same pairings sit at
-  2.75-3.26:1.
+  `#1f2028` at **4.67:1**; info 4.92, success 6.78, warning 6.94. Today the same dark pairings sit
+  at 2.75-3.03:1 (destructive 3.03, success 2.83, warning 2.83, info 2.75 — the gate script's own
+  output; an earlier draft transcribed these four wrong in all four cells).
 - **Rationale**: spec.md Edge Cases names this case explicitly and FR-001 says "the surfaces they
   are rendered on" without qualification, but the first draft's surface set covered only the three
   base surfaces. The answer is favourable; the defect was that no artifact knew it. At 4.67:1 the
   margin is thin enough that a future re-tune could cross it unnoticed, which is why it belongs in
   the automated gate rather than in anyone's memory.
 - **Alternatives considered**: leaving tints out as "decorative" — rejected: they carry body text.
+- **Deliberately outside the check**: `bg-{state}/5` (6 occurrences) — a lighter tint strictly
+  *raises* text-on-tint contrast, so 10% is the binding case and /5 needs no separate measurement.
+  `bg-{state}/90` (4 occurrences, `button.jsx` hover) *is* a fill with a foreground and is measured
+  here rather than lumped in with the tints: dark ink-on-/90 gives 5.44-8.93, light white-on-/90
+  gives 5.45-5.68. All pass, no value moves — recorded so a future re-tune does not find this
+  surface unmeasured.
 
 ### R5 — Update `DESIGN.md`
-- **Decision**: state that the AA Floor Rule applies in both directions (darker for light themes,
-  lighter for dark), and record the dark-mode values alongside the light ones.
+- **Decision**: widen the AA Floor Rule on **both** axes it currently falls short on, and record
+  the dark-mode values alongside the light ones. Specifically:
+  - surface: "against its paired foreground" → "against **every surface it renders on, including a
+    tint of itself**, and against its paired foreground";
+  - magnitude: "use one step darker" → "move **as many steps as measurement requires**, in the
+    direction the theme needs — darker for light themes, lighter for dark — rather than picking a
+    new hue".
+
+  Both are required, not cosmetic: without the first the rule does not reach the failure this
+  feature fixes, and without the second the 2-3 step dark values violate the rule in the same
+  commit that restates it. Three further spots in `DESIGN.md` carry superseded values and are
+  updated with it — the front-matter `colors:` block (lines 14-17), line 70's "darkened one step
+  from their common defaults", and the Signal Red/Green/Amber/Blue list (lines 87-90).
 - **Rationale**: `DESIGN.md` became governing documentation under constitution 1.3.0 and currently
   documents only light-mode reasoning, which is how a reader would conclude the current dark values
   are intentional. It already gained the inert-border warning for the same reason.
@@ -187,6 +224,12 @@ No automated frontend suite exists, so verification is explicit:
    cannot regress silently.
 2. The remaining `--primary`/`--accent`/`--muted-foreground` pairings were not audited here; worth
    a sweep on the same basis.
-4. Light `--success` and `--warning` sit at 4.51:1 — passing, but by 0.01. Any future change to
-   `--muted` breaks them silently. Worth widening deliberately rather than discovering it.
 3. `prefers-contrast: high` and `forced-colors` handling — the app currently defines neither.
+4. Retokenise the Gantt bar palette (`WorkProgram.jsx:580-611`) and the Reports progress bar
+   (`Reports.jsx:239`). Seven hard-coded status hex literals plus a stale accent (`#aa3bff`, since
+   superseded by `#a631ff`) that this feature deliberately leaves alone — see plan.md Complexity
+   Tracking. They will visibly drift from the rest of the app after 022, which is the argument for
+   doing this soon rather than eventually.
+5. `--destructive` on its own 15% tint clears AA by 0.039 (4.539 vs 4.5) in light mode — the
+   tightest margin in the system. Any future change to `--muted` or to the tint opacity breaks it.
+   The gate script catches it; this note is so the thinness is not a surprise when it does.
