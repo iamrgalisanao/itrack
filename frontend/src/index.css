@@ -28,17 +28,30 @@
   --muted-foreground: #6b6375;
   --accent: #f4f3ec;
   --accent-foreground: #08060d;
-  /* destructive/success/warning/info below are one Tailwind shade darker than
-     the original 500-weight values (which read fine as swatches but fail
-     WCAG AA 4.5:1 against white text — e.g. old success #22c55e was 2.28:1).
-     Same hue family, just deep enough for solid-fill + white text to pass. */
-  --destructive: #dc2626;
+  /* Semantic status colours. Each must clear WCAG AA (4.5:1, normal text) on
+     THREE counts, in BOTH themes — that is the whole constraint, and missing
+     any one of them is how the previous values shipped broken:
+
+       as text  vs the worst-case surface  (light #f4f3ec / dark #1f2028)
+       on tint  on a 10-15% tint of itself (the bg-{state}/10 callout pattern,
+                26 call sites — a surface easy to forget is a surface)
+       as fill  its own -foreground on top of it
+
+     Light, measured:        text  tint  fill
+       --destructive #b91c1c 5.82  4.54  6.47   <- 4.54 is the tightest in the
+       --success     #166534 6.41  5.14  7.13      system; changing --muted or
+       --warning     #92400e 6.37  5.07  7.09      the tint opacity breaks it
+       --info        #1d4ed8 6.02  4.79  6.70
+
+     Verify, do not trust this comment:
+       python specs/022-dark-status-contrast/contracts/verify-contrast.py */
+  --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
-  --success: #15803d;
+  --success: #166534;
   --success-foreground: #ffffff;
-  --warning: #b45309;
+  --warning: #92400e;
   --warning-foreground: #ffffff;
-  --info: #2563eb;
+  --info: #1d4ed8;
   --info-foreground: #ffffff;
 }
 
@@ -58,14 +71,28 @@
   --muted-foreground: #9ca3af;
   --accent: #1f2028;
   --accent-foreground: #f3f4f6;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --success: #15803d;
-  --success-foreground: #ffffff;
-  --warning: #b45309;
-  --warning-foreground: #ffffff;
-  --info: #2563eb;
-  --info-foreground: #ffffff;
+  /* Dark, measured:        text  tint  fill
+       --destructive #f87171 5.86  4.67  6.46
+       --success     #4ade80 9.30  6.78 10.26
+       --warning     #fbbf24 9.71  6.94 10.71
+       --info        #60a5fa 6.38  4.92  7.03
+
+     The -foreground values are #16171d, not #ffffff, and that is not optional:
+     these fills are light enough to read as text on a dark surface, which is
+     exactly what makes white illegible on top of them (1.67-2.77:1). The two
+     halves of a pair move in opposite directions. Lighten a fill here without
+     moving its foreground and you trade this bug for a worse one.
+
+     #16171d is the dark theme's existing on-accent ink (see
+     --primary-foreground above) rather than a second one. */
+  --destructive: #f87171;
+  --destructive-foreground: #16171d;
+  --success: #4ade80;
+  --success-foreground: #16171d;
+  --warning: #fbbf24;
+  --warning-foreground: #16171d;
+  --info: #60a5fa;
+  --info-foreground: #16171d;
 }
 
 @theme inline {

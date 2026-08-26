@@ -11,10 +11,14 @@ colors:
   neutral-secondary: "#f4f3ec"
   neutral-muted-fg: "#6b6375"
   neutral-border: "#e5e4e7"
-  destructive: "#dc2626"
-  success: "#15803d"
-  warning: "#b45309"
-  info: "#2563eb"
+  destructive: "#b91c1c"
+  destructive-dark: "#f87171"
+  success: "#166534"
+  success-dark: "#4ade80"
+  warning: "#92400e"
+  warning-dark: "#fbbf24"
+  info: "#1d4ed8"
+  info-dark: "#60a5fa"
 typography:
   body:
     fontFamily: "system-ui, 'Segoe UI', Roboto, sans-serif"
@@ -67,7 +71,10 @@ reskinned.
 ## Colors
 
 The palette is a single accent against a warm-neutral/near-black pair, with four semantic status
-colors that were deliberately darkened one step from their common defaults to clear WCAG AA.
+colors held to the AA Floor Rule below. Each has a **separate value per theme** — deeper than the
+common default in light mode, lighter in dark. A status color that is the same hex in both themes
+is a bug, not a simplification: that is precisely how all four shipped failing AA in dark mode
+until feature 022.
 
 ### Primary
 - **Violet Ledger** (`#a631ff`; dark mode `#c084fc`): the one accent. Primary actions, active/selected
@@ -84,15 +91,38 @@ colors that were deliberately darkened one step from their common defaults to cl
 - **Hairline** (`#e5e4e7`): borders and input outlines.
 
 ### Semantic status
-- **Signal Red** (`#dc2626`) — destructive.
-- **Signal Green** (`#15803d`) — success.
-- **Signal Amber** (`#b45309`) — warning.
-- **Signal Blue** (`#2563eb`) — info.
+Each is a **pair**: the color, and the ink that goes on top of it when it is used as a fill.
+Light mode / dark mode:
+
+- **Signal Red** (`#b91c1c` / `#f87171`) — destructive.
+- **Signal Green** (`#166534` / `#4ade80`) — success.
+- **Signal Amber** (`#92400e` / `#fbbf24`) — warning.
+- **Signal Blue** (`#1d4ed8` / `#60a5fa`) — info.
+
+Foreground ink is `#ffffff` in light mode and `#16171d` in dark — the same on-accent ink
+`--primary-foreground` already uses, not a second one. The dark fills are light enough to read as
+text on a dark surface, which is exactly what makes white illegible on top of them (1.67-2.77:1),
+so the two halves of each pair move in opposite directions.
+
+Ratios are recorded beside the tokens in `frontend/src/index.css` and are checkable without running
+the app: `python specs/022-dark-status-contrast/contracts/verify-contrast.py`.
 
 ### Named Rules
-**The AA Floor Rule.** No status or accent color ships at a lightness that fails 4.5:1 against its
-paired foreground. Where a common default (e.g. Tailwind's 500-weight green/amber/blue) fails, use one
-step darker instead of picking a new hue.
+**The AA Floor Rule.** No status or accent color ships at a lightness that fails 4.5:1 against
+**every surface it renders on — including a tint of itself** — or against its paired foreground.
+Where a common default (e.g. Tailwind's 500-weight green/amber/blue) fails, move **as many steps as
+measurement requires**, in the direction the theme needs — darker for light, lighter for dark —
+rather than picking a new hue.
+
+Both halves of that were learned the hard way in feature 022. The rule used to say "against its
+paired foreground", and by that test the light values passed while failing as *text* on `--muted`
+(4.34:1) and on their own 10-15% tints (3.45-3.79:1) at 26 call sites — a surface nobody had
+thought to measure. It used to say "one step", which is enough in light mode but not in dark: the
+500-weight reaches only 4.31:1 (red) and 4.41:1 (blue) against `#1f2028`, so the dark values are
+two steps for red and blue and three for green and amber.
+
+The rule is only as good as the measurement, so measure rather than eyeball — and check the tint
+and the fill, not just the text.
 
 **The One Accent Rule.** Violet is the only expressive color in the system. Status colors communicate
 state, not brand; they are not substitutes for the primary accent on non-status UI.
