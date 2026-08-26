@@ -243,9 +243,12 @@ No automated frontend suite exists, so verification is explicit:
    gives 4.19:1 as text on `--muted` and 3.40-4.03:1 on its own 10-15% tints, at 17 live
    `bg-primary/10 text-primary` call sites — the identical pattern this feature fixed for the status
    colours. Dark-mode `#c084fc` passes (worst 4.78:1). Deliberately **not** fixed here: it is not a
-   status colour, and it is not a token swap — violet-600 `#9333ea` reaches 4.90:1 on `--muted` but
-   still only 4.00:1 on a 15% tint, so the real fix is probably that `text-primary` should stop
-   sitting on `bg-primary/15` at small sizes. Recorded in `DESIGN.md` beside the rule as a known
+   status colour, and **no palette step fixes it** — purple-600 `#9333ea` reaches 4.84:1 on `--muted`
+   but only 3.89:1 on its own 15% tint, and violet-600 `#7c3aed` (5.12:1 / 4.12:1) fails the tint
+   too. The fix is necessarily behavioural: `text-primary` must stop sitting on `bg-primary/10-15`
+   at small sizes. (An earlier draft of this entry called `#9333ea` "violet-600" and quoted
+   4.90/4.00 — it is purple-600, and both figures were wrong. The correction strengthens the point:
+   it goes from "a swap almost works" to "no swap works.") Recorded in `DESIGN.md` beside the rule as a known
    exception rather than hidden by narrowing the rule to exclude accents.
 5. `--destructive` on its own 15% tint clears AA by 0.039 (4.539 vs 4.5) in light mode — the
    tightest margin in the system. Any future change to `--muted` or to the tint opacity breaks it.

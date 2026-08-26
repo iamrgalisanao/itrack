@@ -117,11 +117,25 @@ progress-bar colour (`Reports.jsx:239`). Per T016 this was **observed**, not jus
 lightness/saturation step *within the same hue* — the bars read as a deliberate saturated treatment,
 not as a different state. FR-003 is not threatened.
 
-**But the exclusion has its own pre-existing AA problem**, found while looking: the "10%" progress
-label is small white text on the lighter end of that gradient, `#3b82f6`, which measures **3.42:1**.
-This change neither caused nor fixes it — the gradient is untouched — but it is a real failure on a
-surface this feature deliberately did not take, and it strengthens the case for research.md
-follow-up 4. Recorded rather than quietly left.
+**But the exclusion has its own pre-existing AA problem**, found while looking: the progress label
+is `text-[9px]` white on the bar. Worse than first recorded — the label sits on top of a
+`bg-white/20` progress fill (`WorkProgram.jsx:2658`), so its real backdrop is the bar lightened by
+20%, not the bar:
+
+| Gantt bar | bare bar | label backdrop (`bg-white/20`) | white label |
+|---|---|---|---|
+| `in_progress` `#3b82f6` | 3.68 | `#629bf8` | **2.78** |
+| `not_started` `#ef4444` | — | — | **3.00** |
+| `completed` `#10b981` | — | — | **2.13** |
+| `delayed`/`review` `#f59e0b` | — | — | **1.86** |
+
+An earlier draft of this record said 3.42:1, hand-computed and wrong on two counts: white on
+`#3b82f6` is 3.68:1, and the overlay was not accounted for at all. Every figure above is computed,
+not transcribed.
+
+This change neither caused nor fixes it — the gradient is untouched — but it is the only confirmed
+live AA failure left in the app, at 9px, and roughly half the recorded severity. It is the reason
+research.md follow-up 4 is the next feature rather than an eventual one.
 
 ## Definition-of-Done Gate (Constitution VIII)
 

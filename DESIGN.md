@@ -145,9 +145,11 @@ text-primary` in `App.jsx`, `PreviewBanner.jsx`, `TaskComments.jsx`, `TaskDetail
 
 This is recorded rather than resolved by narrowing the rule to exclude accents, because narrowing a
 rule to fit what shipped is the habit that produced the bug in the first place. Fixing it is a real
-design decision, not a token swap: violet-600 `#9333ea` reaches 4.90:1 on `--muted` but still only
-4.00:1 on a 15% tint, so the likely fix is that `text-primary` should stop being placed on
-`bg-primary/15` at small sizes. Tracked as follow-up 6 in
+design decision, and **no palette step fixes it**: purple-600 `#9333ea` reaches 4.84:1 on `--muted`
+but only 3.89:1 on a 15% tint of itself, and even violet-600 `#7c3aed` (5.12:1 / 4.12:1) still fails
+the tint. The fix is therefore necessarily behavioural — `text-primary` must stop sitting on
+`bg-primary/10-15` at small sizes, or the tint must lighten, or the pairing needs weight/border
+compensation. Tracked as follow-up 6 in
 `specs/022-dark-status-contrast/research.md`.
 
 The rule is only as good as the measurement, so measure rather than eyeball — and check the tint
