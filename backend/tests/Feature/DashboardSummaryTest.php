@@ -173,6 +173,50 @@ class DashboardSummaryTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_headline_status_counts_exclude_internal_tasks_for_clients(): void
+    {
+        ['project' => $project, 'subActivity' => $subActivity] = $this->makeChain();
+        $client = $this->createUser(User::ROLE_CLIENT);
+        $this->assign($client, $project);
+
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'in_progress',
+            'client_visible'  => false,
+        ]);
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'in_progress',
+            'client_visible'  => true,
+        ]);
+
+        $response = $this->actingAs($client)->getJson('/api/dashboard');
+
+        $response->assertOk();
+        // These render as the dashboard's headline metrics, so aggregating
+        // over tasks the Client cannot see would leak volume information.
+        $this->assertSame(1, $response->json('stats.in_progress'));
+        $this->assertSame(1, $response->json('stats.detailed_activities'));
+    }
+
+    public function test_headline_status_counts_are_unfiltered_for_internal_roles(): void
+    {
+        ['project' => $project, 'subActivity' => $subActivity] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'in_progress',
+            'client_visible'  => false,
+        ]);
+
+        $response = $this->actingAs($member)->getJson('/api/dashboard');
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json('stats.in_progress'));
+    }
+
     // ─── Existing contract preserved (additive change only) ──────────────────
 
     public function test_existing_stats_keys_are_preserved(): void

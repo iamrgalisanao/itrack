@@ -87,6 +87,10 @@ class MyWorkController extends Controller
                 'week_end'   => $weekEnd,
                 'per_bucket' => $perBucket,
                 'can_write'  => $user->canWrite(),
+                // A writable role with no accessible projects has nowhere to
+                // put a task, so offering quick-add would open a form whose
+                // placement picker is empty and whose submit can never enable.
+                'can_quick_add' => $user->canWrite() && $projectIds->isNotEmpty(),
             ],
         ]);
     }
@@ -103,7 +107,11 @@ class MyWorkController extends Controller
 
         $validated = $request->validate([
             'name'          => ['required', 'string', 'max:255'],
-            'module_id'     => ['required', 'integer', 'exists:modules,id'],
+            // Deliberately no `exists` rule: it would answer 422 for a module
+            // that does not exist and 403 for one the user cannot reach, which
+            // tells an attacker which module IDs are real. The accessibility
+            // check below answers both with the same 403.
+            'module_id'     => ['required', 'integer'],
             'plan_end_date' => ['nullable', 'date'],
         ]);
 

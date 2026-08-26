@@ -265,7 +265,12 @@ class ProjectController extends Controller
         $activityIds = Activity::whereIn('module_id', $moduleIds)->pluck('id');
         $subActivityIds = \DB::table('sub_activities')->whereIn('activity_id', $activityIds)->pluck('id');
 
-        $detailedActivityQuery = DetailedActivity::whereIn('sub_activity_id', $subActivityIds);
+        // 021-dashboard-my-work: these counts are rendered as the dashboard's
+        // headline metrics, so a Client's copy must not aggregate over tasks
+        // they cannot see. Aggregate-only exposure, but the restructure
+        // promoted these from a lower-billed card grid to the lead row.
+        $detailedActivityQuery = DetailedActivity::whereIn('sub_activity_id', $subActivityIds)
+            ->when($user->isClient(), fn ($q) => $q->where('client_visible', true));
 
         $detailedActivities = (clone $detailedActivityQuery)->count();
         $completed   = (clone $detailedActivityQuery)->where('status', 'completed')->count();

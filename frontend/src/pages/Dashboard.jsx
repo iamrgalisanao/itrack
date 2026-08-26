@@ -408,8 +408,11 @@ export default function Dashboard() {
   const inProgress      = stats.in_progress      || 0
   const notStarted      = stats.not_started      || 0
   const delayed         = stats.delayed          || 0
-  const total           = completed + inProgress + notStarted + delayed
-  const remaining       = total - completed
+  // The real total, not completed+in_progress+not_started+delayed — that sum
+  // silently drops backlog, for_review and blocked tasks, and would disagree
+  // with the count in the structure strip at the foot of the page.
+  const total           = stats.detailed_activities || 0
+  const remaining       = Math.max(total - completed, 0)
 
   const filteredActivities = activityTab === 'all'
     ? recentActivities

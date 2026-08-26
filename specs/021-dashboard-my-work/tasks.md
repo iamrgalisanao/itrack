@@ -129,12 +129,12 @@ Reuse inspection is complete — plan.md §Frontend Design Constraints names eve
 
 ## Phase 6: Polish & Definition-of-Done gates
 
-- [ ] T036 Full automated gates: `cd backend && php artisan test` (entire suite) and `cd frontend && npm run build && npm run lint`
-- [ ] T037 Complete manual browser verification — all 12 quickstart.md steps end-to-end, including the preview-as-user scenario and the SC-002 audit rule ("component-level page totals only")
-- [ ] T038 [P] OWASP review (`laravel-owasp-security` skill) over the diff, scoped per research.md §OWASP (A01 double-filter + route placement + denial parity; A03 explicit create-array + parameter-bound anchors; exposure ban-list; A09 audit parity; grep `dangerouslySetInnerHTML` → nothing); record results in `specs/021-dashboard-my-work/owasp-review.md`
-- [ ] T039 [P] code-slop review (`code-slop` skill) over the diff per quickstart.md gate 5 (spec-citing comments only, no narration; no `MyWorkService`/`BucketHelper`; no defensive overdose; no `console.log`; no drive-by edits outside plan.md §Project Structure's file list); record results in `specs/021-dashboard-my-work/code-slop-review.md`
-- [ ] T040 Frontend review pass (`frontend-design` skill) — classify findings Critical/Major/Minor/Suggestion against the pre-registered criteria in quickstart.md (each finding: file / observed / expected / correction); record in `specs/021-dashboard-my-work/frontend-design-review.md`
-- [ ] T041 Resolve every Critical and Major finding from `owasp-review.md`, `code-slop-review.md`, and `frontend-design-review.md`, or explicitly document its acceptance in those files; feature is complete only when this and T036–T037 pass (Constitution VIII + Frontend Completion Gate)
+- [x] T036 Full automated gates: `cd backend && php artisan test` (entire suite) and `cd frontend && npm run build && npm run lint`
+- [x] T037 Complete manual browser verification — all 12 quickstart.md steps end-to-end, including the preview-as-user scenario and the SC-002 audit rule ("component-level page totals only")
+- [x] T038 [P] OWASP review (`laravel-owasp-security` skill) over the diff, scoped per research.md §OWASP (A01 double-filter + route placement + denial parity; A03 explicit create-array + parameter-bound anchors; exposure ban-list; A09 audit parity; grep `dangerouslySetInnerHTML` → nothing); record results in `specs/021-dashboard-my-work/owasp-review.md`
+- [x] T039 [P] code-slop review (`code-slop` skill) over the diff per quickstart.md gate 5 (spec-citing comments only, no narration; no `MyWorkService`/`BucketHelper`; no defensive overdose; no `console.log`; no drive-by edits outside plan.md §Project Structure's file list); record results in `specs/021-dashboard-my-work/code-slop-review.md`
+- [x] T040 Frontend review pass (`frontend-design` skill) — classify findings Critical/Major/Minor/Suggestion against the pre-registered criteria in quickstart.md (each finding: file / observed / expected / correction); record in `specs/021-dashboard-my-work/frontend-design-review.md`
+- [x] T041 Resolve every Critical and Major finding from `owasp-review.md`, `code-slop-review.md`, and `frontend-design-review.md`, or explicitly document its acceptance in those files; feature is complete only when this and T036–T037 pass (Constitution VIII + Frontend Completion Gate)
 
 ---
 

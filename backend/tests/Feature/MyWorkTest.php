@@ -465,6 +465,126 @@ class MyWorkTest extends TestCase
         $this->assertFalse($canWrite, 'Previewing a Client must not expose write affordances');
     }
 
+    public function test_can_quick_add_requires_somewhere_to_put_the_task(): void
+    {
+        ['project' => $project] = $this->makeChain();
+
+        $withProjects = $this->createUser('Team Member');
+        $this->assign($withProjects, $project);
+        $this->assertTrue($this->myWork($withProjects)->json('meta.can_quick_add'));
+
+        // Writable role, but no accessible project — the placement picker
+        // would be empty, so the affordance must not be offered.
+        $withoutProjects = $this->createUser('Team Member');
+        $this->assertTrue($this->myWork($withoutProjects)->json('meta.can_write'));
+        $this->assertFalse($this->myWork($withoutProjects)->json('meta.can_quick_add'));
+
+        // Read-only roles never get it regardless of project access.
+        $client = $this->createUser(User::ROLE_CLIENT);
+        $this->assign($client, $project);
+        $this->assertFalse($this->myWork($client)->json('meta.can_quick_add'));
+    }
+
+    // ─── Inline status change via PUT /api/detailed-activities/{id} ──────────
+    // Role-gate basics live in RoleAccessTest; these cover only what My Work
+    // adds on top. The first is the server premise the panel's optimistic row
+    // removal depends on — without it, "completing a task removes the row" is
+    // an untested frontend assumption.
+
+    public function test_completing_a_task_removes_it_from_the_next_my_work_read(): void
+    {
+        ['project' => $project, 'subActivity' => $sub] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+        $task = $this->taskFor($member, $sub, ['plan_end_date' => '2026-08-27']);
+
+        $this->assertContains($task->id, $this->taskIds($this->myWork($member)->json()));
+
+        $this->actingAs($member)
+            ->putJson("/api/detailed-activities/{$task->id}", ['status' => 'completed'])
+            ->assertOk();
+
+        $this->assertNotContains($task->id, $this->taskIds($this->myWork($member)->json()));
+        $this->assertDatabaseHas('audit_logs', ['action' => 'task.status_changed']);
+    }
+
+    public function test_status_change_on_an_inaccessible_task_gives_no_existence_oracle(): void
+    {
+        ['subActivity' => $foreignSub] = $this->makeChain();
+        ['project' => $ownProject] = $this->makeChain();
+
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $ownProject);
+        $foreignTask = DetailedActivity::factory()->create(['sub_activity_id' => $foreignSub->id]);
+
+        $inaccessible = $this->actingAs($member)
+            ->putJson("/api/detailed-activities/{$foreignTask->id}", ['status' => 'in_progress']);
+        $nonexistent = $this->actingAs($member)
+            ->putJson('/api/detailed-activities/99999999', ['status' => 'in_progress']);
+
+        $inaccessible->assertForbidden();
+        $nonexistent->assertForbidden();
+        $this->assertSame($inaccessible->getContent(), $nonexistent->getContent());
+    }
+
+    public function test_status_change_during_preview_is_blocked_and_never_applies(): void
+    {
+        ['project' => $project, 'subActivity' => $sub] = $this->makeChain();
+        $admin = $this->createUser('Admin');
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+        $task = $this->taskFor($member, $sub, ['status' => 'not_started', 'plan_end_date' => '2026-08-27']);
+
+        $token = $this->startPreview($admin, $member);
+
+        $this->actingAs($admin)->json(
+            'PUT',
+            "/api/detailed-activities/{$task->id}",
+            ['status' => 'completed'],
+            ['X-Preview-Session' => $token]
+        )->assertForbidden();
+
+        $this->assertSame('not_started', $task->fresh()->status);
+    }
+
+    public function test_department_head_sees_own_assigned_work_within_scope(): void
+    {
+        // A Department Head's reach is their department, not assignment rows —
+        // so the out-of-scope chain must live in a different department.
+        ['subActivity' => $grantedSub] = $this->makeChain(['department' => 'IT']);
+        ['subActivity' => $foreignSub] = $this->makeChain(['department' => 'Finance']);
+
+        $head = $this->createUser('Department Head', 'IT');
+
+        $visible = $this->taskFor($head, $grantedSub, ['plan_end_date' => '2026-08-27']);
+        $hidden = $this->taskFor($head, $foreignSub, ['plan_end_date' => '2026-08-27']);
+
+        $json = $this->myWork($head)->assertOk()->json();
+        $ids = $this->taskIds($json);
+
+        $this->assertContains($visible->id, $ids);
+        $this->assertNotContains($hidden->id, $ids);
+        // Read-only role: rows are visible, mutation affordances are not.
+        $this->assertFalse($json['meta']['can_write']);
+    }
+
+    public function test_client_gets_a_valid_empty_envelope(): void
+    {
+        ['project' => $project] = $this->makeChain();
+        $client = $this->createUser(User::ROLE_CLIENT);
+        $this->assign($client, $project);
+
+        $json = $this->myWork($client)->assertOk()->json();
+
+        // Clients can never be assignees, so the list is empty by construction —
+        // but the envelope must still be well-formed for the panel to render.
+        foreach (['overdue', 'this_week', 'later', 'no_due_date'] as $bucket) {
+            $this->assertSame(0, $json['buckets'][$bucket]['count']);
+            $this->assertSame([], $json['buckets'][$bucket]['tasks']);
+        }
+        $this->assertFalse($json['meta']['can_write']);
+    }
+
     // ─── Quick-add: POST /api/my-work/tasks ──────────────────────────────────
 
     private function quickAdd(User $actor, array $payload)
@@ -593,6 +713,27 @@ class MyWorkTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('module_id');
         $this->quickAdd($member, ['name' => 'x', 'module_id' => $module->id, 'plan_end_date' => 'not-a-date'])
             ->assertStatus(422)->assertJsonValidationErrors('plan_end_date');
+    }
+
+    public function test_quick_add_does_not_reveal_which_module_ids_exist(): void
+    {
+        ['project' => $accessible] = $this->makeChain();
+        ['module' => $realButUnreachable] = $this->makeChain();
+
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $accessible);
+
+        $unreachable = $this->quickAdd($member, ['name' => 'x', 'module_id' => $realButUnreachable->id]);
+        $nonexistent = $this->quickAdd($member, ['name' => 'x', 'module_id' => 99999999]);
+
+        // A real-but-inaccessible module and one that was never there must be
+        // indistinguishable, or the response is an existence oracle.
+        $unreachable->assertForbidden();
+        $nonexistent->assertForbidden();
+        $this->assertSame($unreachable->getContent(), $nonexistent->getContent());
+
+        // Both denials are audited; neither silently drops out via validation.
+        $this->assertSame(2, \App\Models\AuditLog::where('action', 'permission.denied')->count());
     }
 
     public function test_quick_add_reuses_the_reserved_placement_chain(): void

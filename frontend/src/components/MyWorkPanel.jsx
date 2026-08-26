@@ -51,17 +51,20 @@ function localAnchors() {
 function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenTask, rowError }) {
   return (
     <Table className="table-fixed">
+      {/* Below sm the context and due columns collapse into the task cell,
+          leaving the title and the status control — otherwise the fixed
+          percentages squeeze the select to ~45px on a 360px screen. */}
       <colgroup>
-        <col style={{ width: COLUMN_WIDTHS.task }} />
-        <col style={{ width: COLUMN_WIDTHS.context }} />
-        <col style={{ width: COLUMN_WIDTHS.due }} />
-        <col style={{ width: COLUMN_WIDTHS.status }} />
+        <col className="w-[60%] sm:w-[46%]" />
+        <col className="hidden sm:table-column sm:w-[24%]" />
+        <col className="hidden sm:table-column sm:w-[14%]" />
+        <col className="w-[40%] sm:w-[16%]" />
       </colgroup>
       <TableHeader>
         <TableRow>
           <TableHead className="h-8 py-1.5 px-3 text-xs">Task</TableHead>
-          <TableHead className="h-8 py-1.5 px-3 text-xs">Where</TableHead>
-          <TableHead className="h-8 py-1.5 px-3 text-xs">Due</TableHead>
+          <TableHead className="hidden sm:table-cell h-8 py-1.5 px-3 text-xs">Where</TableHead>
+          <TableHead className="hidden sm:table-cell h-8 py-1.5 px-3 text-xs">Due</TableHead>
           <TableHead className="h-8 py-1.5 px-3 text-xs">Status</TableHead>
         </TableRow>
       </TableHeader>
@@ -80,16 +83,22 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
               >
                 {task.name}
               </button>
+              <p className="sm:hidden text-[11px] text-muted-foreground truncate mt-0.5">
+                {task.project?.name}
+                {task.plan_end_date && <span className={bucket.key === 'overdue' ? 'text-destructive dark:text-red-400' : ''}> · {formatDate(task.plan_end_date)}</span>}
+              </p>
               {rowError?.id === task.id && (
-                <p className="text-[11px] text-destructive mt-0.5">{rowError.message}</p>
+                <p id={`row-error-${task.id}`} role="alert" className="text-[11px] text-destructive dark:text-red-400 mt-0.5">
+                  {rowError.message}
+                </p>
               )}
             </TableCell>
-            <TableCell className="py-1.5 px-3 text-xs text-muted-foreground truncate"
+            <TableCell className="hidden sm:table-cell py-1.5 px-3 text-xs text-muted-foreground truncate"
                        title={[task.project?.name, task.module?.name].filter(Boolean).join(' · ')}>
               {task.project?.name || '—'}
               {task.module?.name && <span className="text-muted-foreground/70"> · {task.module.name}</span>}
             </TableCell>
-            <TableCell className={`py-1.5 px-3 text-xs tabular-nums ${bucket.key === 'overdue' ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+            <TableCell className={`hidden sm:table-cell py-1.5 px-3 text-xs tabular-nums ${bucket.key === 'overdue' ? 'text-destructive dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
               {task.plan_end_date ? formatDate(task.plan_end_date) : 'No due date'}
             </TableCell>
             <TableCell className="py-1.5 px-3">
@@ -98,6 +107,7 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
                   value={task.status}
                   disabled={savingId === task.id}
                   aria-label={`Change status of ${task.name}`}
+                  aria-describedby={rowError?.id === task.id ? `row-error-${task.id}` : undefined}
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => onStatusChange(task, e.target.value)}
                   className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -123,7 +133,7 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
  * Title plus a placement, and nothing else — the due date comes from whichever
  * bucket you opened this in, so adding a task never stops to ask when it's due.
  */
-function QuickAddForm({ bucket, projects, modules, placement, onPlacementChange, onSubmit, onCancel, busy, error }) {
+function QuickAddForm({ bucket, buckets, onBucketChange, projects, modules, placement, onPlacementChange, onSubmit, onCancel, busy, error }) {
   const [title, setTitle] = useState('')
   const inputRef = useRef(null)
 
@@ -156,9 +166,19 @@ function QuickAddForm({ bucket, projects, modules, placement, onPlacementChange,
           className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         {error && (
-          <p id={`qa-error-${bucket.key}`} className="text-[11px] text-destructive mt-1">{error}</p>
+          <p id={`qa-error-${bucket.key}`} role="alert" className="text-[11px] text-destructive dark:text-red-400 mt-1">{error}</p>
         )}
       </div>
+
+      <label className="sr-only" htmlFor={`qa-bucket-${bucket.key}`}>Due</label>
+      <select
+        id={`qa-bucket-${bucket.key}`}
+        value={bucket.key}
+        onChange={(e) => onBucketChange(buckets.find((b) => b.key === e.target.value))}
+        className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {buckets.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
+      </select>
 
       <label className="sr-only" htmlFor={`qa-project-${bucket.key}`}>Project</label>
       <select
@@ -218,12 +238,17 @@ export default function MyWorkPanel({ onTaskMutated }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [closedBuckets, setClosedBuckets] = useState(() => new Set())
-  const [expanded, setExpanded] = useState(() => new Set())
+  // Which bucket is mid-expansion. Not a set of "already expanded" keys:
+  // once the rows arrive, hidden drops to 0 and the button removes itself,
+  // so remembering past expansions only risked leaving a stale spinner.
+  const [expandingBucket, setExpandingBucket] = useState(null)
   const [selectedTask, setSelectedTask] = useState(null)
   const [openingTaskId, setOpeningTaskId] = useState(null)
   const [savingId, setSavingId] = useState(null)
   const [rowError, setRowError] = useState(null)
   const triggerRef = useRef(null)
+  const addTriggerRef = useRef(null)
+  const quickAddTriggerRef = useRef(null)
   const [quickAddBucket, setQuickAddBucket] = useState(null)
   const [quickAddBusy, setQuickAddBusy] = useState(false)
   const [quickAddError, setQuickAddError] = useState(null)
@@ -256,10 +281,10 @@ export default function MyWorkPanel({ onTaskMutated }) {
   useEffect(() => { load() }, [load])
 
   const canWrite = data?.meta?.can_write ?? false
+  const canQuickAdd = data?.meta?.can_quick_add ?? false
   const totalOpen = data ? BUCKETS.reduce((sum, b) => sum + (data.buckets[b.key]?.count || 0), 0) : 0
 
   const handleStatusChange = async (task, status) => {
-    const previous = task.status
     setSavingId(task.id)
     setRowError(null)
 
@@ -288,7 +313,6 @@ export default function MyWorkPanel({ onTaskMutated }) {
       // The row may be stale (deleted, or access revoked mid-session), so
       // rebuild from the server rather than trusting the optimistic patch.
       await load({ silent: true })
-      void previous
     } finally {
       setSavingId(null)
     }
@@ -314,7 +338,8 @@ export default function MyWorkPanel({ onTaskMutated }) {
 
   // Project and module lists load once, the first time quick-add is opened —
   // nobody pays for them just by viewing the dashboard.
-  const openQuickAdd = async (bucket) => {
+  const openQuickAdd = async (bucket, trigger) => {
+    quickAddTriggerRef.current = trigger ?? addTriggerRef.current
     setQuickAddBucket(bucket)
     setQuickAddError(null)
     try {
@@ -344,6 +369,14 @@ export default function MyWorkPanel({ onTaskMutated }) {
       console.error('Failed to load modules for quick-add:', err)
       setModules([])
     }
+  }
+
+  const cancelQuickAdd = () => {
+    const trigger = quickAddTriggerRef.current
+    quickAddTriggerRef.current = null
+    setQuickAddBucket(null)
+    setQuickAddError(null)
+    if (trigger?.isConnected) requestAnimationFrame(() => trigger.focus())
   }
 
   const submitQuickAdd = async (title, clearTitle) => {
@@ -442,9 +475,10 @@ export default function MyWorkPanel({ onTaskMutated }) {
             {/* The per-bucket control is unreachable when a bucket is empty
                 (empty buckets aren't rendered), so adding into one needs an
                 entry point that lives outside them. */}
-            {canWrite && !quickAddBucket && (
+            {canQuickAdd && !quickAddBucket && (
               <button
                 type="button"
+                ref={addTriggerRef}
                 onClick={() => openQuickAdd(BUCKETS[1])}
                 className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -455,21 +489,25 @@ export default function MyWorkPanel({ onTaskMutated }) {
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {totalOpen === 0 && quickAddBucket && canWrite ? (
+          {quickAddBucket && canQuickAdd && (
             <div className="rounded-xl border border-border/60 overflow-hidden">
               <QuickAddForm
                 bucket={quickAddBucket}
+                buckets={BUCKETS.filter((b) => b.canQuickAdd)}
+                onBucketChange={setQuickAddBucket}
                 projects={projects}
                 modules={modules}
                 placement={placement}
                 onPlacementChange={changePlacement}
                 onSubmit={submitQuickAdd}
-                onCancel={() => setQuickAddBucket(null)}
+                onCancel={cancelQuickAdd}
                 busy={quickAddBusy}
                 error={quickAddError}
               />
             </div>
-          ) : totalOpen === 0 ? (
+          )}
+
+          {totalOpen === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
               <CheckCircle2 className="h-9 w-9 text-success" />
               <p className="text-sm font-medium">You&rsquo;re all caught up</p>
@@ -543,24 +581,11 @@ export default function MyWorkPanel({ onTaskMutated }) {
                         onOpenTask={handleOpenTask}
                         rowError={rowError}
                       />
-                      {canWrite && bucket.canQuickAdd && quickAddBucket?.key === bucket.key && (
-                        <QuickAddForm
-                          bucket={bucket}
-                          projects={projects}
-                          modules={modules}
-                          placement={placement}
-                          onPlacementChange={changePlacement}
-                          onSubmit={submitQuickAdd}
-                          onCancel={() => setQuickAddBucket(null)}
-                          busy={quickAddBusy}
-                          error={quickAddError}
-                        />
-                      )}
-                      {canWrite && bucket.canQuickAdd && quickAddBucket?.key !== bucket.key && (
+                      {canQuickAdd && bucket.canQuickAdd && quickAddBucket?.key !== bucket.key && (
                         <div className="px-3 py-2 border-t border-border/60">
                           <button
                             type="button"
-                            onClick={() => openQuickAdd(bucket)}
+                            onClick={(e) => openQuickAdd(bucket, e.currentTarget)}
                             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             <Plus className="h-3.5 w-3.5" /> Add a task
@@ -571,14 +596,18 @@ export default function MyWorkPanel({ onTaskMutated }) {
                         <div className="px-3 py-2 border-t border-border/60">
                           <button
                             type="button"
-                            onClick={() => {
-                              setExpanded((prev) => new Set(prev).add(bucket.key))
-                              load({ silent: true, expandBucket: bucket.key })
+                            onClick={async () => {
+                              setExpandingBucket(bucket.key)
+                              try {
+                                await load({ silent: true, expandBucket: bucket.key })
+                              } finally {
+                                setExpandingBucket(null)
+                              }
                             }}
-                            disabled={expanded.has(bucket.key)}
+                            disabled={expandingBucket === bucket.key}
                             className="flex items-center gap-1.5 text-xs font-medium text-primary hover:opacity-80 disabled:opacity-60 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
-                            {expanded.has(bucket.key) && <Loader2 className="h-3 w-3 animate-spin" />}
+                            {expandingBucket === bucket.key && <Loader2 className="h-3 w-3 animate-spin" />}
                             Show all {group.count} {bucket.label.toLowerCase()} tasks
                           </button>
                         </div>
