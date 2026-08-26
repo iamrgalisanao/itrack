@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -74,7 +74,7 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
                   on close only if the opener was focusable. */}
               <button
                 type="button"
-                onClick={() => onOpenTask(task)}
+                onClick={(e) => onOpenTask(task, e.currentTarget)}
                 className="text-sm font-medium text-left truncate w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:text-primary transition-colors"
                 title={task.name}
               >
@@ -130,6 +130,7 @@ export default function MyWorkPanel({ onTaskMutated }) {
   const [openingTaskId, setOpeningTaskId] = useState(null)
   const [savingId, setSavingId] = useState(null)
   const [rowError, setRowError] = useState(null)
+  const triggerRef = useRef(null)
 
   const anchors = useMemo(() => localAnchors(), [])
 
@@ -194,7 +195,11 @@ export default function MyWorkPanel({ onTaskMutated }) {
     }
   }
 
-  const handleOpenTask = async (task) => {
+  const handleOpenTask = async (task, trigger) => {
+    // Radix restores focus to whatever was focused when the dialog mounted,
+    // but the modal only mounts after the fetch below resolves — by then its
+    // heuristic has lost the row. Hold the element and restore focus by hand.
+    triggerRef.current = trigger ?? null
     setOpeningTaskId(task.id)
     try {
       // The list row is a lean projection; the modal needs the full task.
@@ -208,10 +213,18 @@ export default function MyWorkPanel({ onTaskMutated }) {
     }
   }
 
+  const closeTask = () => {
+    setSelectedTask(null)
+    const trigger = triggerRef.current
+    triggerRef.current = null
+    // After Radix has finished unmounting and released the focus trap.
+    if (trigger?.isConnected) requestAnimationFrame(() => trigger.focus())
+  }
+
   const handleTaskSave = async (form) => {
     try {
       await updateDetailedActivity(form.id, form)
-      setSelectedTask(null)
+      closeTask()
       // A due-date edit re-buckets the row, so refetch rather than merge.
       await load({ silent: true })
       onTaskMutated?.()
@@ -376,7 +389,7 @@ export default function MyWorkPanel({ onTaskMutated }) {
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
-          onClose={() => setSelectedTask(null)}
+          onClose={closeTask}
           onSave={handleTaskSave}
           userRole={user?.role}
           eyebrowLabel="My Work"
