@@ -1,9 +1,11 @@
 import re, io, sys
 
-css = io.open('frontend/src/index.css', encoding='utf-8').read()
-# Strip comments FIRST: this feature adds a ratio comment beside the tokens, and
-# an unstripped `--foo: #abcdef` inside it would parse as a real declaration.
-css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
+# Strip comments FIRST for the declaration parse: this feature adds a ratio comment
+# beside the tokens, and an unstripped `--foo: #abcdef` inside it would parse as a
+# real declaration and silently shadow the value it documents. RAW is kept because
+# the documented-ratio check below has to read the comments on purpose.
+css = re.sub(r'/\*.*?\*/', '', RAW, flags=re.S)
 
 def block(sel):
     m = re.search(re.escape(sel) + r'\s*\{(.*?)\}', css, re.S)
@@ -23,7 +25,21 @@ def blend(fg, bg, a):
     b = [int(bg.lstrip('#')[i:i+2], 16) for i in (0, 2, 4)]
     return '#%02x%02x%02x' % tuple(round(f[i] * a + b[i] * (1 - a)) for i in range(3))
 
+# The ratio table written into index.css's comments, as
+#   --destructive #b91c1c 5.82  4.54  6.47
+# Parsed so the comment is a *checked* artifact rather than prose. Three drafts of
+# this feature's artifacts carried hand-transcribed ratios; two of them were wrong.
+# Keyed by hex, not by state name: each state appears once per theme with a
+# different value, so keying by name would silently collapse 8 rows into 4.
+DOCUMENTED = {
+    m.group(2).lower(): (m.group(1), float(m.group(3)), float(m.group(4)), float(m.group(5)))
+    for m in re.finditer(
+        r'--([a-z]+)\s+(#[0-9a-fA-F]{6})\s+(\d+\.\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)',
+        '\n'.join(re.findall(r'/\*.*?\*/', RAW, flags=re.S)))
+}
+
 ok = True
+measured = {}
 print('%-6s%-12s %6s %6s %6s   %s' % ('theme', 'state', 'text', 'tint', 'fill', 'verdict'))
 for theme, sel in (('light', ':root'), ('dark', '.dark')):
     t = block(sel)
@@ -35,8 +51,31 @@ for theme, sel in (('light', ':root'), ('dark', '.dark')):
         as_fill = ratio(fg, col)
         bad = min(as_text, on_tint, as_fill) < 4.5
         ok &= not bad
+        measured[(theme, state)] = (col.lower(), as_text, on_tint, as_fill)
         print('%-6s%-12s %6.2f %6.2f %6.2f   %s'
               % (theme, state, as_text, on_tint, as_fill, 'FAIL' if bad else 'ok'))
+
+# Every state must be documented in both themes: 4 states x 2 themes = 8 rows.
+drift = []
+for (theme, state), (col, t_, ti, f_) in sorted(measured.items()):
+    if col not in DOCUMENTED:
+        drift.append('%s %s (%s): no documented row in index.css' % (theme, state, col))
+        continue
+    dstate, dt, dti, df = DOCUMENTED[col]
+    if dstate != state:
+        drift.append('%s: %s is documented as --%s' % (col, state, dstate))
+    for label, doc, act in (('text', dt, t_), ('tint', dti, ti), ('fill', df, f_)):
+        if abs(doc - round(act, 2)) > 0.005:
+            drift.append('%s %s %s: comment says %.2f, computed %.2f'
+                         % (theme, state, label, doc, act))
+if len(DOCUMENTED) != 8:
+    drift.append('expected 8 documented rows in index.css comments, found %d' % len(DOCUMENTED))
+
+if drift:
+    ok = False
+    print('\nDOCUMENTED RATIOS DO NOT MATCH THE VALUES:')
+    for d in drift:
+        print('  ' + d)
 
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)

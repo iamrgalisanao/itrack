@@ -98,7 +98,9 @@ untouched.
 - **8 call sites** pair a solid fill with a foreground and therefore depend on invariant 2 — all
   variant definitions in `components/ui/badge.jsx` and `components/ui/button.jsx`. (A raw grep for
   `bg-{state}` returns 47, but 37 are opacity tints and 2 are bare bars with no text.)
-- **26 call sites across 15 files** render status text on a composited tint of the same colour; see the Surface
+- **26 call sites across 15 files** render status text on a composited tint of the same colour
+  (almost entirely `destructive`; `success` and `warning` have no tint consumers at all today — see
+  research.md R6); see the Surface
   section.
 - **4 call sites** (all `frontend/src/components/MyWorkPanel.jsx`) currently override the token in
   dark mode and are removed by this change; see research.md R3 for why the other 46 superficially

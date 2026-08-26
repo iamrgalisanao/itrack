@@ -19,6 +19,10 @@ colors:
   warning-dark: "#fbbf24"
   info: "#1d4ed8"
   info-dark: "#60a5fa"
+  # On-fill ink. Listed because the pair is the unit: a dark fill value read
+  # without its ink invites white-on-#f87171, which is 2.77:1.
+  status-foreground: "#ffffff"
+  status-foreground-dark: "#16171d"
 typography:
   body:
     fontFamily: "system-ui, 'Segoe UI', Roboto, sans-serif"
@@ -79,8 +83,9 @@ until feature 022.
 ### Primary
 - **Violet Ledger** (`#a631ff`; dark mode `#c084fc`): the one accent. Primary actions, active/selected
   states, links, focus rings. Darkened ~2% in lightness from an earlier `#aa3bff` specifically to
-  cross 4.5:1 contrast for white text (now 4.66:1) — treat that value as a floor, not a rounding
-  target.
+  cross 4.5:1 for white text (now 4.66:1) — treat that value as a floor, not a rounding target.
+  Note that 4.66:1 is the *fill* measurement only, which the AA Floor Rule below no longer accepts
+  on its own; see the known exception recorded there.
 
 ### Neutral
 - **Paper White** (`#ffffff`): page and card background.
@@ -104,8 +109,10 @@ Foreground ink is `#ffffff` in light mode and `#16171d` in dark — the same on-
 text on a dark surface, which is exactly what makes white illegible on top of them (1.67-2.77:1),
 so the two halves of each pair move in opposite directions.
 
-Ratios are recorded beside the tokens in `frontend/src/index.css` and are checkable without running
-the app: `python specs/022-dark-status-contrast/contracts/verify-contrast.py`.
+Ratios are recorded beside the tokens in `frontend/src/index.css`. They are not just prose: the
+gate script parses that comment and fails if any documented figure drifts from the computed one, so
+the numbers cannot rot silently. Checkable without running the app:
+`python specs/022-dark-status-contrast/contracts/verify-contrast.py`.
 
 ### Named Rules
 **The AA Floor Rule.** No status or accent color ships at a lightness that fails 4.5:1 against
@@ -117,9 +124,31 @@ rather than picking a new hue.
 Both halves of that were learned the hard way in feature 022. The rule used to say "against its
 paired foreground", and by that test the light values passed while failing as *text* on `--muted`
 (4.34:1) and on their own 10-15% tints (3.45-3.79:1) at 26 call sites — a surface nobody had
-thought to measure. It used to say "one step", which is enough in light mode but not in dark: the
-500-weight reaches only 4.31:1 (red) and 4.41:1 (blue) against `#1f2028`, so the dark values are
-two steps for red and blue and three for green and amber.
+thought to measure. It used to say "one step", which is enough in light mode but not in dark. One
+step fails for different reasons per hue, which is the point of measuring rather than reasoning:
+red and blue fail **as text** (500-weight reaches only 4.31:1 and 4.41:1 against `#1f2028`), while
+green and amber pass as text at one step but fail **on their own tint** (600-weight: 4.02:1 and
+4.16:1). Measurement alone puts red/blue at two steps and green/amber at two as well
+(green-500 and amber-500 both clear every count).
+
+The shipped dark values are all **400-weight** — three steps for green and amber, one further than
+measurement strictly requires. That is a deliberate tie-breaker, recorded so the derivation
+reproduces: once the floor is cleared, round the four states to a common palette weight so the row
+stays coherent rather than landing on a ragged 400/400/500/500.
+
+**Known exception: `--primary` does not currently satisfy this rule in light mode.** Measured,
+`#a631ff` gives 4.19:1 as text on `--muted` and 3.40-4.03:1 on its own 10-15% tints — the same tint
+pattern feature 022 fixed for the status colours, at 17 live call sites (`bg-primary/10
+text-primary` in `App.jsx`, `PreviewBanner.jsx`, `TaskComments.jsx`, `TaskDetailModal.jsx`,
+`Admin.jsx`, `Kanban.jsx`, `Retrospectives.jsx`, `Schedule.jsx`, `WorkProgram.jsx`,
+`TaskFiles.jsx`). Dark-mode `#c084fc` passes everything (worst case 4.78:1).
+
+This is recorded rather than resolved by narrowing the rule to exclude accents, because narrowing a
+rule to fit what shipped is the habit that produced the bug in the first place. Fixing it is a real
+design decision, not a token swap: violet-600 `#9333ea` reaches 4.90:1 on `--muted` but still only
+4.00:1 on a 15% tint, so the likely fix is that `text-primary` should stop being placed on
+`bg-primary/15` at small sizes. Tracked as follow-up 6 in
+`specs/022-dark-status-contrast/research.md`.
 
 The rule is only as good as the measurement, so measure rather than eyeball — and check the tint
 and the fill, not just the text.
@@ -214,8 +243,10 @@ inventing a parallel collapsed-header treatment.
 - **Do** reuse `GroupSummaryBar` for any new collapsed-group UI rather than building a one-off header.
 
 ### Don't:
-- **Don't** ship a status or accent color that fails 4.5:1 contrast against its paired foreground —
-  darken one step rather than using a library's default swatch value.
+- **Don't** ship a status or accent color without measuring it against **every surface it renders
+  on — including a tint of itself** — and against its paired foreground. Move as many palette steps
+  as measurement requires, in the direction the theme needs. Checking only the paired foreground,
+  and assuming one step is enough, is exactly what let feature 022's bug ship.
 - **Don't** introduce a second display/heading font or a parallel type-scale token system; the
   Utility-Scale Rule already governs sizing.
 - **Don't** use pure black (`#000`) or pure white borders/shadows — the system's black is `#08060d`

@@ -127,7 +127,10 @@ than a checklist.
   override are compensating for the broken token. The spec's SC-002 was corrected from 20 to 4.
 - **Alternatives considered**: treating all `dark:text-*-400` occurrences as workarounds (the
   first reading) — rejected on inspection: 46 of the 50 are deliberate light/dark pairs on palette
-  colours in badge and priority class maps. Deleting them would strip intentional theming and is
+  colours in badge and priority class maps. **Scope note**: 50/46 counts `*.jsx` only. Repo-wide the
+  figures are 59 → 55; the extra 9 live in `lib/groupSummary.js` and `lib/taskStatus.js`, which the
+  original census silently excluded. They were read afterwards and are the same palette-pair
+  category — the conclusion holds, but the recorded number described a subset. Deleting them would strip intentional theming and is
   pre-registered as a blocking Major finding.
 - **Consequence**: the diff is far smaller than first scoped, and the risk of collateral visual
   change drops accordingly. Anything beyond deleting `dark:text-*` at those four sites means the
@@ -156,7 +159,7 @@ than a checklist.
   ```
 
   It covers `App.jsx`, `AccessDenied.jsx`, `PreviewBanner.jsx`, `TaskComments.jsx`,
-  `TaskFiles.jsx`, `ui/button.jsx`, and pages `Admin.jsx`, `Glossary.jsx`, `Kanban.jsx`,
+  `TaskFiles.jsx`, and pages `Admin.jsx`, `Glossary.jsx`, `Kanban.jsx`,
   `Login.jsx`, `Reports.jsx`, `Schedule.jsx`, `SupportOps.jsx`, `Team.jsx`, `TodayDashboard.jsx`
   and `WorkProgram.jsx`. An earlier draft listed eight of these and said "~10 call sites", which
   would have left Work Program — one of the six screens spec.md's Independent Test names — out of
@@ -171,6 +174,12 @@ than a checklist.
   margin is thin enough that a future re-tune could cross it unnoticed, which is why it belongs in
   the automated gate rather than in anyone's memory.
 - **Alternatives considered**: leaving tints out as "decorative" — rejected: they carry body text.
+- **Which states actually use tints**: `bg-destructive/N` is essentially all of it (32 occurrences);
+  `bg-info/N` has exactly 1 (a decorative `blur-3xl` orb in `Login.jsx` with no text on it); and
+  `bg-success/N` and `bg-warning/N` have **zero**. The contract still measures all four, because the
+  invariant is what stops the next `bg-success/10 text-success` callout from shipping broken — but
+  it is worth being honest that two of the four columns currently guard a pattern with no
+  consumers.
 - **Deliberately outside the check**: `bg-{state}/5` (6 occurrences) — a lighter tint strictly
   *raises* text-on-tint contrast, so 10% is the binding case and /5 needs no separate measurement.
   `bg-{state}/90` (4 occurrences, `button.jsx` hover) *is* a fill with a foreground and is measured
@@ -230,6 +239,14 @@ No automated frontend suite exists, so verification is explicit:
    superseded by `#a631ff`) that this feature deliberately leaves alone — see plan.md Complexity
    Tracking. They will visibly drift from the rest of the app after 022, which is the argument for
    doing this soon rather than eventually.
+6. **`--primary` does not satisfy the widened AA Floor Rule in light mode.** Measured, `#a631ff`
+   gives 4.19:1 as text on `--muted` and 3.40-4.03:1 on its own 10-15% tints, at 17 live
+   `bg-primary/10 text-primary` call sites — the identical pattern this feature fixed for the status
+   colours. Dark-mode `#c084fc` passes (worst 4.78:1). Deliberately **not** fixed here: it is not a
+   status colour, and it is not a token swap — violet-600 `#9333ea` reaches 4.90:1 on `--muted` but
+   still only 4.00:1 on a 15% tint, so the real fix is probably that `text-primary` should stop
+   sitting on `bg-primary/15` at small sizes. Recorded in `DESIGN.md` beside the rule as a known
+   exception rather than hidden by narrowing the rule to exclude accents.
 5. `--destructive` on its own 15% tint clears AA by 0.039 (4.539 vs 4.5) in light mode — the
    tightest margin in the system. Any future change to `--muted` or to the tint opacity breaks it.
    The gate script catches it; this note is so the thinness is not a surprise when it does.

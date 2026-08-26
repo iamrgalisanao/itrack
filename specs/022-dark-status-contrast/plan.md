@@ -101,10 +101,10 @@ surfaces, not persuasion surfaces), per constitution 1.3.0.
 - **Light mode is corrected too**, one palette step darker per state: destructive
   `#dc2626` → `#b91c1c`, success `#15803d` → `#166534`, warning `#b45309` → `#92400e`, info
   `#2563eb` → `#1d4ed8`. Worst case afterwards is 4.54:1 (destructive on its own 15% tint over
-  `--muted`) — thin but passing; `#991b1b` would give 5.76:1 at the cost of a larger visual jump,
-  and the AA Floor Rule says one step. This is a **perceptible** light-mode change: status colours
-  get slightly deeper. That is the rule the design system already committed to; the light values
-  simply were never measured against `--muted` or against their own tints.
+  `--muted`) — thin but passing, and one step is all measurement requires here, unlike the dark
+  theme where it was not enough. This is a **perceptible** light-mode change: status colours get
+  slightly deeper. The light values were simply never measured against `--muted` or against their
+  own tints.
 - **Interface states affected**: error/validation text, success confirmations, warning banners,
   informational callouts, status badges (both text and filled variants), and overdue emphasis.
   Loading, empty, disabled and permission-denied states use neutral tokens and are unaffected.
@@ -195,7 +195,27 @@ No constitution violations. Two items recorded for transparency rather than as e
 | Item | Why | Alternative rejected |
 |---|---|---|
 | `impeccable` `polish` and `harden` not run | The diff is twelve CSS values and five class-attribute deletions. There is no component structure, interaction, or motion to polish or harden — both commands operate on a surface this change does not have. `context.mjs`, `shape`, `audit` and `critique` all are applied. | Running them anyway to claim full coverage — rejected as ceremony that would produce findings about components this feature does not touch. |
-| **Accepted exclusion**: seven hard-coded status hex literals stay as they are — the Gantt bar palette in `WorkProgram.jsx:580-611` and the progress-bar colour in `Reports.jsx:239` | These are a **separate decorative palette**, not the semantic tokens: two-stop gradients (`linear-gradient(135deg, #ef4444, #dc2626)`) that no single token maps onto, plus a stale accent (`#aa3bff`, superseded by `#a631ff`). Retokenising them is a visual redesign of the Gantt bars, which this feature is explicitly not. They carry no text, so no AA text pairing is at stake. | Swapping them for `var(--destructive)` etc. — rejected: it changes the bars' appearance and would smuggle a redesign into a contrast fix. **Consequence accepted and stated**: after 022 these two files keep the pre-change colours in both themes while every other status surface moves, so Work Program's Gantt and the Reports bar will visibly drift from the rest of the app. Recorded as research.md follow-up 5, not left implicit. |
+| **Accepted exclusion**: seven hard-coded status hex literals stay as they are — the Gantt bar palette in `WorkProgram.jsx:580-611` and the progress-bar colour in `Reports.jsx:239` | These are a **separate decorative palette**, not the semantic tokens: two-stop gradients (`linear-gradient(135deg, #ef4444, #dc2626)`) that no single token maps onto, plus a stale accent (`#aa3bff`, superseded by `#a631ff`). Retokenising them is a visual redesign of the Gantt bars, which this feature is explicitly not. They carry no text, so no AA text pairing is at stake. | Swapping them for `var(--destructive)` etc. — rejected: it changes the bars' appearance and would smuggle a redesign into a contrast fix. **Consequence accepted and stated**: after 022 these two files keep the pre-change colours in both themes while every other status surface moves, so Work Program's Gantt and the Reports bar will visibly drift from the rest of the app. Recorded as research.md follow-up 4, not left implicit. |
+
+## Software Architect Verification
+
+**Status: PASSED (accepted exceptions).** Three passes were required.
+
+| Pass | Scope | Outcome |
+|---|---|---|
+| 1 | Full artifact set | 11 findings — all resolved; scope grew 9 → 12 token values |
+| 2 | Re-dispatched on the changed surface | 11 findings — all resolved; scope grew to 5 class deletions and 4 `DESIGN.md` edits |
+| 3 | Convergence check on pass-2's resolutions, plus tasks.md | **PASSED (accepted exceptions)** — all 11 confirmed landed; 3 documentation nits, since fixed |
+
+**Accepted exceptions**: none outstanding. Pass 3's three nits — `ui/button.jsx` wrongly listed
+among the tint files (it is a `/90` fill, which the contract itself excludes), a follow-up
+cross-reference off by one, and a sentence still citing the pre-amendment "one step" wording as a
+reason — were fixed rather than accepted. The one *standing* scope exception is recorded in
+Complexity Tracking, not here: the hard-coded Gantt/Reports status literals stay put, and pass 3
+independently judged that exclusion defensible after reading both files.
+
+Pass 3 also re-ran the gate script, re-ran the call-site greps, and checked every hex value and line
+number in tasks.md against the real `frontend/src/index.css`.
 
 ### Verification outcome
 

@@ -26,11 +26,18 @@ cd g:/Dev/projects/itrack && python specs/022-dark-status-contrast/contracts/ver
 
 **Expected**: every row `ok`, final line `CONTRACT HOLDS`, `gate exit: 0`.
 
-The script strips CSS comments before parsing — this feature adds a ratio comment beside the
-tokens, and an unstripped `--foo: #abcdef` inside a comment would parse as a real declaration and
-silently shadow the value it documents. It checks three things per state per theme: as text against
-each base surface, on a 10–15% tint of its own colour, and foreground-on-fill. **Check the exit
-code**, not the printed text.
+The script strips CSS comments before parsing the declarations — this feature adds a ratio comment
+beside the tokens, and an unstripped `--foo: #abcdef` inside a comment would parse as a real
+declaration and silently shadow the value it documents. It checks three things per state per theme:
+as text against each base surface, on a 10–15% tint of its own colour, and foreground-on-fill.
+
+It then re-reads the comments **on purpose** and asserts that the ratio table written into
+`index.css` matches what it just computed, so the documented numbers are a checked artifact rather
+than prose. Three drafts of these artifacts carried hand-transcribed ratios and two were wrong; this
+is the mechanical fix for that. A drifted comment fails the gate with
+`DOCUMENTED RATIOS DO NOT MATCH THE VALUES`.
+
+**Check the exit code**, not the printed text.
 
 ## Gate 2 — Build and lint
 
@@ -71,7 +78,7 @@ Visit each surface in **light and dark**, toggling with the sidebar control:
 Confirm for each: status text is comfortably readable in **both** themes; filled badges have
 legible text on them; and status text sitting on a tint of its own colour is readable. That last
 pattern appears at 26 sites across 15 files — `App`, `AccessDenied`, `PreviewBanner`,
-`TaskComments`, `TaskFiles`, `ui/button`, and pages `Admin`, `Glossary`, `Kanban`, `Login`,
+`TaskComments`, `TaskFiles`, and pages `Admin`, `Glossary`, `Kanban`, `Login`,
 `Reports`, `Schedule`, `SupportOps`, `Team`, `TodayDashboard`, `WorkProgram`. An earlier draft of
 this list named eight of them and omitted Work Program, which is one of the six screens above.
 

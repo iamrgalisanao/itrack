@@ -33,8 +33,8 @@
      any one of them is how the previous values shipped broken:
 
        as text  vs the worst-case surface  (light #f4f3ec / dark #1f2028)
-       on tint  on a 10-15% tint of itself (the bg-{state}/10 callout pattern,
-                26 call sites — a surface easy to forget is a surface)
+       on tint  on a 10-15% tint of itself (the bg-{state}/10 callout pattern
+                — a surface easy to forget is a surface)
        as fill  its own -foreground on top of it
 
      Light, measured:        text  tint  fill
