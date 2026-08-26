@@ -274,10 +274,35 @@ class ProjectController extends Controller
         $delayed     = (clone $detailedActivityQuery)->where('status', 'delayed')->count();
         $avgProgress = (clone $detailedActivityQuery)->avg('progress') ?? 0;
 
+        // 021-dashboard-my-work (research.md R7): accomplishment-first metric
+        // for the restructured summary row. `updated_at` is the completion
+        // proxy — `actual_end_date` is too sparsely populated to count on.
+        // Unlike the older counts above (which pre-date the client_visible
+        // flag and are deferred cleanup), this key renders prominently, so a
+        // Client's copy must exclude internal tasks.
+        $completedRecentQuery = (clone $detailedActivityQuery)
+            ->where('status', 'completed')
+            ->where('updated_at', '>=', now()->subDays(7));
+
+        if ($user->isClient()) {
+            $completedRecentQuery->where('client_visible', true);
+        }
+
+        $completedRecent = $completedRecentQuery->count();
+
         $teamMembers   = TeamMember::count();
         $glossaryTerms = GlossaryTerm::count();
 
-        $recentActivities = DetailedActivity::whereIn('sub_activity_id', $subActivityIds)
+        // 021-dashboard-my-work: mirrors DetailedActivityController::index()'s
+        // client_visible filter. Without it a Client saw the names and status
+        // of internal tasks in their accessible projects.
+        $recentActivitiesQuery = DetailedActivity::whereIn('sub_activity_id', $subActivityIds);
+
+        if ($user->isClient()) {
+            $recentActivitiesQuery->where('client_visible', true);
+        }
+
+        $recentActivities = $recentActivitiesQuery
             ->with(['subActivity.activity.module'])
             ->orderBy('updated_at', 'desc')
             ->limit(5)
@@ -332,6 +357,7 @@ class ProjectController extends Controller
                 'activities'          => $activities,
                 'detailed_activities' => $detailedActivities,
                 'completed'           => $completed,
+                'completed_recent'    => $completedRecent,
                 'in_progress'         => $inProgress,
                 'not_started'         => $notStarted,
                 'delayed'             => $delayed,
