@@ -5,31 +5,32 @@ import { Badge } from '@/components/ui/badge'
 import { fetchDashboard } from '@/lib/api'
 import { getStatusColor, getStatusLabel } from '@/lib/utils'
 import AccessDenied from '@/components/AccessDenied'
+import MyWorkPanel from '@/components/MyWorkPanel'
 import {
-  FolderKanban,
   Layers,
-  Activity,
-  ListChecks,
   CheckCircle2,
   Clock,
   AlertCircle,
-  Users,
-  BookOpen,
   ArrowRight,
   Zap,
-  CircleDashed,
   Circle,
   RefreshCw,
   Info,
   ChevronRight,
+  TrendingUp,
 } from 'lucide-react'
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
 
-/** Metric card with colored icon container and optional left accent border */
-function StatCard({ title, value, description, icon: Icon, iconBg, iconColor, accent }) {
+/**
+ * Metric card. The colored icon container carries the semantic colour — there
+ * is deliberately no left accent stripe: border-l-{color} utilities are inert
+ * under index.css's unlayered border reset, so the stripe only ever rendered
+ * as a flat grey bar carrying no information.
+ */
+function StatCard({ title, value, description, icon: Icon, iconBg, iconColor }) {
   return (
-    <Card className={['relative overflow-hidden transition-shadow hover:shadow-md', accent ? `border-l-4 ${accent}` : ''].join(' ')}>
+    <Card className="relative overflow-hidden transition-shadow hover:shadow-md">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4 px-5">
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
@@ -324,27 +325,9 @@ function TaskHeatmap({ data }) {
             })}
           </tbody>
 
-          {/* Column totals footer */}
-          <tfoot className="border-t-2 border-border bg-muted/30">
-            <tr>
-              <td className="px-4 py-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total</span>
-              </td>
-              {HEATMAP_COLS.map(col => {
-                const colTotal = data.reduce((sum, r) => sum + (r[col.key] || 0), 0)
-                return (
-                  <td key={col.key} className="px-2 py-2 text-center">
-                    <span className={`text-sm font-bold ${col.headerColor} tabular-nums`}>{colTotal}</span>
-                  </td>
-                )
-              })}
-              <td className="px-4 py-2 text-center">
-                <span className="text-sm font-bold tabular-nums">
-                  {data.reduce((sum, r) => sum + r.total, 0)}
-                </span>
-              </td>
-            </tr>
-          </tfoot>
+          {/* No column-totals footer: In Progress and Delayed totals already
+              live in the summary row at the top of the page, and repeating a
+              count in two places is what this layout exists to avoid. */}
         </table>
       </div>
     </div>
@@ -359,11 +342,15 @@ export default function Dashboard() {
   const [accessDenied, setAccessDenied] = useState(false)
   const [activityTab, setActivityTab] = useState('all')
 
-  const load = () => {
-    setLoading(true)
+  // `silent` keeps the already-rendered dashboard on screen while refetching.
+  // My Work calls this after every inline status change; showing the
+  // full-page spinner there would make a two-click status change look like a
+  // page reload.
+  const fetchInto = (silent) => {
+    if (!silent) setLoading(true)
     setError(null)
     setAccessDenied(false)
-    fetchDashboard()
+    return fetchDashboard()
       .then(res => { setData(res.data); setLoading(false) })
       .catch((err) => {
         // 007-permission-hardening (FR-010): a 403 mid-session (an
@@ -380,7 +367,10 @@ export default function Dashboard() {
       })
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- established data-load-on-mount idiom used throughout this codebase
+  const load = () => fetchInto(false)
+  const refresh = () => fetchInto(true)
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- established data-load-on-mount idiom used throughout this codebase
   useEffect(() => { load() }, [])
 
   if (loading) {
@@ -412,16 +402,15 @@ export default function Dashboard() {
   const recentActivities = data?.recent_activities || []
   const moduleHeatmap    = data?.module_heatmap    || []
 
-  const pct        = Math.round(stats.overall_progress || 0)
-  const completed  = stats.completed   || 0
-  const inProgress = stats.in_progress || 0
-  const notStarted = stats.not_started || 0
-  const delayed    = stats.delayed     || 0
-  const total      = completed + inProgress + notStarted + delayed
-  const remaining  = total - completed
-  const barColor   = pct >= 70 ? '#22c55e' : pct >= 30 ? '#f59e0b' : '#aa3bff'
+  const pct             = Math.round(stats.overall_progress || 0)
+  const completed       = stats.completed        || 0
+  const completedRecent = stats.completed_recent || 0
+  const inProgress      = stats.in_progress      || 0
+  const notStarted      = stats.not_started      || 0
+  const delayed         = stats.delayed          || 0
+  const total           = completed + inProgress + notStarted + delayed
+  const remaining       = total - completed
 
-  const needsAttention     = notStarted > 0 || delayed > 0
   const filteredActivities = activityTab === 'all'
     ? recentActivities
     : recentActivities.filter(a => a.status === activityTab)
@@ -437,132 +426,47 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* ── 2. Overall Progress Hero ── */}
-      <div className="relative">
-        {/* Decorative background — gives the glass card below something to
-            actually blur; purely aesthetic, aria-hidden. */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-          <div className="absolute -top-16 left-1/4 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-          <div className="absolute -bottom-20 right-1/4 h-64 w-64 rounded-full bg-success/10 blur-3xl" />
-        </div>
-        <Card className="relative overflow-hidden border border-border/60 shadow-md bg-card/70 backdrop-blur-xl">
-          <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
-            {/* Radial progress ring */}
-            <div className="flex items-center gap-5 shrink-0">
-              <div className="relative flex items-center justify-center h-24 w-24 rounded-full border-[6px] border-muted bg-background shadow-inner">
-                <div
-                  className="absolute inset-0 rounded-full"
-                  style={{
-                    background: `conic-gradient(${barColor} ${pct * 3.6}deg, transparent 0deg)`,
-                    mask: 'radial-gradient(circle at center, transparent 62%, black 63%)',
-                    WebkitMask: 'radial-gradient(circle at center, transparent 62%, black 63%)',
-                  }}
-                />
-                <span className="text-2xl font-black leading-none z-10">{pct}%</span>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Overall Progress</p>
-                <p className="text-2xl font-bold mt-0.5">
-                  {completed} <span className="text-lg text-muted-foreground font-normal">of {total} tasks</span>
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5">{remaining} remaining</p>
-              </div>
-            </div>
-
-            <div className="hidden md:block w-px h-20 bg-border/60 mx-2" />
-
-            {/* Status chips */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 flex-1">
-              {[
-                { label: 'Completed',   value: completed,  icon: CheckCircle2, bg: 'bg-emerald-50 dark:bg-emerald-950/20', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-900/50' },
-                { label: 'In Progress', value: inProgress, icon: Clock,        bg: 'bg-blue-50 dark:bg-blue-950/20',    text: 'text-blue-700 dark:text-blue-400',    border: 'border-blue-200 dark:border-blue-900/50' },
-                { label: 'Not Started', value: notStarted, icon: CircleDashed, bg: 'bg-slate-50 dark:bg-slate-900/20',   text: 'text-slate-500 dark:text-slate-400',   border: 'border-slate-200 dark:border-slate-800' },
-                {
-                  label: 'Delayed', value: delayed, icon: AlertCircle,
-                  bg:     delayed > 0 ? 'bg-red-50 dark:bg-red-950/20'    : 'bg-slate-50 dark:bg-slate-900/20',
-                  text:   delayed > 0 ? 'text-red-700 dark:text-red-400'  : 'text-slate-500 dark:text-slate-400',
-                  border: delayed > 0 ? 'border-red-200 dark:border-red-900/50' : 'border-slate-200 dark:border-slate-800',
-                },
-              ].map(({ label, value, icon: Icon, bg, text, border }) => (
-                <div key={label} className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 ${bg} ${border}`}>
-                  <Icon className={`h-4 w-4 shrink-0 ${text}`} />
-                  <div>
-                    <p className={`text-xl font-bold leading-none ${text}`}>{value}</p>
-                    <p className={`text-xs mt-0.5 ${text} opacity-80`}>{label}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Full-width bar */}
-          <div className="mt-5">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-              <span>Progress</span><span>{pct}%</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${pct}%`, backgroundColor: barColor }}
-              />
-            </div>
-          </div>
-        </CardContent>
-        </Card>
+      {/* ── Summary — four metrics, accomplishment first. Every status
+             count on this page appears here and nowhere else. ── */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Completed"
+          value={completedRecent}
+          description="In the last 7 days"
+          icon={CheckCircle2}
+          iconBg="bg-emerald-100 dark:bg-emerald-950/40"
+          iconColor="text-emerald-600 dark:text-emerald-400"
+        />
+        <StatCard
+          title="Overall Progress"
+          value={`${pct}%`}
+          description={`${remaining} of ${total} tasks remaining`}
+          icon={TrendingUp}
+          iconBg="bg-violet-100 dark:bg-violet-950/40"
+          iconColor="text-violet-600 dark:text-violet-400"
+        />
+        <StatCard
+          title="In Progress"
+          value={inProgress}
+          description="Currently active"
+          icon={Clock}
+          iconBg="bg-blue-100 dark:bg-blue-950/40"
+          iconColor="text-blue-600 dark:text-blue-400"
+        />
+        <StatCard
+          title="Delayed"
+          value={delayed}
+          description={delayed === 0 ? 'On track — no delays' : 'Needs immediate attention'}
+          icon={AlertCircle}
+          iconBg={delayed > 0 ? 'bg-red-100 dark:bg-red-950/40' : 'bg-slate-100 dark:bg-slate-800'}
+          iconColor={delayed > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}
+        />
       </div>
 
-      {/* ── 3. Needs Attention Banner ── */}
-      {needsAttention && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-5 py-3.5">
-          <Zap className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-800 dark:text-amber-300 flex-1">
-            {delayed > 0
-              ? <><strong>{delayed} task{delayed !== 1 ? 's are' : ' is'} delayed.</strong> Use the heatmap below to identify which module needs unblocking.</>
-              : <><strong>{notStarted} task{notStarted !== 1 ? 's haven\'t' : ' hasn\'t'} started yet.</strong> The heatmap below shows where to focus first.</>
-            }
-          </p>
-          <Link to="/work-program" className="shrink-0 flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 transition-colors">
-            Work Program <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      )}
 
-      {/* ── 4. Status Cards ── */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Task Status</h2>
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Completed"   value={completed}  description="Tasks finished"              icon={CheckCircle2} iconBg="bg-emerald-100 dark:bg-emerald-950/40" iconColor="text-emerald-600 dark:text-emerald-400" accent="border-l-emerald-400 dark:border-l-emerald-500" />
-          <StatCard title="In Progress" value={inProgress} description="Currently active"            icon={Clock}        iconBg="bg-blue-100 dark:bg-blue-950/40"    iconColor="text-blue-600 dark:text-blue-400"    accent="border-l-blue-400 dark:border-l-blue-500" />
-          <StatCard title="Not Started" value={notStarted} description="Yet to begin"                icon={CircleDashed} iconBg="bg-slate-100 dark:bg-slate-800"   iconColor="text-slate-500 dark:text-slate-400"   accent="border-l-slate-300 dark:border-l-slate-700" />
-          <StatCard
-            title="Delayed"
-            value={delayed}
-            description={delayed === 0 ? 'On track — no delays' : 'Needs immediate attention'}
-            icon={AlertCircle}
-            iconBg={delayed > 0 ? 'bg-red-100 dark:bg-red-950/40'   : 'bg-slate-100 dark:bg-slate-800'}
-            iconColor={delayed > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}
-            accent={delayed > 0 ? 'border-l-red-400 dark:border-l-red-500' : 'border-l-slate-200 dark:border-l-slate-800'}
-          />
-        </div>
-      </div>
-
-      {/* ── 5. Project Stats ── */}
-      <div>
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Project Structure</h2>
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Projects"   value={stats.projects            || 0} description="Active projects"  icon={FolderKanban} iconBg="bg-violet-100 dark:bg-violet-950/40" iconColor="text-violet-600 dark:text-violet-400" />
-          <StatCard title="Modules"    value={stats.modules             || 0} description="Work modules"      icon={Layers}       iconBg="bg-indigo-100 dark:bg-indigo-950/40" iconColor="text-indigo-600 dark:text-indigo-400" />
-          <StatCard title="Activities" value={stats.activities          || 0} description="Total activities"  icon={Activity}     iconBg="bg-sky-100 dark:bg-sky-950/40"    iconColor="text-sky-600 dark:text-sky-400" />
-          <StatCard title="Tasks"      value={stats.detailed_activities || 0} description="Total tasks"       icon={ListChecks}   iconBg="bg-teal-100 dark:bg-teal-950/40"   iconColor="text-teal-600 dark:text-teal-400" />
-        </div>
-      </div>
-
-      {/* ── 5b. Supporting stats ── */}
-      <div className="grid gap-4 grid-cols-2">
-        <StatCard title="Team Members"  value={stats.team_members  || 0} description="Active contributors" icon={Users}     iconBg="bg-orange-100 dark:bg-orange-950/40" iconColor="text-orange-600 dark:text-orange-400" />
-        <StatCard title="Glossary Terms" value={stats.glossary_terms || 0} description="Defined terms"     icon={BookOpen}  iconBg="bg-pink-100 dark:bg-pink-950/40"   iconColor="text-pink-600 dark:text-pink-400" />
-      </div>
+      {/* ── My Work — the page's only actionable panel, above the heatmap so
+             an overdue task is visible without scrolling (SC-003). ── */}
+      <MyWorkPanel onTaskMutated={refresh} />
 
       {/* ── 6. Task Status by Module Heatmap ── */}
       <Card>
@@ -676,6 +580,22 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Structure counts — reference figures, not daily decisions, so one
+          quiet line rather than six cards competing with the panels above. */}
+      <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>{stats.projects || 0} projects</span>
+        <span>·</span>
+        <span>{stats.modules || 0} modules</span>
+        <span>·</span>
+        <span>{stats.activities || 0} activities</span>
+        <span>·</span>
+        <span>{stats.detailed_activities || 0} tasks</span>
+        <span>·</span>
+        <span>{stats.team_members || 0} team members</span>
+        <span>·</span>
+        <span>{stats.glossary_terms || 0} glossary terms</span>
+      </p>
 
     </div>
   )

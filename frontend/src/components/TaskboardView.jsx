@@ -9,6 +9,7 @@ import { LayoutGrid, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import { GroupSegmentBar } from '@/components/GroupSummaryBar'
 import { GROUP_ACCENT_CLASSES, buildSegments } from '@/lib/groupSummary'
+import { STATUS_ORDER, STATUS_SEGMENT_LABELS, STATUS_SEGMENT_CLASSES, STATUS_BADGE_CLASSES } from '@/lib/taskStatus'
 
 const PRIORITY_BADGE_CLASSES = {
   Critical: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',
@@ -20,36 +21,8 @@ const PRIORITY_BADGE_CLASSES = {
 // Group-header visual summary: fixed status/type order + solid segment
 // colors so the collapsed group row still communicates its status/type mix
 // (matches the monday.com reference: a segmented bar per column, not a list).
-const STATUS_ORDER = ['backlog', 'not_started', 'in_progress', 'for_review', 'blocked', 'delayed', 'completed']
-const STATUS_SEGMENT_LABELS = {
-  backlog: 'Backlog',
-  not_started: 'Not Started',
-  in_progress: 'In Progress',
-  for_review: 'For Review',
-  blocked: 'Blocked',
-  delayed: 'Delayed',
-  completed: 'Done',
-}
-const STATUS_SEGMENT_CLASSES = {
-  backlog: 'bg-slate-400',
-  not_started: 'bg-slate-400',
-  in_progress: 'bg-blue-500',
-  for_review: 'bg-purple-500',
-  blocked: 'bg-red-500',
-  delayed: 'bg-red-600',
-  completed: 'bg-emerald-500',
-}
-// Status column badge — same color families as STATUS_SEGMENT_CLASSES, in
-// the outline-badge style PRIORITY_BADGE_CLASSES already uses.
-const STATUS_BADGE_CLASSES = {
-  backlog: 'border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300',
-  not_started: 'border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300',
-  in_progress: 'border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400',
-  for_review: 'border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400',
-  blocked: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',
-  delayed: 'border-red-600/40 bg-red-600/10 text-red-800 dark:text-red-400',
-  completed: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-}
+// The status maps live in @/lib/taskStatus — the dashboard's My Work panel
+// renders the same seven statuses and must not fork a second copy.
 
 const PRIORITY_ORDER = ['Critical', 'High', 'Medium', 'Low', 'unset']
 const PRIORITY_SEGMENT_LABELS = { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low', unset: 'Unset' }
