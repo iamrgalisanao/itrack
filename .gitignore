@@ -30,3 +30,6 @@
 /transaction-logs-*
 /backups/
 
+
+# Stray screenshots dropped at the repo root
+/*.png
