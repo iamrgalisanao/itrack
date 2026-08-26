@@ -1,0 +1,192 @@
+# Research — 022 Dark-Mode Contrast for Semantic Status Colours
+
+**Date**: 2026-08-27. All ratios below were computed from the committed hex values using the WCAG
+relative-luminance formula, not estimated. Surfaces read from `frontend/src/index.css`'s `.dark`
+block on `main` at `b00ac23`.
+
+## Verified ground truths
+
+- The `.dark` block **redeclares all four semantic status colours with the light-mode values**:
+  `--destructive: #dc2626`, `--success: #15803d`, `--warning: #b45309`, `--info: #2563eb`. They are
+  not omitted (which would inherit) — they are explicitly restated, so the intent appears to have
+  been to theme them and the values were simply never adjusted.
+- Dark surfaces the tokens render against: `--background: #16171d`, `--card: #1c1d24`,
+  `--muted`/`--secondary: #1f2028`. The **lightest** (`#1f2028`) is the worst case for
+  light-on-dark text and is the value to design against — not the card, which is what the 021
+  review measured.
+- 28 files consume these tokens. Fill usage is narrower than a raw grep suggests: of 47
+  `bg-{state}` occurrences, **37 are opacity tints** (`bg-destructive/10`, `/15`) and only **8**
+  are solid fills paired with a `-foreground` — all variant definitions in
+  `components/ui/badge.jsx` and `components/ui/button.jsx`. Two more are bare fills with no text
+  on them (`pages/Schedule.jsx`). The foreground flip is therefore contained to two primitive
+  files, not spread across the app.
+- The design system already states an **AA Floor Rule** (`DESIGN.md`): "No status or accent color
+  ships at a lightness that fails 4.5:1 against its paired foreground. Where a common default
+  fails, use one step darker instead of picking a new hue." The rule exists; only the light theme
+  was held to it.
+
+### Measured failure (the reason for this change)
+
+| Token | Value | vs `#16171d` | vs `#1c1d24` | vs `#1f2028` | Worst | AA |
+|---|---|---|---|---|---|---|
+| `--destructive` | `#dc2626` | 3.70 | 3.48 | 3.36 | **3.36** | FAIL |
+| `--success` | `#15803d` | 3.57 | 3.35 | 3.23 | **3.23** | FAIL |
+| `--warning` | `#b45309` | 3.56 | 3.34 | 3.23 | **3.23** | FAIL |
+| `--info` | `#2563eb` | 3.46 | 3.25 | 3.14 | **3.14** | FAIL |
+
+Four of four fail against every dark surface. None is marginal.
+
+### Measured failure in **light** mode (found during verification, originally missed)
+
+| Token | Value | vs `#ffffff` | vs `#f4f3ec` (darkest) | White-on-fill | AA |
+|---|---|---|---|---|---|
+| Token | Value | vs `#f4f3ec` (darkest) | on own 10–15% tint | AA |
+|---|---|---|---|---|
+| `--destructive` | `#dc2626` | **4.34** | **3.45** | FAIL (both) |
+| `--success` | `#15803d` | 4.51 (0.01 margin) | **3.72** | FAIL (tint) |
+| `--warning` | `#b45309` | 4.51 (0.01 margin) | **3.70** | FAIL (tint) |
+| `--info` | `#2563eb` | 4.65 | **3.79** | FAIL (tint) |
+
+The first scoping assumed light mode was correct and froze it. It is not. Destructive fails as
+text against `--muted`; success and warning clear that bar by 0.01; and **all four** fail where
+status text sits on a tint of its own colour — the `bg-{state}/10`+`text-{state}` pattern used at
+~10 call sites (R6). The tint failures were found by the gate script itself, after the manual
+review had already expanded scope once — which is the argument for having a mechanical gate rather
+than a checklist.
+
+### R7 — Light mode moves one palette step darker
+- **Decision**: `--destructive` `#b91c1c`, `--success` `#166534`, `--warning` `#92400e`,
+  `--info` `#1d4ed8`.
+- **Measured**: text 5.82 / 6.41 / 6.37 / 6.02; on own tint 4.54 / 5.14 / 5.07 / 4.79. All clear
+  4.5:1 on both counts.
+- **Rationale**: this is verbatim what `DESIGN.md`'s AA Floor Rule prescribes — "use one step
+  darker instead of picking a new hue". The rule existed and the light values were simply never
+  measured against `--muted` or against their own tints. Applying it is a correction, not a
+  redesign.
+- **Cost, stated plainly**: light mode changes perceptibly. Status colours become slightly deeper.
+  SC-004 was amended from "no light-mode change" to "exactly one palette step, nothing else".
+- **Alternatives considered**: (a) two steps darker (`#991b1b` etc.) — better margin (5.76:1) but a
+  larger visual departure than the rule calls for; the thin case is destructive-on-tint at 4.54:1,
+  which passes. (b) Leaving light tints failing and documenting the exception — rejected: they
+  carry body text at ~10 call sites, and the fix is one palette step. (c) Lightening the tint
+  opacity instead of darkening the colour — rejected: it changes every tinted surface's appearance
+  to avoid changing four values.
+
+## Decisions
+
+### R1 — Lighten to the 400-weight of the same hue
+- **Decision**: dark-mode values become `--destructive: #f87171`, `--success: #4ade80`,
+  `--warning: #fbbf24`, `--info: #60a5fa`.
+- **Measured result** (worst case, against `#1f2028`): 5.86 / 9.30 / 9.71 / 6.38 — all clear AA
+  with margin.
+- **Rationale**: preserves hue identity (FR-003) and applies the existing AA Floor Rule in the
+  direction the dark theme needs. These are the same families already used by the codebase's
+  legitimate light/dark palette pairs, so the dark theme gains no new colours.
+- **Alternatives considered**: (a) **500-weight** (`#ef4444`, `#22c55e`, `#f59e0b`, `#3b82f6`) —
+  rejected on measurement: red reaches only 4.31:1 and blue 4.41:1 against `#1f2028`, both below
+  4.5:1. Tempting because it is a smaller visual jump, but it would leave two of four still
+  failing. (b) **Lightening the surfaces instead of the colours** — rejected: changes the entire
+  dark theme's character to fix four tokens. (c) **Per-component overrides** — rejected; that is
+  the status quo this change removes.
+
+### R2 — The paired foregrounds must flip as well *(the non-obvious part)*
+- **Decision**: in dark mode each `--*-foreground` changes from `#ffffff` to the dark theme's
+  on-accent ink `#16171d`.
+- **Rationale**: lightening a fill to pass as *text* breaks it as a *background*. Measured, white
+  on the new fills gives destructive 2.77:1, success 1.74:1, warning 1.67:1, info 2.54:1 — far
+  worse than the problem being fixed. Ink (`#16171d`) on the same fills gives 6.46 / 10.26 /
+  10.71 / 7.03. **This is why the dark change is eight tokens, not four**, and it is the trap a
+  values-only "just lighten them" fix would fall into. Note today's dark fills are *not* broken —
+  white on `#dc2626` measures 4.83:1 and passes; the breakage would be introduced by lightening
+  the fill without moving its foreground.
+- **Ink choice**: `#16171d`, not `#08060d`. Both clear AA (worst case 6.46:1 and 7.28:1
+  respectively), but `.dark` already uses `#16171d` for `--primary-foreground`, so the dark theme
+  keeps a single on-accent ink instead of gaining a second. Existing Design System First outranks
+  `DESIGN.md`'s "the system's black is `#08060d`", which describes the light theme.
+- **Alternatives considered**: (a) keeping white foregrounds and choosing mid-weight fills that
+  satisfy both directions — no such value exists for red or blue: anything dark enough for white
+  text fails as text on the dark surface, and vice versa. The two uses genuinely need opposite
+  treatments, which is exactly what a token pair is for. (b) `#08060d` as the ink — see above.
+
+### R3 — Scope of workaround removal: 4 call sites, not 20
+- **Decision**: remove only overrides that pair a **semantic token** with a palette override —
+  `text-destructive dark:text-red-400`. All four are in `MyWorkPanel.jsx` (lines 88, 91, 101, 169).
+  Leave every `text-red-700 dark:text-red-400`-style pair untouched.
+- **Rationale**: a first pass counted 20 `dark:text-*-400` occurrences and treated them all as
+  workarounds. Reading them showed 16 are deliberate light/dark pairs on **Tailwind palette
+  colours** (in `STATUS_BADGE_CLASSES`, `PRIORITY_BADGE_CLASSES` and similar maps) — correct design
+  that this change must not disturb. Only the four that pair a semantic token with a palette
+  override are compensating for the broken token. The spec's SC-002 was corrected from 20 to 4.
+- **Alternatives considered**: treating all `dark:text-*-400` occurrences as workarounds (the
+  first reading) — rejected on inspection: 46 of the 50 are deliberate light/dark pairs on palette
+  colours in badge and priority class maps. Deleting them would strip intentional theming and is
+  pre-registered as a blocking Major finding.
+- **Consequence**: the diff is far smaller than first scoped, and the risk of collateral visual
+  change drops accordingly. Anything beyond deleting `dark:text-*` at those four sites means the
+  token is still wrong — fix the token, not the call site.
+
+### R4 — Record the ratios in the token file
+- **Decision**: a comment above the `.dark` status tokens listing each value's worst-case ratio and
+  the surface it was measured against.
+- **Rationale**: FR-006/SC-003. These values look arbitrary without it, and the next person to
+  adjust one has no way to know the constraint they are working within — which is precisely how the
+  current bug survived. This is a constraint the code cannot express, so it earns a comment under
+  the project's comment rules.
+- **Scope**: the comment covers **both** `:root` and `.dark`, not only the dark block — light
+  destructive's 4.34:1 failure survived precisely because no light ratio was written down.
+- **Alternatives considered**: a build-time contrast check — better long-term, but it needs a
+  dependency and a lint integration; recorded as a follow-up rather than bundled here.
+
+### R6 — Composited tint surfaces are part of the contract
+- **Decision**: the contract's surface set includes `--{state}` composited at 10% and 15% over each
+  base surface, because at least 10 call sites render `text-{state}` directly on `bg-{state}/10`
+  or `/15` (`AccessDenied.jsx`, `PreviewBanner.jsx`, `Kanban.jsx`, `Login.jsx`, `Reports.jsx`,
+  `Schedule.jsx`, `SupportOps.jsx`, `TodayDashboard.jsx`).
+- **Measured**: with the chosen values these pass — worst case is destructive on a 15% tint over
+  `#1f2028` at **4.67:1**; info 4.92, success 6.78, warning 6.94. Today the same pairings sit at
+  2.75-3.26:1.
+- **Rationale**: spec.md Edge Cases names this case explicitly and FR-001 says "the surfaces they
+  are rendered on" without qualification, but the first draft's surface set covered only the three
+  base surfaces. The answer is favourable; the defect was that no artifact knew it. At 4.67:1 the
+  margin is thin enough that a future re-tune could cross it unnoticed, which is why it belongs in
+  the automated gate rather than in anyone's memory.
+- **Alternatives considered**: leaving tints out as "decorative" — rejected: they carry body text.
+
+### R5 — Update `DESIGN.md`
+- **Decision**: state that the AA Floor Rule applies in both directions (darker for light themes,
+  lighter for dark), and record the dark-mode values alongside the light ones.
+- **Rationale**: `DESIGN.md` became governing documentation under constitution 1.3.0 and currently
+  documents only light-mode reasoning, which is how a reader would conclude the current dark values
+  are intentional. It already gained the inert-border warning for the same reason.
+- **Alternatives considered**: (a) deferring the doc update to a later docs pass — rejected: the
+  gap is what allowed this bug to read as intentional, so fixing the values without the doc leaves
+  the trap armed. (b) Promoting the rule into the constitution instead — rejected: the constitution
+  states principles and delegates visual specifics to `DESIGN.md`; duplicating it would create two
+  sources of truth for one rule.
+
+## Test / verification requirements
+
+No automated frontend suite exists, so verification is explicit:
+
+1. **Calculation** — recompute every ratio from the committed values; all eight pairings clear 4.5:1
+   against the worst-case surface. This is the objective gate and is repeatable.
+2. **Light-mode check** — the light values change by exactly one palette step each; confirm no
+   hue drift and no fifth value touched (SC-004 as amended).
+3. **Browser, both themes** — Bug Tracker, Taskboard, Work Program, Retrospectives, Support Ops,
+   Dashboard: status text, badges (text and filled), error messages, overdue emphasis.
+4. **The four removals** — confirm each `MyWorkPanel.jsx` site renders the same or better in dark
+   mode with the override gone.
+5. **Backend suite green** — a regression check that nothing unrelated moved; expected untouched.
+6. **`npm run build` and `npm run lint`, checked by exit code** — not by reading the summary text.
+   ESLint's "0 errors and N warnings potentially fixable" line counts auto-fixable items, not total
+   errors; misreading it hid a real error during 021.
+
+## Deferred follow-ups (recorded, not 022)
+
+1. Build-time contrast enforcement (a lint rule or CI check over the token file) so a future value
+   cannot regress silently.
+2. The remaining `--primary`/`--accent`/`--muted-foreground` pairings were not audited here; worth
+   a sweep on the same basis.
+4. Light `--success` and `--warning` sit at 4.51:1 — passing, but by 0.01. Any future change to
+   `--muted` breaks them silently. Worth widening deliberately rather than discovering it.
+3. `prefers-contrast: high` and `forced-colors` handling — the app currently defines neither.
