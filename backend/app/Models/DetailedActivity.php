@@ -107,6 +107,17 @@ class DetailedActivity extends Model
     }
 
     /**
+     * 021-dashboard-my-work — "open" is every status except completed.
+     * `status` is NOT NULL with a default, so a plain inequality is safe and
+     * covers backlog/for_review/blocked, which the dashboard's older
+     * four-status counts silently drop.
+     */
+    public function scopeOpen(Builder $query): Builder
+    {
+        return $query->where('status', '!=', 'completed');
+    }
+
+    /**
      * 009-support-ops-knowledge-base — FR-003/FR-004's inclusion rule: an
      * eligible work type, the same status value the board treats as
      * "Resolved" (matched by value, never by display label), and both
