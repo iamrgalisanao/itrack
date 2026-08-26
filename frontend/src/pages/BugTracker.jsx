@@ -41,10 +41,12 @@ const STATUS_SEGMENT_CLASSES = {
   Fixed: 'bg-emerald-500',
 }
 
-// Column widths (px) shared between the group-header summary row and the
-// bug table beneath it — same alignment technique as TaskboardView
-// (table-fixed + matching <colgroup>).
-const COLUMN_WIDTHS = { reporter: 112, priority: 112, status: 128, owner: 112, due: 140, actions: 64 }
+// Column widths (percentages, must sum to 100) shared between the
+// group-header summary row and the bug table beneath it — same alignment
+// technique as TaskboardView (table-fixed + matching <colgroup>).
+// Percentages, not px — see GroupSummaryBar.jsx's file comment for why px
+// widths drift out of alignment at wider viewports.
+const COLUMN_WIDTHS = { title: '31.57%', reporter: '12.82%', priority: '9.86%', status: '12.82%', owner: '12.82%', due: '13.81%', actions: '6.31%' }
 
 const EMPTY_FORM = {
   title: '',
@@ -327,9 +329,28 @@ export default function BugTracker() {
           >
             <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
               <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
-              <CollapsibleTrigger asChild>
-                <button type="button" className="flex w-full items-center gap-4 px-4 py-3 border-b border-border/60 bg-muted/30 text-left">
-                  <span className={`flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 ${accent.label}`}>
+              {/* No gap between children, and no container-level horizontal
+                  padding at all — every column here is a percentage of this
+                  container's own width (see GroupSummaryBar.jsx's file
+                  comment), and the real <table> below has zero container
+                  padding of its own. Any padding on THIS container — even
+                  one-sided — would shrink its width basis relative to the
+                  table's, so every column's percentage would resolve against
+                  a slightly different pixel base. The label's own left inset
+                  (matching this table's default shadcn px-4/p-4 cell
+                  padding — unlike Taskboard, this table doesn't override
+                  cell padding to px-3) instead lives inside the button
+                  itself (pl-4 below), which doesn't touch the container's
+                  width basis. Each spacer/bar below is a sibling of the
+                  trigger button, not a child of it, so only the label area
+                  toggles the group. */}
+              <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className={`flex items-center gap-2 pl-4 text-sm font-semibold shrink-0 min-w-0 text-left ${accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
+                    style={{ width: COLUMN_WIDTHS.title }}
+                  >
                     <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                     <span className="truncate">
                       {group}
@@ -337,34 +358,34 @@ export default function BugTracker() {
                         {groupBugs.length} {groupBugs.length === 1 ? 'Bug' : 'Bugs'}
                       </span>
                     </span>
-                  </span>
+                  </button>
+                </CollapsibleTrigger>
 
-                  {/* Reporter column spacer — no group-level rollup for this column */}
-                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.reporter }} aria-hidden="true" />
+                {/* Reporter column spacer — no group-level rollup for this column */}
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.reporter }} aria-hidden="true" />
 
-                  {isOpen ? (
-                    <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.priority }} aria-hidden="true" />
+                {isOpen ? (
+                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.priority }} aria-hidden="true" />
+                ) : (
+                  <GroupSegmentBar title="Priority" segments={prioritySegments} labels={PRIORITY_SEGMENT_LABELS} width={COLUMN_WIDTHS.priority} />
+                )}
+
+                {!isClient && (
+                  isOpen ? (
+                    <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.status }} aria-hidden="true" />
                   ) : (
-                    <GroupSegmentBar title="Priority" segments={prioritySegments} labels={PRIORITY_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.priority} />
-                  )}
+                    <GroupSegmentBar title="Status" segments={statusSegments} labels={STATUS_SEGMENT_LABELS} width={COLUMN_WIDTHS.status} />
+                  )
+                )}
 
-                  {!isClient && (
-                    isOpen ? (
-                      <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.status }} aria-hidden="true" />
-                    ) : (
-                      <GroupSegmentBar title="Status" segments={statusSegments} labels={STATUS_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.status} />
-                    )
-                  )}
-
-                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.owner }} aria-hidden="true" />
-                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.due }} aria-hidden="true" />
-                  {canManage && <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.actions }} aria-hidden="true" />}
-                </button>
-              </CollapsibleTrigger>
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.owner }} aria-hidden="true" />
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.due }} aria-hidden="true" />
+                {canManage && <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.actions }} aria-hidden="true" />}
+              </div>
               <CollapsibleContent>
                 <Table className="table-fixed">
                   <colgroup>
-                    <col />
+                    <col style={{ width: COLUMN_WIDTHS.title }} />
                     <col style={{ width: COLUMN_WIDTHS.reporter }} />
                     <col style={{ width: COLUMN_WIDTHS.priority }} />
                     {!isClient && <col style={{ width: COLUMN_WIDTHS.status }} />}

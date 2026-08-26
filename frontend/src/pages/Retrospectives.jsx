@@ -72,8 +72,10 @@ const SENTIMENT_SEGMENT_CLASSES = {
 }
 // Column width (px) shared between the session-header summary row and the
 // Type column beneath it — same alignment technique as Taskboard/Bug
-// Tracker/Work Program List view.
-const RETRO_COLUMN_WIDTHS = { actions: 32, submitter: 128, type: 128, repeating: 110, vote: 90, owner: 140 }
+// Tracker/Work Program List view. Percentages (must sum to 100), not px —
+// see GroupSummaryBar.jsx's file comment for why px widths drift out of
+// alignment at wider viewports.
+const RETRO_COLUMN_WIDTHS = { actions: '3.19%', entry: '35.93%', submitter: '13.97%', type: '12.97%', repeating: '10.98%', vote: '8.98%', owner: '13.97%' }
 
 export default function Retrospectives() {
   // FR-006/US4: reads the effective (previewed, when applicable) user, same
@@ -565,13 +567,21 @@ export default function Retrospectives() {
                   count badge is taken out of flex flow entirely (absolute)
                   for the same reason: it has no matching table column, so
                   letting it compete for flex-1's leftover space would shift
-                  every spacer before it too. */}
-              <div className="relative flex w-full items-center px-4 py-3 border-b border-border/60 bg-muted/30">
+                  every spacer before it too. Also no horizontal container
+                  padding: the leading `actions` spacer is a blank, textless
+                  fixed-width column (unlike Taskboard/Bug Tracker's leading
+                  *flexible* column), so it must sit flush at x=0 to match the
+                  table's own flush `actions` <td> — any px-* here would shift
+                  it, and the flexible label after it, off their real columns. */}
+              <div className="relative flex w-full items-center py-3 border-b border-border/60 bg-muted/30">
                 {/* Leading spacer matches the table's leading row-actions
                     column so everything after it lines up with the real
                     columns beneath. */}
                 <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.actions }} aria-hidden="true" />
-                <div className={`flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 ${sessionAccent.label}`}>
+                <div
+                  className={`flex items-center gap-2 text-sm font-semibold shrink-0 min-w-0 ${sessionAccent.label}`}
+                  style={{ width: RETRO_COLUMN_WIDTHS.entry }}
+                >
                   <CollapsibleTrigger asChild>
                     <button type="button" aria-label={isTableOpen ? 'Collapse session' : 'Expand session'}>
                       <ChevronDown className={`h-4 w-4 transition-transform ${isTableOpen ? 'rotate-180' : ''}`} />
@@ -607,7 +617,7 @@ export default function Retrospectives() {
                 <div className="hidden sm:block shrink-0" style={{ width: RETRO_COLUMN_WIDTHS.submitter }} aria-hidden="true" />
 
                 {!isTableOpen && (
-                  <GroupSegmentBar title="Type" segments={sentimentSegments} labels={SENTIMENT_SEGMENT_LABELS} widthPx={RETRO_COLUMN_WIDTHS.type} />
+                  <GroupSegmentBar title="Type" segments={sentimentSegments} labels={SENTIMENT_SEGMENT_LABELS} width={RETRO_COLUMN_WIDTHS.type} />
                 )}
 
                 {/* Remaining column spacers — no group-level rollup for these,
@@ -625,7 +635,7 @@ export default function Retrospectives() {
                 <Table className="table-fixed">
                   <colgroup>
                     <col style={{ width: RETRO_COLUMN_WIDTHS.actions }} />
-                    <col />
+                    <col style={{ width: RETRO_COLUMN_WIDTHS.entry }} />
                     <col style={{ width: RETRO_COLUMN_WIDTHS.submitter }} />
                     <col style={{ width: RETRO_COLUMN_WIDTHS.type }} />
                     <col style={{ width: RETRO_COLUMN_WIDTHS.repeating }} />
@@ -634,7 +644,7 @@ export default function Retrospectives() {
                   </colgroup>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[32px]" />
+                      <TableHead />
                       <TableHead>Feedback</TableHead>
                       <TableHead>Submitter</TableHead>
                       <TableHead>Type</TableHead>
@@ -658,7 +668,7 @@ export default function Retrospectives() {
                             open — replaces three always-visible icon buttons.
                             View is available to every viewer; Edit/Delete stay
                             gated. */}
-                        <TableCell className="py-1.5 px-1 w-[32px]">
+                        <TableCell className="py-1.5 px-1">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button

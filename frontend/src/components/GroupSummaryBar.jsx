@@ -11,6 +11,21 @@
 // of specificity (unlayered CSS beats all `@layer`-declared utilities per
 // the CSS Cascade Layers spec), so border-l-{color} utilities render inert
 // app-wide. A background-color bar sidesteps that constraint entirely.
+//
+// `width` on GroupSegmentBar/GroupProgressBar must be a percentage string
+// (e.g. '14.29%'), not a px number. The real <table> these bars sit above
+// uses `table-layout: fixed; width: 100%` with a <colgroup> — when a
+// colgroup's column widths don't sum to the table's own rendered width,
+// table-layout:fixed proportionally stretches every column to fill 100%.
+// A flex row's literal px-width children never participate in that stretch,
+// so px widths silently drift out of alignment with the table below them at
+// any viewport wide enough to leave slack. Percentages sidestep this
+// entirely: both the colgroup and this row's flex children resolve their
+// percentage against the same 100%-width container, so they scale together
+// at every viewport instead of only matching at one specific width by
+// coincidence. Callers must keep each table's full set of column
+// percentages summing to 100 (see the *_COLUMN_WIDTHS constant in each
+// caller file) for this to hold.
 export const GROUP_ACCENT_CLASSES = [
   { bar: 'bg-emerald-500', label: 'text-emerald-700 dark:text-emerald-400' },
   { bar: 'bg-amber-500', label: 'text-amber-700 dark:text-amber-400' },
@@ -40,10 +55,18 @@ export function buildSegments(items, field, order, classes) {
 // GroupSegmentBar so the two sit flush in the same collapsed header row,
 // but progress is a continuous 0-100 value, not a categorical distribution,
 // so it gets one fill + a centered percentage instead of equal-share segments.
-export function GroupProgressBar({ title, pct, widthPx }) {
-  const clamped = Math.max(0, Math.min(100, pct || 0))
+export function GroupProgressBar({ title, pct, width }) {
+  if (pct === null || pct === undefined) {
+    return (
+      <div className="hidden sm:block shrink-0" style={{ width }}>
+        <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
+        <div className="h-7 w-full rounded-md bg-muted" />
+      </div>
+    )
+  }
+  const clamped = Math.max(0, Math.min(100, pct))
   return (
-    <div className="hidden sm:block shrink-0" style={{ width: widthPx }}>
+    <div className="hidden sm:block shrink-0" style={{ width }}>
       <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
       <div className="relative h-7 w-full overflow-hidden rounded-md bg-muted" title={`${Math.round(clamped)}% average progress`}>
         <div className="h-full bg-primary transition-all" style={{ width: `${clamped}%` }} />
@@ -55,17 +78,17 @@ export function GroupProgressBar({ title, pct, widthPx }) {
   )
 }
 
-export function GroupSegmentBar({ title, segments, labels, widthPx }) {
+export function GroupSegmentBar({ title, segments, labels, width }) {
   if (segments.length === 0) {
     return (
-      <div className="hidden sm:block shrink-0" style={{ width: widthPx }}>
+      <div className="hidden sm:block shrink-0" style={{ width }}>
         <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
         <div className="h-7 w-full rounded-md bg-muted" />
       </div>
     )
   }
   return (
-    <div className="hidden sm:block shrink-0" style={{ width: widthPx }}>
+    <div className="hidden sm:block shrink-0" style={{ width }}>
       <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
       <div className="flex h-7 w-full overflow-hidden rounded-md bg-muted">
         {segments.map((segment) => (

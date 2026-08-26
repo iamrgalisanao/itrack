@@ -60,12 +60,14 @@ const PRIORITY_SEGMENT_CLASSES = {
   unset: 'bg-muted-foreground/30',
 }
 
-// Column widths (px) shared between the group-header summary row and the
-// task table beneath it, so the Status/Priority/Points summaries line up
-// with their matching data columns. The task table uses `table-fixed` with
-// a <colgroup> using these same values, so they're authoritative for both,
-// not just a visual approximation.
-const COLUMN_WIDTHS = { epic: 128, status: 128, priority: 112, points: 80, assignee: 128 }
+// Column widths (percentages, must sum to 100) shared between the
+// group-header summary row and the task table beneath it, so the
+// Status/Priority/Points summaries line up with their matching data
+// columns. The task table uses `table-fixed` with a <colgroup> using these
+// same values, so they're authoritative for both, not just a visual
+// approximation. Percentages, not px — see GroupSummaryBar.jsx's file
+// comment for why px widths drift out of alignment at wider viewports.
+const COLUMN_WIDTHS = { task: '30.77%', epic: '17.58%', status: '14.29%', priority: '12.09%', points: '8.79%', assignee: '16.48%' }
 
 const EMPTY_FORM = {
   module_id: '',
@@ -227,9 +229,29 @@ export default function TaskboardView({ project, modules = [], userRole }) {
         >
           <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
             <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${group.accent.bar}`} aria-hidden="true" />
-            <CollapsibleTrigger asChild>
-              <button type="button" className="flex w-full items-center gap-4 px-4 py-3 border-b border-border/60 bg-muted/30 text-left">
-                <span className={`flex items-center gap-2 text-sm font-semibold flex-1 min-w-0 ${group.accent.label}`}>
+            {/* No gap between children, and no container-level horizontal
+                padding at all (not even on one side) — every column here is a
+                percentage of this container's own width (see
+                GroupSummaryBar.jsx's file comment), and the real <table>
+                below has zero container padding of its own (only per-cell
+                px-3). Any padding on THIS container — even asymmetric,
+                one-sided padding — would shrink the container's width basis
+                relative to the table's, so every column's percentage would
+                resolve against a slightly different pixel base and drift by a
+                few px. The label's own px-3-equivalent left inset instead
+                lives inside the button itself (pl-3 below), which doesn't
+                touch the container's width basis, matching how a table
+                cell's own px-3 lives inside its <td> without affecting the
+                colgroup's column width. Each spacer/bar below is a sibling of
+                the trigger button, not a child of it, so only the label area
+                toggles the group open/closed. */}
+            <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={`flex items-center gap-2 pl-3 text-sm font-semibold shrink-0 min-w-0 text-left ${group.accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
+                  style={{ width: COLUMN_WIDTHS.task }}
+                >
                   <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                   <span className="truncate">
                     {group.label}
@@ -237,39 +259,42 @@ export default function TaskboardView({ project, modules = [], userRole }) {
                       {group.tasks.length} {group.tasks.length === 1 ? 'Task' : 'Tasks'}
                     </span>
                   </span>
-                </span>
+                </button>
+              </CollapsibleTrigger>
 
-                {/* Epic column spacer — no group-level rollup for this column */}
-                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.epic }} aria-hidden="true" />
+              {/* Epic column spacer — no group-level rollup for this column */}
+              <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.epic }} aria-hidden="true" />
 
-                {isOpen ? (
-                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.status }} aria-hidden="true" />
-                ) : (
-                  <GroupSegmentBar title="Status" segments={group.statusSegments} labels={STATUS_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.status} />
+              {isOpen ? (
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.status }} aria-hidden="true" />
+              ) : (
+                <GroupSegmentBar title="Status" segments={group.statusSegments} labels={STATUS_SEGMENT_LABELS} width={COLUMN_WIDTHS.status} />
+              )}
+
+              {isOpen ? (
+                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.priority }} aria-hidden="true" />
+              ) : (
+                <GroupSegmentBar title="Priority" segments={group.prioritySegments} labels={PRIORITY_SEGMENT_LABELS} width={COLUMN_WIDTHS.priority} />
+              )}
+
+              {/* Left-aligned with a px-3-equivalent left inset, matching the
+                  real Points column: header + cell values are both left-aligned
+                  with px-3 cell padding, not right-aligned/flush. */}
+              <div className="shrink-0 pl-3" style={{ width: COLUMN_WIDTHS.points }}>
+                {!isOpen && (
+                  <>
+                    <div className="text-xs font-semibold text-foreground">{group.pointSum} SP</div>
+                    <div className="text-[10px] text-muted-foreground">sum</div>
+                  </>
                 )}
+              </div>
 
-                {isOpen ? (
-                  <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.priority }} aria-hidden="true" />
-                ) : (
-                  <GroupSegmentBar title="Priority" segments={group.prioritySegments} labels={PRIORITY_SEGMENT_LABELS} widthPx={COLUMN_WIDTHS.priority} />
-                )}
-
-                <div className="shrink-0 text-right" style={{ width: COLUMN_WIDTHS.points }}>
-                  {!isOpen && (
-                    <>
-                      <div className="text-xs font-semibold text-foreground">{group.pointSum} SP</div>
-                      <div className="text-[10px] text-muted-foreground">sum</div>
-                    </>
-                  )}
-                </div>
-
-                <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.assignee }} aria-hidden="true" />
-              </button>
-            </CollapsibleTrigger>
+              <div className="hidden sm:block shrink-0" style={{ width: COLUMN_WIDTHS.assignee }} aria-hidden="true" />
+            </div>
             <CollapsibleContent>
               <Table className="table-fixed">
                 <colgroup>
-                  <col />
+                  <col style={{ width: COLUMN_WIDTHS.task }} />
                   <col style={{ width: COLUMN_WIDTHS.epic }} />
                   <col style={{ width: COLUMN_WIDTHS.status }} />
                   <col style={{ width: COLUMN_WIDTHS.priority }} />
@@ -289,8 +314,8 @@ export default function TaskboardView({ project, modules = [], userRole }) {
                 <TableBody>
                   {group.tasks.map((task) => (
                     <TableRow key={task.id} className="cursor-pointer" onClick={() => setSelectedTask(task)}>
-                      <TableCell className="py-1.5 px-3 text-sm font-medium">{task.name}</TableCell>
-                      <TableCell className="py-1.5 px-3 text-xs text-muted-foreground whitespace-nowrap">{task.module?.name || '—'}</TableCell>
+                      <TableCell className="py-1.5 px-3 text-sm font-medium truncate" title={task.name}>{task.name}</TableCell>
+                      <TableCell className="py-1.5 px-3 text-xs text-muted-foreground truncate" title={task.module?.name || undefined}>{task.module?.name || '—'}</TableCell>
                       <TableCell className="py-1.5 px-3">
                         <Badge variant="outline" className={STATUS_BADGE_CLASSES[task.status]}>
                           {STATUS_SEGMENT_LABELS[task.status] || task.status}
@@ -304,7 +329,7 @@ export default function TaskboardView({ project, modules = [], userRole }) {
                         )}
                       </TableCell>
                       <TableCell className="py-1.5 px-3 text-xs text-muted-foreground">{task.estimated_story_points ?? '—'}</TableCell>
-                      <TableCell className="py-1.5 px-3 text-xs text-muted-foreground whitespace-nowrap">{task.assignee?.name || 'Unassigned'}</TableCell>
+                      <TableCell className="py-1.5 px-3 text-xs text-muted-foreground truncate" title={task.assignee?.name || 'Unassigned'}>{task.assignee?.name || 'Unassigned'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

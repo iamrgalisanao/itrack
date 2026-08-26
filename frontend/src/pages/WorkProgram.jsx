@@ -131,7 +131,41 @@ const LIST_STATUS_SEGMENT_CLASSES = {
 // Column widths (px) shared between the Activity-group header summary row
 // and the task table beneath it — same table-fixed + <colgroup> alignment
 // technique as TaskboardView/BugTracker.
-const LIST_COLUMN_WIDTHS = { actions: 32, task: 260, subActivity: 140, status: 130, progress: 130, responsible: 130, planDates: 200, actualDates: 200 }
+// Percentages (must sum to 100), not px — see GroupSummaryBar.jsx's file
+// comment for why px widths drift out of alignment at wider viewports.
+const LIST_COLUMN_WIDTHS = { actions: '2.62%', task: '21.28%', subActivity: '11.46%', status: '10.64%', progress: '10.64%', responsible: '10.64%', planDates: '16.37%', actualDates: '16.37%' }
+
+// Remembers the last project a user explicitly chose so returning to this
+// page (a fresh mount — React Router unmounts WorkProgram on route change,
+// so plain component state doesn't survive navigating away and back) shows
+// that project again instead of always resetting to whichever one the API
+// happens to return first. Read only on initial load; written only at
+// deliberate selection points (the picker, and explicit create/edit
+// selection in reloadProjects) — never from a blind effect keyed on
+// selectedProject, which would fire on mount with the initial null state
+// and wipe the persisted value before loadProjects() has read it back.
+const SELECTED_PROJECT_STORAGE_KEY = 'itrack.workProgram.selectedProjectId'
+
+const readPersistedProjectId = () => {
+  try {
+    const raw = localStorage.getItem(SELECTED_PROJECT_STORAGE_KEY)
+    return raw ? parseInt(raw, 10) : null
+  } catch {
+    return null
+  }
+}
+
+const persistProjectId = (id) => {
+  try {
+    if (id) {
+      localStorage.setItem(SELECTED_PROJECT_STORAGE_KEY, String(id))
+    } else {
+      localStorage.removeItem(SELECTED_PROJECT_STORAGE_KEY)
+    }
+  } catch {
+    // localStorage unavailable (private browsing, disabled) — selection just won't persist
+  }
+}
 
 export default function WorkProgram() {
   // 007-permission-hardening: reflects the previewed target during an
@@ -143,6 +177,12 @@ export default function WorkProgram() {
   const canReviewClientMemberships = ['Admin', 'Project Manager'].includes(userRole)
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
+  // The only place a project selection is written to storage — deliberate
+  // user/app choices, not the initial-load restore (that only reads).
+  const selectProject = (id) => {
+    setSelectedProject(id)
+    persistProjectId(id)
+  }
   const [modules, setModules] = useState([])
   const [expandedModules, setExpandedModules] = useState({})
   const [expandedActivities, setExpandedActivities] = useState({})
@@ -846,15 +886,14 @@ export default function WorkProgram() {
       const res = await fetchProjects()
       const list = res.data.data || res.data
       setProjects(list)
-      
+
       if (newSelectedId) {
-        setSelectedProject(newSelectedId)
-      } else if (list.length > 0) {
-        if (!list.some(p => p.id === selectedProject)) {
-          setSelectedProject(list[0].id)
-        }
-      } else {
-        setSelectedProject(null)
+        // Explicit choice (just created/edited this project) — not a default.
+        selectProject(newSelectedId)
+      } else if (!list.some(p => p.id === selectedProject)) {
+        // The previously-selected project is gone (deleted). Clear the
+        // selection instead of silently picking another one for the user.
+        selectProject(null)
         setModules([])
       }
     } catch (err) {
@@ -1044,10 +1083,17 @@ export default function WorkProgram() {
     setProjectsError(null)
     fetchProjects()
       .then(res => {
-        setProjects(res.data.data || res.data)
-        if (res.data.data?.[0] || res.data[0]) {
-          const firstProject = res.data.data?.[0] || res.data[0]
-          setSelectedProject(firstProject.id)
+        const list = res.data.data || res.data
+        setProjects(list)
+        // Restore the last project the user explicitly chose, if it still
+        // exists — no fallback to list[0]. If nothing was previously chosen
+        // (or it's since been deleted), selectedProject stays null and the
+        // page's own "No project selected" empty state prompts the user to
+        // pick one, rather than silently guessing for them.
+        const persistedId = readPersistedProjectId()
+        const persisted = persistedId ? list.find(p => p.id === persistedId) : null
+        if (persisted) {
+          setSelectedProject(persisted.id)
         }
         setLoading(false)
       })
@@ -1458,7 +1504,7 @@ export default function WorkProgram() {
             <span className="text-xs font-medium text-muted-foreground whitespace-nowrap hidden md:inline">Project:</span>
             <Select
               value={selectedProject?.toString() || ''}
-              onValueChange={(v) => setSelectedProject(parseInt(v))}
+              onValueChange={(v) => selectProject(parseInt(v))}
               aria-label="Select project"
             >
               <SelectTrigger className="w-[240px]" aria-label="Select project">
@@ -1758,21 +1804,39 @@ export default function WorkProgram() {
                         const isExpanded = !!expandedActivities[groupKey]
                         const tasks = filterActivities(activityTasks[groupKey] || [])
                         const statusSegments = buildSegments(tasks, 'status', LIST_STATUS_ORDER, LIST_STATUS_SEGMENT_CLASSES)
-                        const groupProgressPct = rolledUpData.rolledUpActivities[groupKey]?.progress ?? 0
+                        // Computed from the same `tasks` the Status bar reads (activityTasks[groupKey]),
+                        // not rolledUpData.rolledUpActivities — that rollup depends on
+                        // detailedActivities[fullKey], which only the Gantt view's toggleSubActivity
+                        // populates. In List view it's always empty, so the rollup silently fell back
+                        // to each sub-activity's stale stored `progress` column instead of the tasks
+                        // actually shown here — which could show a different number than Status.
+                        // `null` (not 0) while tasks haven't loaded yet, so the bar matches Status's
+                        // empty state instead of misreporting a confident "0%".
+                        const groupProgressPct = tasks.length > 0
+                          ? Math.round(tasks.reduce((sum, t) => sum + (t.progress || 0), 0) / tasks.length)
+                          : null
                         return (
                           <Collapsible key={activity.id} open={isExpanded} onOpenChange={() => expandActivityGroup(activity.id, module.id)}>
                             <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
                               <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
-                              {/* No gap between children — a flex `gap` would
-                                  consume space the real table's contiguous <td>
-                                  columns don't lose, drifting every spacer after
-                                  it out of alignment. The responsible-text +
-                                  "..." menu block is taken out of flex flow
-                                  (absolute) for the same reason: it has no
-                                  matching table column, so letting it compete
-                                  for flex-1's leftover space would shift every
-                                  spacer before it too. */}
-                              <div className="relative flex items-center px-4 py-3 border-b border-border/60 bg-muted/30">
+                              {/* No gap between children, and no container-level
+                                  horizontal padding at all — every column here is
+                                  a percentage of this container's own width (see
+                                  GroupSummaryBar.jsx's file comment), and the real
+                                  <table> below has zero container padding of its
+                                  own. Any padding on this container would shrink
+                                  its width basis relative to the table's, so every
+                                  column's percentage would resolve against a
+                                  slightly different pixel base. The Task label's
+                                  own left inset (matching the Task cell's px-3)
+                                  instead lives inside the button itself (pl-3
+                                  below). The responsible-text + "..." menu block
+                                  is taken out of flex flow (absolute) since it has
+                                  no matching table column — right-8 (not right-4)
+                                  keeps its visual distance from the card's actual
+                                  border the same as before now that the
+                                  container's own right padding is gone. */}
+                              <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
                                 {/* Leading spacer matches the data table's leading
                                     row-actions column so everything after it lines
                                     up with the real columns beneath. */}
@@ -1780,7 +1844,8 @@ export default function WorkProgram() {
                                 <CollapsibleTrigger asChild>
                                   <button
                                     type="button"
-                                    className={`flex items-center gap-3 text-sm font-semibold flex-1 min-w-0 ${accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
+                                    className={`flex items-center gap-3 pl-3 text-sm font-semibold shrink-0 min-w-0 ${accent.label} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded`}
+                                    style={{ width: LIST_COLUMN_WIDTHS.task }}
                                   >
                                     {isExpanded ? (
                                       <ChevronDown className="h-4 w-4 shrink-0 transition-transform" />
@@ -1805,26 +1870,26 @@ export default function WorkProgram() {
                                 {isExpanded ? (
                                   <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.status }} aria-hidden="true" />
                                 ) : (
-                                  <GroupSegmentBar title="Status" segments={statusSegments} labels={LIST_STATUS_SEGMENT_LABELS} widthPx={LIST_COLUMN_WIDTHS.status} />
+                                  <GroupSegmentBar title="Status" segments={statusSegments} labels={LIST_STATUS_SEGMENT_LABELS} width={LIST_COLUMN_WIDTHS.status} />
                                 )}
 
                                 {isExpanded ? (
                                   <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.progress }} aria-hidden="true" />
                                 ) : (
-                                  <GroupProgressBar title="Progress" pct={groupProgressPct} widthPx={LIST_COLUMN_WIDTHS.progress} />
+                                  <GroupProgressBar title="Progress" pct={groupProgressPct} width={LIST_COLUMN_WIDTHS.progress} />
                                 )}
 
                                 {/* Remaining column spacers — no group-level rollup for
-                                    these, but they must still be reserved so the flex-1
-                                    trigger button above absorbs the same leftover width
-                                    here as the Task column does in the real table below. */}
+                                    these, but they must still be reserved so the Task
+                                    label button above and the Task column in the real
+                                    table below stay the same percentage width. */}
                                 {!isClient && (
                                   <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.responsible }} aria-hidden="true" />
                                 )}
                                 <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.planDates }} aria-hidden="true" />
                                 <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.actualDates }} aria-hidden="true" />
 
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3 text-sm text-muted-foreground shrink-0">
+                                <div className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-3 text-sm text-muted-foreground shrink-0">
                                   <span>{activity.responsible}</span>
                                   {['Admin', 'Project Manager'].includes(userRole) && (
                                     <DropdownMenu>
@@ -1918,8 +1983,8 @@ export default function WorkProgram() {
                                         </colgroup>
                                         <TableHeader>
                                           <TableRow>
-                                            <TableHead className="h-8 py-1.5 px-1 text-xs w-[32px]" />
-                                            <TableHead className="h-8 py-1.5 px-3 text-xs w-[260px]">Task</TableHead>
+                                            <TableHead className="h-8 py-1.5 px-1 text-xs" />
+                                            <TableHead className="h-8 py-1.5 px-3 text-xs">Task</TableHead>
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Sub-Activity</TableHead>
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Status</TableHead>
                                             <TableHead className="h-8 py-1.5 px-3 text-xs">Progress</TableHead>
@@ -1935,7 +2000,7 @@ export default function WorkProgram() {
                                             const editableCellClass = isEditableRole ? 'cursor-pointer hover:bg-muted/40' : ''
                                             return (
                                               <TableRow key={detail.id} className="group">
-                                                <TableCell className="py-1.5 px-1 w-[32px]">
+                                                <TableCell className="py-1.5 px-1">
                                                   {isEditableRole && (
                                                     <DropdownMenu>
                                                       <DropdownMenuTrigger asChild>
