@@ -229,8 +229,12 @@ No automated frontend suite exists, so verification is explicit:
 
 ## Deferred follow-ups (recorded, not 022)
 
-1. Build-time contrast enforcement (a lint rule or CI check over the token file) so a future value
-   cannot regress silently.
+1. ~~Build-time contrast enforcement~~ — **delivered in 022**, not deferred. The gate moved to
+   `scripts/verify-contrast.py` and runs as the `design-tokens` CI job on every PR. Brought into
+   scope because the constitution's "tests grow with the feature" applies directly: this script *is*
+   the token invariant's test, and shipping it unwired would have shipped a written-but-never-run
+   test guarding a 0.039 margin. It is advisory until `Design tokens (contrast)` is added as a
+   required status check on `main` in branch protection.
 2. The remaining `--primary`/`--accent`/`--muted-foreground` pairings were not audited here; worth
    a sweep on the same basis.
 3. `prefers-contrast: high` and `forced-colors` handling — the app currently defines neither.
