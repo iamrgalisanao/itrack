@@ -1,33 +1,49 @@
 <!--
 Sync Impact Report
-- Version change: 1.1.0 → 1.2.0
+- Version change: 1.2.0 → 1.3.0
 - Modified principles: none renamed or removed
-- Added sections:
-  - Frontend Design and Review Governance (mandatory `frontend-design` skill usage, creation workflow,
-    review workflow with Critical/Major/Minor/Suggestion findings, design quality standards, existing-
-    design-system-first rule, Spec Kit integration across specify/plan/tasks/implement/analyze, priority
-    of authority, completion gate)
+- Added sections: none (existing Frontend Design and Review Governance section extended in place)
+- Modified sections:
+  - Frontend Design and Review Governance → Mandatory Skill Usage: the installed `impeccable` skill
+    (`.claude/skills/impeccable/`) is now mandatory alongside `frontend-design` for all frontend-related
+    work, scoped to Impeccable's **Operate** mode (iTrack's surfaces are internal task-completion tools —
+    Work Program, Kanban, Taskboard, Bug Tracker, Retrospectives, Support Ops — not marketing/Persuade
+    surfaces), so its "go bold" instinct never overrides Existing Design System First.
+  - Frontend Design and Review Governance → Frontend Creation Workflow: implementation must run
+    Impeccable's `shape` guidance during planning and `polish`/`harden` during implementation, alongside
+    `frontend-design`'s existing inspection steps.
+  - Frontend Design and Review Governance → Frontend Review Workflow: the review pass must additionally
+    run `/impeccable audit <target>` (deterministic a11y/perf/responsive checks) and `/impeccable critique
+    <target>` (UX heuristic review) against the implemented surface, with their findings folded into the
+    existing Critical/Major/Minor/Suggestion classification rather than kept as a separate report.
+  - Priority of Authority: item 6 now reads "installed `frontend-design` and `impeccable` skill
+    recommendations" — both rank below the existing product design system and this constitution, neither
+    may override approved requirements, accessibility obligations, or feature scope.
 - Removed sections: none
 - Templates requiring updates:
-  - .specify/templates/plan-template.md ✅ generic, Constitution Check gate reads this file dynamically — no edit needed
-  - .specify/templates/spec-template.md ✅ generic, no principle-specific sections referenced — no edit needed
-  - .specify/templates/tasks-template.md ✅ generic, task categorization guidance lives in speckit-tasks/SKILL.md (edited below), not the template — no edit needed
-  - .claude/skills/speckit-plan/SKILL.md ✅ updated — new step 5 operationalizes the `frontend-design` skill into a "Frontend Design Constraints" plan.md subsection and a quickstart.md frontend review pass, for any feature with a frontend-interface surface
-  - .claude/skills/speckit-tasks/SKILL.md ✅ updated — new Task Organization rule 5 requires the traceable frontend task breakdown (reuse analysis, states, responsive, accessibility, visual verification, review + Critical/Major resolution) instead of a single generic "implement frontend" task
-  - .claude/skills/speckit-analyze/SKILL.md ✅ updated — Coverage Gaps detection pass now flags a missing Frontend Design Constraints subsection, a collapsed generic frontend task, or no task covering resolution/acceptance of Critical/Major frontend findings
-  - .claude/skills/speckit-implement/SKILL.md ✅ reviewed, no edit needed — it generically executes tasks.md, and frontend-design-derived tasks now exist there via the speckit-tasks update, so implementation picks them up without a separate instruction
-  - .claude/skills/speckit-specify/SKILL.md ✅ reviewed — usability/accessibility acceptance-criteria guidance for frontend features is a content-quality concern already covered by that skill's existing "testable and unambiguous" validation pass; no structural edit needed
-  - other .claude/skills/speckit-*/SKILL.md ✅ reviewed, no CLAUDE-only or stale agent-specific references found
+  - .claude/skills/speckit-plan/SKILL.md ✅ updated — step 5 (Frontend Design Constraints) now also invokes
+    Impeccable's `shape` heuristics during planning and requires the quickstart.md frontend review pass to
+    include `/impeccable audit` and `/impeccable critique`.
+  - .claude/skills/speckit-implement/SKILL.md ✅ updated — step 10's Code Reviewer gate now requires
+    Impeccable's audit/critique findings as part of the frontend review criteria for any frontend-interface
+    surface.
+  - .claude/agents/engineering-frontend-developer.md ✅ updated — added an explicit instruction to run
+    Impeccable's `context.mjs` setup once per session and apply its commands (`shape`, `polish`, `harden`,
+    `audit`, `critique`) alongside `frontend-design`, scoped to Operate mode.
+  - CLAUDE.md ✅ updated — "Installed skills that govern implementation" now names `impeccable` alongside
+    `frontend-design`.
+  - other .claude/skills/speckit-*/SKILL.md and templates: reviewed, no edit needed — they reference
+    "Frontend Design and Review Governance" by name, not by skill name, so this amendment does not require
+    touching them.
 - Follow-up TODOs:
-  - TODO(TYPESCRIPT_ADOPTION): frontend is currently JS/JSX (React 19/Vite), not TypeScript. Principle VII's
-    TypeScript-conformance clause is written prospectively; it activates automatically if/when the frontend
-    adopts TS, requiring no further amendment.
-  - laravel-inertia-react skill is installed but not currently applicable (iTrack uses a separate SPA over a
-    Sanctum session API, not Inertia); retained for reference, not an active gate.
-  - The `frontend-design` skill (installed via `npx claude-code-templates@latest --skill
-    creative-design/frontend-design`, at `.claude/skills/frontend-design/`) is referenced throughout the new
-    Frontend Design and Review Governance section below. If it is ever uninstalled or renamed, that section's
-    mandatory-usage clauses need a follow-up amendment.
+  - TODO(TYPESCRIPT_ADOPTION): unchanged from 1.2.0, still pending.
+  - The `impeccable` skill (installed via `npx impeccable install`, at `.claude/skills/impeccable/`) needs
+    `/impeccable init` run once to write PRODUCT.md, and ideally `/impeccable document` to generate
+    DESIGN.md from the existing shadcn/Radix system rather than a fresh brief — until then, its commands
+    fall back to reading the incumbent implementation directly (per its own routing rules) rather than
+    blocking on missing context.
+  - If `impeccable` is ever uninstalled or renamed, this section's mandatory-usage clauses need a
+    follow-up amendment, same as the existing `frontend-design` TODO it extends.
 -->
 
 # iTrack Constitution
@@ -174,6 +190,24 @@ The installed `frontend-design` skill (`.claude/skills/frontend-design/`) MUST b
 applied automatically to all frontend-related work. The user does not need to
 explicitly request or mention the skill.
 
+The installed `impeccable` skill (`.claude/skills/impeccable/`) MUST be applied
+alongside `frontend-design` for the same scope of work, also without the user
+needing to ask. The two are complementary, not redundant: `frontend-design` and
+this constitution's Existing Design System First rule set the non-negotiable
+floor (reuse the incumbent shadcn/Radix system, no parallel visual language);
+`impeccable`'s commands (`shape`, `polish`, `harden`, `audit`, `critique`, and
+the others in its Commands table) are the concrete tools layered on top for
+planning, refining, and reviewing within that floor.
+
+**Mode scoping is mandatory.** iTrack's surfaces (Work Program, Kanban,
+Taskboard, Bug Tracker, Retrospectives, Support Ops, Reports, Schedule) are all
+task-completion tools for internal users — they fall under Impeccable's
+**Operate** mode, never **Persuade**. Impeccable's own "go all out, dream big
+and bold" instinct is written for greenfield/marketing surfaces; on iTrack it
+is constrained by Priority of Authority below and MUST NOT be used to justify
+decoration, boldness, or a new visual language that this constitution's Design
+Quality Standards or Existing Design System First rule would otherwise reject.
+
 Frontend-related work includes:
 
 - creating new pages, dashboards, layouts, forms, dialogs, navigation, and reusable
@@ -193,7 +227,9 @@ apply the workflow defined below.
 For any task that creates or substantially changes a frontend interface, the agent
 MUST use the `frontend-design` skill as part of planning and implementation.
 
-Before implementation, the agent MUST:
+Before implementation, the agent MUST run Impeccable's session setup
+(`node .claude/skills/impeccable/scripts/context.mjs`, per that skill's own
+Setup step) and load its `shape` reference for UX/UI planning, in addition to:
 
 1. Inspect the existing application before proposing a new design.
 2. Review comparable pages, layouts, shared components, design tokens, typography,
@@ -222,6 +258,8 @@ During implementation, the agent MUST:
 - avoid placeholder-only interfaces
 - avoid redesigning unrelated screens
 - avoid introducing dependencies solely for decorative purposes
+- apply Impeccable's `polish` command before considering the surface shipping-ready, and its `harden`
+  command wherever error handling, i18n-sensitive text, or edge-case states apply to the surface
 
 ### Frontend Review Workflow
 
@@ -264,6 +302,13 @@ The review MUST evaluate:
 - interaction feedback
 - unnecessary visual decoration
 - unintended changes outside the approved scope
+
+The review MUST also run Impeccable's `/impeccable audit <target>`
+(deterministic accessibility/performance/responsive checks) and `/impeccable
+critique <target>` (UX heuristic review) against the implemented surface.
+Their output is not a separate report — fold each finding into the same
+classification and resolution flow as every other frontend finding below,
+scoped by Operate mode per Mandatory Skill Usage above.
 
 Review findings MUST be classified as **Critical**, **Major**, **Minor**, or
 **Suggestion**. Each finding MUST identify the affected page/component/file, the
@@ -363,12 +408,16 @@ When frontend guidance conflicts, this priority applies:
 3. Existing product design system and repository conventions
 4. Accessibility, security, and functional requirements
 5. Approved implementation plan
-6. Installed `frontend-design` skill recommendations
+6. Installed `frontend-design` and `impeccable` skill recommendations
 
-The `frontend-design` skill may improve presentation, usability, hierarchy,
-interaction quality, and visual coherence, but it MUST NOT override approved
-requirements, accessibility obligations, established product conventions, or
-feature scope.
+The `frontend-design` and `impeccable` skills may improve presentation,
+usability, hierarchy, interaction quality, and visual coherence, but neither
+MUST override approved requirements, accessibility obligations, established
+product conventions, or feature scope. Where the two skills' recommendations
+conflict with each other, `frontend-design`'s reuse-first guidance and this
+constitution's Existing Design System First rule win — `impeccable` supplies
+additional commands and detectors within that boundary, not a competing
+design authority.
 
 ### Completion Gate
 
@@ -429,4 +478,4 @@ compliance checkpoint — a plan that cannot satisfy a principle must either
 change its approach or document the exception and why it's necessary in that
 feature's plan.md, not silently ignore it.
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-03
+**Version**: 1.3.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-26
