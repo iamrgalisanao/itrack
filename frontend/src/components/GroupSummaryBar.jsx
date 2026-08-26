@@ -26,29 +26,10 @@
 // coincidence. Callers must keep each table's full set of column
 // percentages summing to 100 (see the *_COLUMN_WIDTHS constant in each
 // caller file) for this to hold.
-export const GROUP_ACCENT_CLASSES = [
-  { bar: 'bg-emerald-500', label: 'text-emerald-700 dark:text-emerald-400' },
-  { bar: 'bg-amber-500', label: 'text-amber-700 dark:text-amber-400' },
-  { bar: 'bg-primary', label: 'text-primary' },
-  { bar: 'bg-rose-500', label: 'text-rose-700 dark:text-rose-400' },
-  { bar: 'bg-orange-500', label: 'text-orange-700 dark:text-orange-400' },
-]
-
-// Segments split the bar equally across the distinct values present in the
-// group, not proportionally by how many items hold each value — a lone
-// value (e.g. everything unset) fills the whole bar; two present values
-// split it 50/50 regardless of their individual counts. Tooltips still show
-// the real per-value count.
-export function buildSegments(items, field, order, classes) {
-  const counts = new Map()
-  for (const item of items) {
-    const key = item[field] || 'unset'
-    counts.set(key, (counts.get(key) || 0) + 1)
-  }
-  const present = order.filter((key) => counts.get(key) > 0)
-  const equalPct = present.length ? 100 / present.length : 0
-  return present.map((key) => ({ key, count: counts.get(key), pct: equalPct, className: classes[key] }))
-}
+//
+// GROUP_ACCENT_CLASSES and buildSegments live in @/lib/groupSummary — a file
+// exporting both components and plain values breaks Fast Refresh, which lint
+// enforces.
 
 // Single continuous fill for a rolled-up percentage (e.g. average task
 // progress across a group) — same footprint (label + h-7 bar) as

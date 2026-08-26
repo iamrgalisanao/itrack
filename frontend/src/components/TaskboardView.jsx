@@ -7,7 +7,8 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { LayoutGrid, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import TaskDetailModal from '@/components/TaskDetailModal'
-import { GROUP_ACCENT_CLASSES, buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GROUP_ACCENT_CLASSES, buildSegments } from '@/lib/groupSummary'
 
 const PRIORITY_BADGE_CLASSES = {
   Critical: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',

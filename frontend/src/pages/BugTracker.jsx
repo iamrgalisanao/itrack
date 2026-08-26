@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Bug as BugIcon, Plus, Pencil, Trash2, AlertTriangle, Clock, ChevronDown } from 'lucide-react'
-import { GROUP_ACCENT_CLASSES, buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GROUP_ACCENT_CLASSES, buildSegments } from '@/lib/groupSummary'
 
 const STATUSES = ['Awaiting Review', 'Ready for Dev', 'Fixing', 'Fixed']
 const PRIORITIES = ['Critical', 'High', 'Medium', 'Low']
@@ -152,6 +153,22 @@ export default function BugTracker() {
     if (selectedProjectId) loadBugs(selectedProjectId)
   }, [selectedProjectId])
 
+  // Declared above the deep-link effect below, which calls it: referencing it
+  // later in source order trips react-hooks' access-before-declaration rule.
+  const openEdit = (bug) => {
+    setEditingBug(bug)
+    setEditForm({
+      title: bug.title,
+      description: bug.description || '',
+      priority: bug.priority,
+      status: bug.status,
+      owner_id: bug.owner_id || '',
+      sprint_label: bug.sprint_label || '',
+      due_date: bug.due_date || '',
+      visibility: bug.visibility,
+    })
+  }
+
   // ─── Deep link ?bug={id} — matches ?session=/?task= precedent (T030) ────
   useEffect(() => {
     if (loading || bugs.length === 0) return
@@ -188,20 +205,6 @@ export default function BugTracker() {
       console.error('Failed to create bug:', err)
       setError('Failed to create bug.')
     }
-  }
-
-  const openEdit = (bug) => {
-    setEditingBug(bug)
-    setEditForm({
-      title: bug.title,
-      description: bug.description || '',
-      priority: bug.priority,
-      status: bug.status,
-      owner_id: bug.owner_id || '',
-      sprint_label: bug.sprint_label || '',
-      due_date: bug.due_date || '',
-      visibility: bug.visibility,
-    })
   }
 
   const handleSaveEdit = async (e) => {

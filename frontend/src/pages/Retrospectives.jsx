@@ -41,7 +41,8 @@ import {
   Send,
   MoreHorizontal,
 } from 'lucide-react'
-import { GROUP_ACCENT_CLASSES, buildSegments, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GROUP_ACCENT_CLASSES, buildSegments } from '@/lib/groupSummary'
 
 const SENTIMENTS = [
   { id: 'keep', label: 'Keep', color: 'border-t-emerald-500 bg-emerald-500/5' },

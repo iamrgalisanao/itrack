@@ -64,7 +64,8 @@ import {
   deleteProject,
 } from '@/lib/api'
 import { formatDate, getStatusColor, getStatusLabel, getTypeColor, getTypeLabel } from '@/lib/utils'
-import { buildSegments, GroupProgressBar, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { GroupProgressBar, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { buildSegments } from '@/lib/groupSummary'
 import {
   ChevronDown,
   ChevronRight,
@@ -995,6 +996,42 @@ export default function WorkProgram() {
     setModalOpen(true)
   }
 
+  // Declared above handleSubmit and the List-view handlers that call it:
+  // referencing it later in source order trips react-hooks'
+  // access-before-declaration rule.
+  const refreshActivityTasks = async (moduleId, activityId) => {
+    const key = `${moduleId}-${activityId}`
+    setActivityTasksLoading(prev => ({ ...prev, [key]: true }))
+    try {
+      const subRes = await fetchSubActivities(activityId)
+      const subActivityList = subRes.data.data || subRes.data
+      setSubActivities(prev => ({ ...prev, [key]: subActivityList }))
+      const taskResponses = await Promise.all(
+        subActivityList.map(sa => fetchDetailedActivities(sa.id))
+      )
+      const merged = subActivityList.flatMap((sa, i) => {
+        const tasks = taskResponses[i].data.data || taskResponses[i].data
+        return tasks.map(t => ({ ...t, sub_activity_name: sa.name }))
+      })
+      // Explicit stable sort by id (ascending) — the backend's index()
+      // endpoint has no ORDER BY, so row order isn't guaranteed, and
+      // merging multiple Sub-Activities' task lists interleaves whatever
+      // order each happened to come back in. Sorting by id (creation
+      // order for an auto-increment PK) guarantees newly-added tasks
+      // always land at the bottom instead of wherever the unordered
+      // fetch/merge put them.
+      merged.sort((a, b) => a.id - b.id)
+      setActivityTasks(prev => ({ ...prev, [key]: merged }))
+    } catch (err) {
+      console.error('Failed to load activity tasks:', err)
+      if (err.response?.status === 403) {
+        setAccessDenied(true)
+      }
+    } finally {
+      setActivityTasksLoading(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -1218,39 +1255,6 @@ export default function WorkProgram() {
   // to toggleActivity above — that function is shared with Gantt view
   // (see its onClick at the Gantt row-click handler), and extending it
   // would leak this fetch into Gantt, which must stay unchanged (FR-013).
-  const refreshActivityTasks = async (moduleId, activityId) => {
-    const key = `${moduleId}-${activityId}`
-    setActivityTasksLoading(prev => ({ ...prev, [key]: true }))
-    try {
-      const subRes = await fetchSubActivities(activityId)
-      const subActivityList = subRes.data.data || subRes.data
-      setSubActivities(prev => ({ ...prev, [key]: subActivityList }))
-      const taskResponses = await Promise.all(
-        subActivityList.map(sa => fetchDetailedActivities(sa.id))
-      )
-      const merged = subActivityList.flatMap((sa, i) => {
-        const tasks = taskResponses[i].data.data || taskResponses[i].data
-        return tasks.map(t => ({ ...t, sub_activity_name: sa.name }))
-      })
-      // Explicit stable sort by id (ascending) — the backend's index()
-      // endpoint has no ORDER BY, so row order isn't guaranteed, and
-      // merging multiple Sub-Activities' task lists interleaves whatever
-      // order each happened to come back in. Sorting by id (creation
-      // order for an auto-increment PK) guarantees newly-added tasks
-      // always land at the bottom instead of wherever the unordered
-      // fetch/merge put them.
-      merged.sort((a, b) => a.id - b.id)
-      setActivityTasks(prev => ({ ...prev, [key]: merged }))
-    } catch (err) {
-      console.error('Failed to load activity tasks:', err)
-      if (err.response?.status === 403) {
-        setAccessDenied(true)
-      }
-    } finally {
-      setActivityTasksLoading(prev => ({ ...prev, [key]: false }))
-    }
-  }
-
   // List view's Activity-group expand/collapse — separate from
   // toggleActivity (shared with Gantt) so Gantt's own expand behavior is
   // untouched by this feature.
