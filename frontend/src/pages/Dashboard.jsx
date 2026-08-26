@@ -27,10 +27,15 @@ import {
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
 
-/** Metric card with colored icon container and optional left accent border */
-function StatCard({ title, value, description, icon: Icon, iconBg, iconColor, accent }) {
+/**
+ * Metric card. The colored icon container carries the semantic colour — there
+ * is deliberately no left accent stripe: border-l-{color} utilities are inert
+ * under index.css's unlayered border reset, so the stripe only ever rendered
+ * as a flat grey bar carrying no information.
+ */
+function StatCard({ title, value, description, icon: Icon, iconBg, iconColor }) {
   return (
-    <Card className={['relative overflow-hidden transition-shadow hover:shadow-md', accent ? `border-l-4 ${accent}` : ''].join(' ')}>
+    <Card className="relative overflow-hidden transition-shadow hover:shadow-md">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-4 px-5">
         <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
@@ -540,9 +545,9 @@ export default function Dashboard() {
       <div>
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Task Status</h2>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Completed"   value={completed}  description="Tasks finished"              icon={CheckCircle2} iconBg="bg-emerald-100 dark:bg-emerald-950/40" iconColor="text-emerald-600 dark:text-emerald-400" accent="border-l-emerald-400 dark:border-l-emerald-500" />
-          <StatCard title="In Progress" value={inProgress} description="Currently active"            icon={Clock}        iconBg="bg-blue-100 dark:bg-blue-950/40"    iconColor="text-blue-600 dark:text-blue-400"    accent="border-l-blue-400 dark:border-l-blue-500" />
-          <StatCard title="Not Started" value={notStarted} description="Yet to begin"                icon={CircleDashed} iconBg="bg-slate-100 dark:bg-slate-800"   iconColor="text-slate-500 dark:text-slate-400"   accent="border-l-slate-300 dark:border-l-slate-700" />
+          <StatCard title="Completed"   value={completed}  description="Tasks finished"              icon={CheckCircle2} iconBg="bg-emerald-100 dark:bg-emerald-950/40" iconColor="text-emerald-600 dark:text-emerald-400" />
+          <StatCard title="In Progress" value={inProgress} description="Currently active"            icon={Clock}        iconBg="bg-blue-100 dark:bg-blue-950/40"    iconColor="text-blue-600 dark:text-blue-400" />
+          <StatCard title="Not Started" value={notStarted} description="Yet to begin"                icon={CircleDashed} iconBg="bg-slate-100 dark:bg-slate-800"   iconColor="text-slate-500 dark:text-slate-400" />
           <StatCard
             title="Delayed"
             value={delayed}
@@ -550,7 +555,6 @@ export default function Dashboard() {
             icon={AlertCircle}
             iconBg={delayed > 0 ? 'bg-red-100 dark:bg-red-950/40'   : 'bg-slate-100 dark:bg-slate-800'}
             iconColor={delayed > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}
-            accent={delayed > 0 ? 'border-l-red-400 dark:border-l-red-500' : 'border-l-slate-200 dark:border-l-slate-800'}
           />
         </div>
       </div>
