@@ -406,7 +406,6 @@ export default function Dashboard() {
   const completed       = stats.completed        || 0
   const completedRecent = stats.completed_recent || 0
   const inProgress      = stats.in_progress      || 0
-  const notStarted      = stats.not_started      || 0
   const delayed         = stats.delayed          || 0
   // The real total, not completed+in_progress+not_started+delayed — that sum
   // silently drops backlog, for_review and blocked tasks, and would disagree
