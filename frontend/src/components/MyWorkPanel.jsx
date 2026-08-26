@@ -85,10 +85,10 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
               </button>
               <p className="sm:hidden text-[11px] text-muted-foreground truncate mt-0.5">
                 {task.project?.name}
-                {task.plan_end_date && <span className={bucket.key === 'overdue' ? 'text-destructive dark:text-red-400' : ''}> · {formatDate(task.plan_end_date)}</span>}
+                {task.plan_end_date && <span className={bucket.key === 'overdue' ? 'text-destructive' : ''}> · {formatDate(task.plan_end_date)}</span>}
               </p>
               {rowError?.id === task.id && (
-                <p id={`row-error-${task.id}`} role="alert" className="text-[11px] text-destructive dark:text-red-400 mt-0.5">
+                <p id={`row-error-${task.id}`} role="alert" className="text-[11px] text-destructive mt-0.5">
                   {rowError.message}
                 </p>
               )}
@@ -98,7 +98,7 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
               {task.project?.name || '—'}
               {task.module?.name && <span className="text-muted-foreground/70"> · {task.module.name}</span>}
             </TableCell>
-            <TableCell className={`hidden sm:table-cell py-1.5 px-3 text-xs tabular-nums ${bucket.key === 'overdue' ? 'text-destructive dark:text-red-400 font-medium' : 'text-muted-foreground'}`}>
+            <TableCell className={`hidden sm:table-cell py-1.5 px-3 text-xs tabular-nums ${bucket.key === 'overdue' ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
               {task.plan_end_date ? formatDate(task.plan_end_date) : 'No due date'}
             </TableCell>
             <TableCell className="py-1.5 px-3">
@@ -166,7 +166,7 @@ function QuickAddForm({ bucket, buckets, onBucketChange, projects, modules, plac
           className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         {error && (
-          <p id={`qa-error-${bucket.key}`} role="alert" className="text-[11px] text-destructive dark:text-red-400 mt-1">{error}</p>
+          <p id={`qa-error-${bucket.key}`} role="alert" className="text-[11px] text-destructive mt-1">{error}</p>
         )}
       </div>
 
