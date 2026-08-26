@@ -58,6 +58,9 @@ export const fetchDashboard = () => api.get('/dashboard')
 // local dates and must be sent together — the server rejects a lone anchor
 // because mixing one with a server default makes the buckets overlap.
 export const fetchMyWork = (params) => api.get('/my-work', { params })
+// The server always assigns the new task to the acting user; the project
+// picker in the UI only narrows the module list and is not sent.
+export const createMyWorkTask = (data) => api.post('/my-work/tasks', data)
 
 // Projects
 export const fetchProjects = () => api.get('/projects')

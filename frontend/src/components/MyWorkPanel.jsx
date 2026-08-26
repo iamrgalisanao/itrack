@@ -8,10 +8,10 @@ import { GroupSegmentBar } from '@/components/GroupSummaryBar'
 import { buildSegments } from '@/lib/groupSummary'
 import { STATUS_ORDER, STATUS_SEGMENT_CLASSES, STATUS_SEGMENT_LABELS, STATUS_BADGE_CLASSES } from '@/lib/taskStatus'
 import TaskDetailModal from '@/components/TaskDetailModal'
-import { fetchMyWork, fetchDetailedActivity, updateDetailedActivity } from '@/lib/api'
+import { fetchMyWork, fetchDetailedActivity, updateDetailedActivity, createMyWorkTask, fetchProjects, fetchModules } from '@/lib/api'
 import { useEffectiveUser } from '@/context/PreviewContext'
 import { formatDate } from '@/lib/utils'
-import { AlertCircle, CheckCircle2, ChevronDown, Loader2, RefreshCw } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, RefreshCw } from 'lucide-react'
 
 // Bucket accents are fixed and semantic, not the index-rotation the sibling
 // grouped views use: those group by arbitrary keys (epic, project) where any
@@ -119,6 +119,99 @@ function BucketRows({ bucket, tasks, canWrite, savingId, onStatusChange, onOpenT
   )
 }
 
+/**
+ * Title plus a placement, and nothing else — the due date comes from whichever
+ * bucket you opened this in, so adding a task never stops to ask when it's due.
+ */
+function QuickAddForm({ bucket, projects, modules, placement, onPlacementChange, onSubmit, onCancel, busy, error }) {
+  const [title, setTitle] = useState('')
+  const inputRef = useRef(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!title.trim() || !placement.moduleId) return
+    onSubmit(title.trim(), () => setTitle(''))
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
+      className="flex flex-wrap items-start gap-2 px-3 py-2.5 border-t border-border/60 bg-muted/20"
+    >
+      <div className="flex-1 min-w-[200px]">
+        <label className="sr-only" htmlFor={`qa-title-${bucket.key}`}>
+          Task title
+        </label>
+        <input
+          id={`qa-title-${bucket.key}`}
+          ref={inputRef}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What needs doing?"
+          aria-describedby={error ? `qa-error-${bucket.key}` : undefined}
+          aria-invalid={error ? 'true' : undefined}
+          className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        {error && (
+          <p id={`qa-error-${bucket.key}`} className="text-[11px] text-destructive mt-1">{error}</p>
+        )}
+      </div>
+
+      <label className="sr-only" htmlFor={`qa-project-${bucket.key}`}>Project</label>
+      <select
+        id={`qa-project-${bucket.key}`}
+        value={placement.projectId || ''}
+        onChange={(e) => onPlacementChange({ projectId: e.target.value, moduleId: '' })}
+        className="rounded-md border border-input bg-background px-2 py-1.5 text-xs max-w-[180px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <option value="">Project…</option>
+        {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+
+      <label className="sr-only" htmlFor={`qa-module-${bucket.key}`}>Module</label>
+      <select
+        id={`qa-module-${bucket.key}`}
+        value={placement.moduleId || ''}
+        disabled={!placement.projectId || !modules.length}
+        onChange={(e) => onPlacementChange({ ...placement, moduleId: e.target.value })}
+        className="rounded-md border border-input bg-background px-2 py-1.5 text-xs max-w-[180px] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <option value="">Module…</option>
+        {modules.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </select>
+
+      <button
+        type="submit"
+        disabled={busy || !title.trim() || !placement.moduleId}
+        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+        Add
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Cancel
+      </button>
+    </form>
+  )
+}
+
+const PLACEMENT_KEY = 'itrack.myWork.lastPlacement'
+
+const readPlacement = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PLACEMENT_KEY)) || { projectId: '', moduleId: '' }
+  } catch {
+    return { projectId: '', moduleId: '' }
+  }
+}
+
 export default function MyWorkPanel({ onTaskMutated }) {
   const user = useEffectiveUser()
   const [data, setData] = useState(null)
@@ -131,6 +224,12 @@ export default function MyWorkPanel({ onTaskMutated }) {
   const [savingId, setSavingId] = useState(null)
   const [rowError, setRowError] = useState(null)
   const triggerRef = useRef(null)
+  const [quickAddBucket, setQuickAddBucket] = useState(null)
+  const [quickAddBusy, setQuickAddBusy] = useState(false)
+  const [quickAddError, setQuickAddError] = useState(null)
+  const [placement, setPlacement] = useState(readPlacement)
+  const [projects, setProjects] = useState([])
+  const [modules, setModules] = useState([])
 
   const anchors = useMemo(() => localAnchors(), [])
 
@@ -213,6 +312,63 @@ export default function MyWorkPanel({ onTaskMutated }) {
     }
   }
 
+  // Project and module lists load once, the first time quick-add is opened —
+  // nobody pays for them just by viewing the dashboard.
+  const openQuickAdd = async (bucket) => {
+    setQuickAddBucket(bucket)
+    setQuickAddError(null)
+    try {
+      if (!projects.length) {
+        const res = await fetchProjects()
+        setProjects(res.data.data || res.data || [])
+      }
+      // Populate modules for a remembered project so the saved placement is
+      // usable straight away instead of only after re-picking the project.
+      if (placement.projectId && !modules.length) {
+        const res = await fetchModules(placement.projectId)
+        setModules(res.data.data || res.data || [])
+      }
+    } catch (err) {
+      console.error('Failed to load quick-add options:', err)
+      setQuickAddError('Could not load projects.')
+    }
+  }
+
+  const changePlacement = async (next) => {
+    setPlacement(next)
+    if (!next.projectId) { setModules([]); return }
+    try {
+      const res = await fetchModules(next.projectId)
+      setModules(res.data.data || res.data || [])
+    } catch (err) {
+      console.error('Failed to load modules for quick-add:', err)
+      setModules([])
+    }
+  }
+
+  const submitQuickAdd = async (title, clearTitle) => {
+    setQuickAddBusy(true)
+    setQuickAddError(null)
+    try {
+      await createMyWorkTask({
+        name: title,
+        module_id: Number(placement.moduleId),
+        // This Week pre-fills the end of the week; Later and No due date
+        // deliberately leave it unset rather than inventing a date.
+        plan_end_date: quickAddBucket.key === 'this_week' ? anchors.week_end : null,
+      })
+      try { localStorage.setItem(PLACEMENT_KEY, JSON.stringify(placement)) } catch { /* private mode */ }
+      clearTitle()
+      await load({ silent: true })
+      onTaskMutated?.()
+    } catch (err) {
+      const field = err.response?.data?.errors
+      setQuickAddError(field ? Object.values(field)[0][0] : 'Could not add that task.')
+    } finally {
+      setQuickAddBusy(false)
+    }
+  }
+
   const closeTask = () => {
     setSelectedTask(null)
     const trigger = triggerRef.current
@@ -283,11 +439,37 @@ export default function MyWorkPanel({ onTaskMutated }) {
                   : 'Tasks assigned to you across every project you can see'}
               </CardDescription>
             </div>
+            {/* The per-bucket control is unreachable when a bucket is empty
+                (empty buckets aren't rendered), so adding into one needs an
+                entry point that lives outside them. */}
+            {canWrite && !quickAddBucket && (
+              <button
+                type="button"
+                onClick={() => openQuickAdd(BUCKETS[1])}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add task
+              </button>
+            )}
           </div>
         </CardHeader>
 
         <CardContent className="space-y-3">
-          {totalOpen === 0 ? (
+          {totalOpen === 0 && quickAddBucket && canWrite ? (
+            <div className="rounded-xl border border-border/60 overflow-hidden">
+              <QuickAddForm
+                bucket={quickAddBucket}
+                projects={projects}
+                modules={modules}
+                placement={placement}
+                onPlacementChange={changePlacement}
+                onSubmit={submitQuickAdd}
+                onCancel={() => setQuickAddBucket(null)}
+                busy={quickAddBusy}
+                error={quickAddError}
+              />
+            </div>
+          ) : totalOpen === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
               <CheckCircle2 className="h-9 w-9 text-success" />
               <p className="text-sm font-medium">You&rsquo;re all caught up</p>
@@ -361,6 +543,30 @@ export default function MyWorkPanel({ onTaskMutated }) {
                         onOpenTask={handleOpenTask}
                         rowError={rowError}
                       />
+                      {canWrite && bucket.canQuickAdd && quickAddBucket?.key === bucket.key && (
+                        <QuickAddForm
+                          bucket={bucket}
+                          projects={projects}
+                          modules={modules}
+                          placement={placement}
+                          onPlacementChange={changePlacement}
+                          onSubmit={submitQuickAdd}
+                          onCancel={() => setQuickAddBucket(null)}
+                          busy={quickAddBusy}
+                          error={quickAddError}
+                        />
+                      )}
+                      {canWrite && bucket.canQuickAdd && quickAddBucket?.key !== bucket.key && (
+                        <div className="px-3 py-2 border-t border-border/60">
+                          <button
+                            type="button"
+                            onClick={() => openQuickAdd(bucket)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add a task
+                          </button>
+                        </div>
+                      )}
                       {hidden > 0 && (
                         <div className="px-3 py-2 border-t border-border/60">
                           <button
