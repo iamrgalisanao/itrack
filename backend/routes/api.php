@@ -15,6 +15,7 @@ use App\Http\Controllers\SupportOpsController;
 use App\Http\Controllers\RetrospectiveController;
 use App\Http\Controllers\BugController;
 use App\Http\Controllers\TaskboardController;
+use App\Http\Controllers\MyWorkController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\ClientDomainController;
 use App\Http\Controllers\ClientMembershipReviewController;
@@ -99,6 +100,9 @@ Route::middleware(['auth:sanctum', EnsureUserIsActive::class, ResolvePreviewSess
 
     // Dashboard summary
     Route::get('dashboard', [ProjectController::class, 'dashboard']);
+
+    // My Work (021-dashboard-my-work)
+    Route::get('my-work', [MyWorkController::class, 'index']);
 
     // Support Ops
     Route::get('support-ops', [SupportOpsController::class, 'index']);
