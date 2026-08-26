@@ -177,6 +177,18 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
 
+10. **Mandatory Code Reviewer verification of the implementation**: After completion validation passes, and before the Post-Execution Hooks and Completion Report, the orchestrating session MUST dispatch a **Code Reviewer** subagent (Agent tool, `subagent_type: "Code Reviewer"`) to independently review the implemented changes. This is automatic — the user does not need to ask for it.
+    - Give the agent the changed surface (the diff of files created/modified during this implementation run — e.g. via `git diff`/`git status` against the state before implementation began) plus the paths to `spec.md`, `plan.md`, `tasks.md`, and `.specify/memory/constitution.md`.
+    - Instruct it to review for:
+      1. **Correctness** — the implementation actually satisfies the spec's functional requirements and the plan's design; tests cover the happy path and at least one denied/unauthorized path for anything role-gated (Constitution Principle III).
+      2. **Access control and tenant isolation** — role checks go through the `HasRole` trait predicates (never inline role-string comparisons, fail-closed), read-scoping uses `AccessContext::user($request)` / `Project::accessibleTo()`, and no new query can reach data outside the acting user's accessible projects/organizations (Constitution Principles I and VIII.2–3).
+      3. **API contracts** — endpoints return API Resources or curated arrays, never raw models (Principle II); sensitive mutations are audited via `AuditLogger` (Principle IV); migrations are additive/nullable (Principle V).
+      4. **Code quality** — conformance with the installed `php-best-practices`/`laravel-best-practices`/`react-vite-best-practices` skills (Principle VII) and absence of AI-slop patterns per the `code-slop` skill; for any frontend surface, the Frontend Design and Review Governance review criteria apply.
+    - The agent MUST report findings classified as **Critical**, **Major**, **Minor**, or **Suggestion**, each naming the affected file, the observed problem, and the recommended correction — or an explicit "no findings" verdict.
+    - The orchestrating session MUST fix every Critical and Major finding (re-running the affected tests and re-dispatching review on the changed surface), OR document the finding and the reason it is accepted alongside the feature's artifacts. Completion MUST NOT be reported while unresolved, undocumented Critical/Major findings remain. Minor/Suggestion findings may be fixed, deferred, or noted at the orchestrator's discretion, but must be listed in the Completion Report.
+    - This review complements, and does not replace, the Definition-of-Done Gate (Principle VIII) — the OWASP and code-slop skill passes still run on the changed surface.
+    - If subagent dispatch is unavailable in the current environment, run the identical review checklist as a dedicated inline pass over the diff and note that the review ran inline — the gate itself is never skipped.
+
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.
 
 ## Mandatory Post-Execution Hooks
@@ -216,11 +228,12 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Report final status with summary of completed work.
+Report final status with summary of completed work, plus the Code Reviewer verification outcome from step 10 (no findings / Critical-Major findings resolved / findings accepted with documented rationale), including any deferred Minor/Suggestion findings.
 
 ## Done When
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
 - [ ] Implementation validated against specification, plan, and test coverage
+- [ ] Code Reviewer verification (step 10) dispatched, and every Critical/Major finding resolved or documented as accepted
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] Completion reported to user with summary of completed work
+- [ ] Completion reported to user with summary of completed work and the review outcome
