@@ -95,6 +95,39 @@
   --info-foreground: #16171d;
 }
 
+/* Gantt bar/label pairings — the ink each bar carries, measured against the bar
+   itself and against the bg-foreground/20 progress overlay drawn on top of it.
+   Source of the map: frontend/src/lib/ganttPalette.js. Asserted by
+   scripts/verify-contrast.py (assertion 6), which requires exactly 10 rows.
+
+   Rows deliberately carry no `--` prefix and two columns, not three: that makes
+   them unmatchable by the status-token parser above, which needs `--name` plus
+   three floats. Collision is impossible by construction rather than by luck.
+
+   Keyed by fill family, not by status — delayed and blocked share one fill, and
+   the three not-yet-started statuses share another, so status keying would list
+   five duplicate rows.
+
+   Light `neutral` at 5.73 on the bare bar is the global worst case. The overlay
+   only ever raises it — never lowers it — which is the whole point of the
+   direction invariant, so the bare bar is what binds.
+
+   Gantt, light:            bar  overlay
+     destructive           6.47  8.60
+     success               7.13  9.25
+     warning               7.09  9.26
+     info                  6.70  8.77
+     neutral               5.73  7.72
+   Gantt, dark:             bar  overlay
+     destructive           6.46  7.69
+     success              10.26 11.04
+     warning              10.71 11.57
+     info                  7.03  8.39
+     neutral               7.04  8.48
+
+   Verify, do not trust this comment:
+     python scripts/verify-contrast.py */
+
 @theme inline {
   --color-border: var(--border);
   --color-input: var(--input);

@@ -105,6 +105,133 @@ if drift:
     for d in drift:
         print('  ' + d)
 
+# ---------------------------------------------------------------- Gantt (023)
+# The timeline's bar/label pairings. Read from frontend/src/lib/ganttPalette.js
+# rather than from the component: getGanttBarStyles is a switch with
+# fall-through, and a regex over that would stop matching after any refactor and
+# go quiet. This checks the MAP; whether the component uses the map is Gate 4's
+# job (a literal sweep) and the browser pass, not this script's.
+GANTT_JS = 'frontend/src/lib/ganttPalette.js'
+PHP_ENUM = 'backend/app/Http/Controllers/DetailedActivityController.php'
+gantt_fail = []
+
+js = io.open(GANTT_JS, encoding='utf-8').read()
+
+# Anchor to the named export, not to loose `fill:`/`ink:` pairs. An earlier
+# version matched entries anywhere in the file, so renaming the export left all
+# eight parseable: the app broke on import while the gate stayed green. Found by
+# tamper proof A, which is the entire reason that proof exists.
+_blk = re.search(r'export\s+const\s+GANTT_STATUS_TOKENS\s*=\s*\{(.*?)\n\}', js, re.S)
+STATUS_TOKENS = {} if not _blk else {
+    m.group(1): (m.group(2), m.group(3))
+    for m in re.finditer(r"(\w+):\s*\{\s*fill:\s*'([\w-]+)',\s*ink:\s*'([\w-]+)'\s*\}",
+                         _blk.group(1))
+}
+_ov = re.search(r"export\s+const\s+GANTT_PROGRESS_OVERLAY\s*=\s*\{\s*token:\s*'([\w-]+)',"
+                r"\s*alpha:\s*([\d.]+)", js)
+
+# Assertion 1 - parse guard. Structural only: is the export there, and did it
+# yield anything? Deliberately NOT a >= 8 count -- that duplicated assertion 2
+# and short-circuited it, so removing a status reported "parse guard" instead of
+# naming the uncovered status (tamper proof B). Completeness is assertion 2's
+# job; this one only answers "did the parser find its subject at all".
+if not _blk:
+    gantt_fail.append('parse guard: GANTT_STATUS_TOKENS export not found in %s' % GANTT_JS)
+elif not STATUS_TOKENS:
+    gantt_fail.append('parse guard: GANTT_STATUS_TOKENS parsed to zero entries in %s' % GANTT_JS)
+if not _ov:
+    gantt_fail.append('parse guard: GANTT_PROGRESS_OVERLAY did not parse in %s' % GANTT_JS)
+
+if not gantt_fail:
+    ov_token, ov_alpha = _ov.group(1), float(_ov.group(2))
+
+    # Assertion 2 - enum coverage. The backend is authoritative for what a status
+    # can be; `pending` is synthesised client-side for parent rows. This is the
+    # assertion that would have caught the original bug, where backlog, for_review
+    # and blocked reached red through a `default` branch.
+    php = io.open(PHP_ENUM, encoding='utf-8').read()
+    m = re.search(r"'status'\s*=>\s*'in:([a-z_,]+)'", php)
+    if not m:
+        gantt_fail.append('enum coverage: could not read the status list from %s' % PHP_ENUM)
+    else:
+        for s in m.group(1).split(',') + ['pending']:
+            if s not in STATUS_TOKENS:
+                gantt_fail.append('enum coverage: status %r has no Gantt colour' % s)
+
+    print()
+    print('%-6s%-14s %8s %8s   %s' % ('theme', 'gantt', 'bar', 'overlay', 'verdict'))
+    gantt_measured = {}
+    for theme, sel in (('light', ':root'), ('dark', '.dark')):
+        t = block(sel)
+        seen = set()
+        for status in sorted(STATUS_TOKENS):
+            fill_tok, ink_tok = STATUS_TOKENS[status]
+            if fill_tok not in t or ink_tok not in t:
+                gantt_fail.append('%s %s: token --%s or --%s missing from %s'
+                                  % (theme, status, fill_tok, ink_tok, sel))
+                continue
+            fill, ink = t[fill_tok], t[ink_tok]
+            # Assertion 3 - the bare bar. With assertion 5 holding, this is the
+            # binding case: the overlay can only move contrast away from here.
+            on_bar = ratio(ink, fill)
+            # Assertion 4 - the composited overlay, at the alpha the module
+            # declares. Change the alpha in JS and this recomputes; it is not
+            # hard-coded here.
+            on_ov = ratio(ink, blend(t[ov_token], fill, ov_alpha))
+            if min(on_bar, on_ov) < 4.5:
+                gantt_fail.append('%s %s: bar %.2f, overlay %.2f (need 4.5)'
+                                  % (theme, status, on_bar, on_ov))
+            # Assertion 5 - the direction invariant. This is what makes assertion
+            # 4 durable instead of a lucky number: ink and overlay must sit on
+            # opposite sides of the fill, so contrast rises monotonically with
+            # alpha. Revert the overlay to white in light mode and this fires
+            # even at an alpha that happens to squeak past assertion 4.
+            if (lum(t[ov_token]) > lum(fill)) == (lum(ink) > lum(fill)):
+                gantt_fail.append('%s %s: overlay --%s and ink --%s are on the SAME side of '
+                                  '--%s; contrast no longer rises with alpha'
+                                  % (theme, status, ov_token, ink_tok, fill_tok))
+            # One printed row per fill family, not per status: delayed/blocked
+            # share a fill, and the three not-started statuses share another.
+            if fill_tok not in seen:
+                seen.add(fill_tok)
+                fam = 'neutral' if fill_tok == 'muted-foreground' else fill_tok
+                gantt_measured[(fam, theme)] = (on_bar, on_ov)
+                print('%-6s%-14s %8.2f %8.2f   %s'
+                      % (theme, fam, on_bar, on_ov,
+                         'ok' if min(on_bar, on_ov) >= 4.5 else 'FAIL'))
+
+    # Assertion 6 - the recorded ratios in index.css. Its own sentinel and its own
+    # two-float regex, keyed by (fill family, theme). It cannot collide with the
+    # status-token parser above: those rows need `--name` plus three floats, and
+    # these carry no `--` prefix and two columns. 022's len(DOCUMENTED) check is
+    # deliberately left alone -- the count is unaffected either way.
+    GANTT_DOC = {}
+    for tm in re.finditer(r'Gantt,\s*(light|dark):(.*?)(?=Gantt,|\*/)', RAW, re.S):
+        for row in re.finditer(r'^\s*([a-z]+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s*$',
+                               tm.group(2), re.M):
+            GANTT_DOC[(row.group(1), tm.group(1))] = (float(row.group(2)), float(row.group(3)))
+    # Non-vacuity guard: without this, deleting the comment block makes the loop
+    # below iterate over nothing and pass. Assertion 1 guards the module parse;
+    # this guards the comment parse.
+    if len(GANTT_DOC) != 10:
+        gantt_fail.append('assertion 6: expected 10 documented Gantt rows in index.css, found %d'
+                          % len(GANTT_DOC))
+    for key, (b, o) in sorted(gantt_measured.items()):
+        if key not in GANTT_DOC:
+            gantt_fail.append('assertion 6: %s %s has no documented row' % (key[1], key[0]))
+            continue
+        db, do = GANTT_DOC[key]
+        for label, doc, act in (('bar', db, b), ('overlay', do, o)):
+            if abs(doc - round(act, 2)) > 0.005:
+                gantt_fail.append('assertion 6: %s %s %s: comment says %.2f, computed %.2f'
+                                  % (key[1], key[0], label, doc, act))
+
+if gantt_fail:
+    ok = False
+    print('\nGANTT BAR/LABEL CONTRACT VIOLATED:')
+    for d in gantt_fail:
+        print('  ' + d)
+
 if xfail_drift:
     ok = False
     print('\nTHE --primary EXCEPTION HAS MOVED:')
