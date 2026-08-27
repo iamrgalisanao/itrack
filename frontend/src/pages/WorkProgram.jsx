@@ -2699,11 +2699,23 @@ export default function WorkProgram() {
                                       were defined, so this rendered transparent over the timeline
                                       grid and the bars behind it (WCAG 1.4.3).
 
-                                      `ring-1`, not `border`: index.css:192 has an UNLAYERED
-                                      `* { border-color }` that outranks @layer utilities, so a
-                                      `border-popover-border` utility would be silently overridden
-                                      and ship a 1.27:1 edge -- the original defect's exact failure
-                                      mode, no error, wrong pixels. ring-color is untouched by it.
+                                      `outline-1`, not `border` and not `ring-1`. index.css:213
+                                      has an UNLAYERED `* { border-color }` that beats @layer
+                                      utilities BEFORE specificity is consulted, so any
+                                      border-colour utility here is silently overridden and ships a
+                                      1.27:1 edge. `ring-1` dodges that but is pure box-shadow, and
+                                      forced-colors mode forces `box-shadow: none` -- Canvas on
+                                      Canvas, no boundary at all in Windows High Contrast. outline
+                                      survives both: the UA repaints outline-color as a system
+                                      colour, and outline-color is untouched by the `*` rule.
+
+                                      The two separators below need `!` for the same reason. An
+                                      earlier fix used `[border-bottom-color:var(...)]`, which
+                                      compiles INTO @layer utilities and therefore loses to the
+                                      unlayered rule exactly as a plain utility does -- it shipped
+                                      the same 1.27:1 while looking deliberate. The `!` is also a
+                                      greppable marker of the debt; retire it when the `*` rule
+                                      moves into @layer base.
 
                                       STILL BROKEN, deliberately not fixed here (issue #8 / 024):
                                       this is mouse-only -- no tabIndex, role, onKeyDown or focus
@@ -2716,7 +2728,7 @@ export default function WorkProgram() {
                                       it mouse-only for everyone else. The fix is a real tooltip
                                       with a focusable trigger, which is 024's job. */}
                                   <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg outline-1 outline-popover-border z-50 w-64 transition-all duration-200">
-                                    <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b [border-bottom-color:var(--popover-border)] pb-1">
+                                    <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b border-b-popover-border! pb-1">
                                       {row.code && <span className="text-muted-foreground mr-1">[{row.code}]</span>}
                                       {row.name}
                                     </div>
@@ -2762,7 +2774,7 @@ export default function WorkProgram() {
                                           <span className="text-foreground truncate max-w-[140px]">{row.responsible}</span>
                                         </div>
                                       )}
-                                      <div className="text-[9px] text-muted-foreground/60 italic text-center mt-2 border-t [border-top-color:var(--popover-border)] pt-1.5 select-none pointer-events-none">
+                                      <div className="text-[9px] text-muted-foreground/60 italic text-center mt-2 border-t border-t-popover-border! pt-1.5 select-none pointer-events-none">
                                         Click timeline bar to edit
                                       </div>
                                     </div>

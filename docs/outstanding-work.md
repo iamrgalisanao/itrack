@@ -145,7 +145,9 @@ conversion as needing its own spec.
 - **The floating surface is not actually shared.** `dropdown-menu.jsx:17` and `select.jsx:54` use
   `bg-background`, not `bg-popover` — so light `#ffffff` matching is a value coincidence that does
   not survive theming. Light: menu surface **1.00:1** against `--card`, edge **1.27:1**. Dark:
-  **1.11:1** / **1.53:1**, and dark makes the tooltip a *third* floating surface. Pointing both at
+  **1.06:1** / **1.36:1** — an earlier draft of this row said 1.11/1.53, which reproduces from no
+  token pair in the file; the real figures are *worse*. Dark also makes the tooltip a *third*
+  floating surface. Pointing both at
   `--popover` + the same outline gives three components one contract. **OPEN — Major**, pre-existing.
 - **M2, C1, N3 and "status vocabulary alignment" are one problem in four sections**, filed rows
   apart with no cross-reference. 023 excluded `matchStatusColor` *because* of this coupling.

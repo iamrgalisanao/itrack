@@ -36,8 +36,8 @@
      Light #ffffff HAPPENS TO EQUAL what dropdown-menu.jsx and select.jsx use --
      but they set `bg-background`, not `bg-popover`, so that is a value
      coincidence and not a shared contract. It does not survive theming: in dark
-     their surface is #16171d against --card #1c1d24 (1.11:1) while this one is
-     #24262f, making three distinct floating surfaces. Pointing those two at
+     their surface is #16171d against --card #1c1d24 (1.06:1, edge 1.36:1) while
+     this one is #24262f, making three distinct floating surfaces. Pointing those two at
      --popover would make the sentence true rather than lucky; recorded in
      docs/outstanding-work.md rather than done here.
 

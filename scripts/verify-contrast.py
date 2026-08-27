@@ -340,7 +340,15 @@ bijection = []
 if not theme_inline:
     bijection.append('@theme inline block not found - the mapping cannot be checked')
 else:
-    mapped = set(re.findall(r'--color-[\w-]+:\s*var\(--([\w-]+)\)', theme_inline.group(1)))
+    # Identity-checked. Capturing only the var() argument verifies "this token is
+    # referenced somewhere in @theme inline", NOT "this token has a --color-X
+    # line" -- and the utility name is what decides whether `bg-popover` emits.
+    # Without the `n == v` test, renaming --color-popover to --color-poopover
+    # while leaving --popover declared passes GREEN, which is the exact tamper
+    # the comment above claims to catch. All 26 mappings are already identity,
+    # so this costs nothing.
+    mapped = set(n for n, v in re.findall(
+        r'--color-([\w-]+):\s*var\(--([\w-]+)\)', theme_inline.group(1)) if n == v)
     light_t, dark_t = set(block(':root')), set(block('.dark'))
 
     for miss in sorted(light_t - dark_t):
@@ -399,9 +407,18 @@ if undefined:
 #
 # The floating-surface pair. The binding ratio is NOT the same-named pair
 # (20.15 light / 13.70 dark) but --muted-foreground, because both consumers place
-# muted text inside the popover. 3.0 is the 1.4.11 non-text threshold for the
-# ring, which carries the boundary in BOTH themes: the dark fill is only 1.11:1
-# off --card, so elevation is the ring's job, not the fill's.
+# muted text inside the popover.
+#
+# Fill and outline are COMPLEMENTARY -- neither carries the boundary alone. Over
+# the status bars the outline drops to 1.56-2.58 and the fill carries at
+# 5.45-9.03; over grid and background the fill is 1.00-1.19 and the outline
+# carries at 3.12-4.15. One measured gap: the baseline bar leaves fill 1.65 and
+# outline 2.18/2.12.
+#
+# 3.0 is asserted as a VOLUNTARY tier, not a binding one. 1.4.11 governs the
+# boundaries of UI *components*, and a non-interactive tooltip is not one -- so
+# no success criterion requires this. It is held anyway because the value is a
+# design-system decision that should not drift silently.
 pop_fail = []
 print()
 for theme, sel in (('light', ':root'), ('dark', '.dark')):
