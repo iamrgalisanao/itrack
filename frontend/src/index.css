@@ -214,6 +214,29 @@
   border-color: var(--color-border);
 }
 
+/* Windows High Contrast / forced-colors: restore a focus indicator.
+   Without this the app has NONE. 122 elements carry `outline-none` and 90
+   focus styles are `ring-*`, which Tailwind v4 implements as box-shadow --
+   and forced-colors mode forces `box-shadow: none`. So the ring disappears
+   and `outline-none` has already removed the UA outline that would have
+   replaced it. Every focusable control in the app becomes untrackable by
+   keyboard in HCM. WCAG 2.4.7 (AA), and 2.4.11 in 2.2.
+
+   `!important` is deliberate and scoped: it exists only to beat the
+   `outline-style: none` those 122 utilities emit, it applies only in
+   forced-colors mode, and the alternative there is no focus indicator at
+   all. CanvasText is a system colour, so the UA keeps it legible against
+   whatever ground the user has chosen.
+
+   This is the general case of the fix the tooltip got in #17: box-shadow
+   is not a boundary in HCM, an outline is. */
+@media (forced-colors: active) {
+  *:focus-visible {
+    outline: 2px solid CanvasText !important;
+    outline-offset: 2px !important;
+  }
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
