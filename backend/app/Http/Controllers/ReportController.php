@@ -62,7 +62,20 @@ class ReportController extends Controller
     {
         return Project::query()
             ->accessibleTo($user)
-            ->with('modules.activities.subActivities.detailedActivities.predecessors')
+            // Constrained at the eager load, not at each consumer. Everything
+            // this controller reports -- milestone names, per-project progress,
+            // overall progress -- derives from this one relation, so filtering
+            // here is the difference between one correct query and three call
+            // sites that each have to remember.
+            //
+            // A Client saw internal task NAMES through milestonesForProject()
+            // before this: not an aggregate, the names themselves. The progress
+            // figures were the same defect in the shape that reads as harmless,
+            // which is how the dashboard heatmap survived a whole feature's
+            // audit.
+            ->with(['modules.activities.subActivities.detailedActivities' => fn ($q) => $q
+                ->when($user->isClient(), fn ($qq) => $qq->where('client_visible', true)),
+                'modules.activities.subActivities.detailedActivities.predecessors'])
             ->orderBy('id')
             ->get();
     }
