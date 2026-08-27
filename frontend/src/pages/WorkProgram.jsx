@@ -612,6 +612,13 @@ export default function WorkProgram() {
   // twMerge only lets this string win for properties it actually names — omit
   // the border and the pill silently loses its ring.
   //
+  // The /30 tints are intentionally kept but currently render as `--border`
+  // grey: index.css has an unlayered `* { border-color: var(--color-border) }`
+  // that beats Tailwind's utility layer, the trap DESIGN.md documents. They
+  // still do their job here (defeating `border-transparent`, so the ring
+  // survives), and they express the intended tint for whenever that global rule
+  // is scoped. Don't "fix" them by deleting them — that brings the bug back.
+  //
   // Neutral uses bg-muted, not bg-muted-foreground/10: that self-tint measures
   // 4.23:1 at /15, and the AA floor is judged on the band's worst case.
   const getGanttStatusColor = (status) => {
