@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\AuditLogger;
 use App\Support\AccessContext;
 use Illuminate\Http\Request;
+use App\Http\Resources\DetailedActivityResource;
 
 class SubActivityController extends Controller
 {
@@ -29,7 +30,23 @@ class SubActivityController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $activity->subActivities()->with('detailedActivities')->get();
+        $user = $this->user($request);
+
+        // The eager load is the leak surface, not the outer query. Before this,
+        // a Client walking modules -> activities -> sub-activities received
+        // every internal task in full: name, notes, root_cause, resolution,
+        // evidence -- the exact field set DetailedActivityResource exists to
+        // withhold. Raw models bypass the Resource entirely.
+        $subActivities = $activity->subActivities()
+            ->with(['detailedActivities' => fn ($q) => $q->visibleTo($user)])
+            ->get();
+
+        return $subActivities->map(fn ($subActivity) => [
+            ...$subActivity->toArray(),
+            'detailed_activities' => DetailedActivityResource::collection(
+                $subActivity->detailedActivities
+            )->resolve($request),
+        ]);
     }
 
     // ─── POST /api/activities/{activity}/sub-activities ───────────────────
@@ -84,7 +101,16 @@ class SubActivityController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $subActivity->load('detailedActivities');
+        $user = $this->user($request);
+
+        $subActivity->load(['detailedActivities' => fn ($q) => $q->visibleTo($user)]);
+
+        return [
+            ...$subActivity->toArray(),
+            'detailed_activities' => DetailedActivityResource::collection(
+                $subActivity->detailedActivities
+            )->resolve($request),
+        ];
     }
 
     // ─── PATCH /api/sub-activities/{subActivity} ───────────────────────────

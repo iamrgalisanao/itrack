@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
+use App\Support\AccessContext;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class AttachmentResource extends JsonResource
@@ -22,7 +23,7 @@ class AttachmentResource extends JsonResource
             'updated_at' => $this->updated_at,
         ];
 
-        if ($request->user()?->isClient()) {
+        if (AccessContext::user($request)->isClient()) {
             return $base;
         }
 
