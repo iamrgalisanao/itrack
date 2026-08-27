@@ -201,9 +201,10 @@ frontend/
                                         #   with a SEPARATE regex. 022's DOCUMENTED parser would
                                         #   either ignore it (2 cols) or clobber the 022 rows (3).
 
-scripts/verify-contrast.py              # MODIFIED — six new assertions (see contracts/), and
-                                        #   022's len(DOCUMENTED)!=8 check re-scoped so the two
-                                        #   ratio tables cannot interfere
+scripts/verify-contrast.py              # MODIFIED — six new assertions (see contracts/). 022's
+                                        #   len(DOCUMENTED)!=8 check is NOT re-scoped: the Gantt
+                                        #   rows carry no `--` prefix and two float columns, so
+                                        #   022's regex cannot match them and the count stays 8.
 DESIGN.md                               # MODIFIED — record the canonical Gantt status map, the
                                         #   flat-bar decision, and the offset-outline critical
                                         #   path with the 1.00:1 collision that ruled out red

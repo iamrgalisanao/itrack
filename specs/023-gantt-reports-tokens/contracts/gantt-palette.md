@@ -96,10 +96,23 @@ Assertion 6 therefore requires its own parser:
 
 - a distinct sentinel — a `Gantt, <theme>:` header line — matched by a **separate** regex with two
   float groups;
-- keyed by `(status, theme)`, **not** by hex, because two statuses share `--destructive` and both
-  themes reuse the same status names;
-- and 022's `len(DOCUMENTED) != 8` check explicitly re-scoped to the text/tint/fill block so the two
-  tables cannot interfere.
+- keyed by **`(fill family, theme)`**, not by hex and not by status — **10 rows**, five fill
+  families (`destructive`, `success`, `warning`, `info`, `neutral`) × two themes. Keying by status
+  would produce 16 rows carrying duplicates: `delayed` and `blocked` share `--destructive`, and the
+  three neutral statuses share one fill, so five of the sixteen would be copies of another row's
+  figures. The fill family is the thing being measured; the status is just a name pointing at it;
+- rows written **without a `--` prefix and without hex** (`destructive 6.47 8.60` under the
+  sentinel), which makes a collision with 022's regex impossible by construction rather than by
+  luck — that regex requires `--([a-z]+)` followed by three floats, and a two-float row without the
+  prefix cannot match at any anchor;
+- a non-vacuity guard asserting **exactly 10 parsed rows**, so deleting the block fails the gate
+  instead of looping over nothing. Assertion 1 guards the *module* parse; without this, the
+  *comment* parse has no guard at all.
+
+**022's `len(DOCUMENTED) != 8` check is left alone.** An earlier draft of this contract called for
+re-scoping it, contradicting its own finding nine lines above: the count stays at 8 whether or not a
+Gantt block is present. Re-scoping a working check to defend against a collision that cannot occur is
+unnecessary surgery on the one piece of this gate that already works.
 
 A `--muted-foreground` row happens not to collide with 022's regex only because the hyphen defeats
 `[a-z]+`. That is luck, not design, and is not relied on.
