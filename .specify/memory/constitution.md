@@ -562,33 +562,60 @@ irreversible ones.** "Supervision" here is a checkable condition, not a sentimen
 in the second list, the architect's assessment must exist *before* the action runs, and the outcome
 is recorded with the action.
 
+**Routing the decision does not mean routing every keystroke.** Once the branching and commit
+strategy for a piece of work is decided, executing it is mechanical and proceeds directly. The gate
+is on decisions and on the irreversible list below — never on each `git add`. A gate that makes
+ordinary work slow is a gate people learn to route around, and a bypassed gate is worse than none.
+
 **Decide and execute — Git Workflow Master alone, no architect gate:**
 staging and commit granularity · commit message content · creating and naming branches · pushing a
-feature branch · opening a PR and writing its body · normal PR updates · local rebases on a branch
-nobody else has pulled · reverting a commit (which is itself an additive, reversible act).
+feature branch · opening a PR and writing its body · non-force updates to a PR · rebasing a branch
+that has **not been pushed** · reverting a commit (itself additive and reversible).
 
 **Architect sign-off required before execution:**
-merging into `main` · deleting any branch · force-pushing anything · rewriting history on a shared
-branch · tagging a release · changing branch protection or required checks · resetting, discarding
-or overwriting committed work · anything that makes another person's clone wrong.
+merging into `main` · **enabling auto-merge** · deleting any branch · force-pushing anything,
+including `--force-with-lease` · rewriting history on a pushed branch · tagging a release · changing
+branch protection, required checks, or any other repository setting · resetting, discarding or
+overwriting committed work · anything that makes another person's clone wrong.
 
 The dividing line is not "important" versus "unimportant" — it is **whether the action can be undone
 by someone who did not run it.** A bad commit message is fixable by anyone; a force-push over a
 colleague's work is not.
 
-Three rules keep this honest:
+Three entries need their edges stated, because each is where the lists rub:
+
+- **A force-push is never a "normal PR update."** It is on the gated list whatever the intent behind
+  it and whatever `--force-with-lease` implies about safety.
+- **Enabling auto-merge is a merge decision**, not a PR decision. With zero required approvals it
+  collapses "open a PR" and "merge into `main`" into one act, which is rule 1 in its exact form.
+- **Branch deletion is gated for confirmation, not recovery.** A merged branch's commits survive in
+  `main`, so by the test above deleting it *is* undoable. The gate exists to confirm it really was
+  merged. Stating the real reason matters: a rule whose stated logic does not fit its own list
+  teaches people to stop trusting the list.
+
+Five rules keep this honest:
 
 1. **The routine list is not a licence to batch.** A sequence of individually-routine actions that
    adds up to an irreversible one (branch, force-push, delete) is irreversible and needs the gate.
 2. **The user's explicit instruction outranks both agents.** If the user says merge it, merge it —
    the gate exists to stop *unsupervised* irreversibility, not to override the person who owns the
-   repository. Record that the instruction was the authority.
+   repository. Two conditions keep that from hollowing the gate out: the instruction must be
+   **specific to the action being taken** (a prior general authorisation is not an instruction for a
+   later particular act), and any concern the gate would have raised is put to the user **before**
+   the question is asked, not after they answer. Record that the instruction was the authority.
 3. **A skipped gate is recorded, not silent.** Same mechanism as any other routing exception.
+4. **Sign-off is advice on the record, not a warranty.** The agent that *executes* an action owns its
+   outcome. An architect's approval never makes a bad action someone else's fault. This is stated
+   because routing introduces a failure the ad-hoc approach did not have: three parties now touch a
+   git decision — one proposes, one signs off, one executes — and each can assume another checked.
+5. **Name where the record goes, because "recorded with the action" has no referent for some
+   actions.** A merge, delete or tag is recorded in the merge commit or PR body. A **repository
+   settings change has no commit to attach to**, so it is recorded in `docs/repo-settings.md` in its
+   own commit: what changed, who decided, when, and the sign-off. This rule exists because branch
+   protection on `main` was enabled during this project as a side effect of a commit whose tree
+   contained one unrelated file — the decision left **zero trace in the repository**, and a version
+   of this section without this rule would have flagged that decision and still left no artifact.
 
-Practical note, so this does not become ceremony: routing the *decision* does not mean routing every
-keystroke. Once the branching and commit strategy for a piece of work is decided, executing it is
-mechanical and proceeds directly. The gate is on decisions and on the irreversible list — not on
-each `git add`.
 
 ## Governance
 
