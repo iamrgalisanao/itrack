@@ -24,6 +24,12 @@ class DetailedActivityResource extends JsonResource
             'status' => $this->status,
             'progress' => $this->progress,
             'client_visible' => $this->client_visible,
+            // Produced by ModuleController's withCount, and already scoped to
+            // client-visible comments for a Client. Sole producer, so it must
+            // survive the move to this resource: Schedule.jsx reads it at six
+            // call sites and TaskDetailModal at two, all `?? 0`, so losing it
+            // shows as a silent 0 rather than an error.
+            'comments_count' => $this->whenCounted('comments'),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\DetailedActivityResource;
 use App\Models\Module;
 use App\Models\Project;
 use App\Models\User;
@@ -34,11 +35,9 @@ class ModuleController extends Controller
         // Client sees only client-visible tasks with client-visible comment counts
         $isClient = $user->isClient();
 
-        return $project->modules()->with([
-            'activities.subActivities.detailedActivities' => function ($query) use ($isClient) {
-                if ($isClient) {
-                    $query->where('client_visible', true);
-                }
+        $modules = $project->modules()->with([
+            'activities.subActivities.detailedActivities' => function ($query) use ($user, $isClient) {
+                $query->visibleTo($user);
                 $query->withCount([
                     'comments as comments_count' => function ($q) use ($isClient) {
                         if ($isClient) {
@@ -48,6 +47,26 @@ class ModuleController extends Controller
                 ]);
             }
         ])->get();
+
+        // Filtering the rows was never enough. This tree used to be returned as
+        // raw models, so every task a Client legitimately saw also carried
+        // notes, root_cause, resolution, evidence, responsible, assignee_user_id
+        // and sprint_label -- the exact set DetailedActivityResource's Client
+        // branch exists to withhold, on the endpoint behind Kanban, Schedule and
+        // Work Program. Row visibility and field visibility are two halves of
+        // one rule; the resource owns the second half.
+        return $modules->map(fn ($module) => [
+            ...$module->toArray(),
+            'activities' => $module->activities->map(fn ($activity) => [
+                ...$activity->toArray(),
+                'sub_activities' => $activity->subActivities->map(fn ($subActivity) => [
+                    ...$subActivity->toArray(),
+                    'detailed_activities' => DetailedActivityResource::collection(
+                        $subActivity->detailedActivities
+                    )->resolve($request),
+                ]),
+            ]),
+        ]);
     }
 
     // ─── POST /api/projects/{project}/modules ───────────────────────────────

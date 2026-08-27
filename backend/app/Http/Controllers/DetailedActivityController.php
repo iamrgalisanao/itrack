@@ -75,9 +75,7 @@ class DetailedActivityController extends Controller
         $query = $subActivity->detailedActivities();
 
         // Client sees only explicitly shared tasks (role scope applied first)
-        if ($user->isClient()) {
-            $query->where('client_visible', true);
-        }
+        $query->visibleTo($user);
 
         return response()->json(
             $query->get()

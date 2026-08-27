@@ -270,7 +270,7 @@ class ProjectController extends Controller
         // they cannot see. Aggregate-only exposure, but the restructure
         // promoted these from a lower-billed card grid to the lead row.
         $detailedActivityQuery = DetailedActivity::whereIn('sub_activity_id', $subActivityIds)
-            ->when($user->isClient(), fn ($q) => $q->where('client_visible', true));
+            ->visibleTo($user);
 
         $detailedActivities = (clone $detailedActivityQuery)->count();
         $completed   = (clone $detailedActivityQuery)->where('status', 'completed')->count();
@@ -295,9 +295,7 @@ class ProjectController extends Controller
         // — an audit read it, believed there was an unfiltered leak, and
         // reported one that did not exist. A comment describing a defect that
         // was already fixed manufactures work.
-        if ($user->isClient()) {
-            $completedRecentQuery->where('client_visible', true);
-        }
+        $completedRecentQuery->visibleTo($user);
 
         $completedRecent = $completedRecentQuery->count();
 
@@ -307,11 +305,8 @@ class ProjectController extends Controller
         // 021-dashboard-my-work: mirrors DetailedActivityController::index()'s
         // client_visible filter. Without it a Client saw the names and status
         // of internal tasks in their accessible projects.
-        $recentActivitiesQuery = DetailedActivity::whereIn('sub_activity_id', $subActivityIds);
-
-        if ($user->isClient()) {
-            $recentActivitiesQuery->where('client_visible', true);
-        }
+        $recentActivitiesQuery = DetailedActivity::whereIn('sub_activity_id', $subActivityIds)
+            ->visibleTo($user);
 
         $recentActivities = $recentActivitiesQuery
             ->with(['subActivity.activity.module'])
@@ -345,6 +340,17 @@ class ProjectController extends Controller
             // was added during 021; this query was missed because it is raw DB
             // rather than Eloquent and reads as "just counts". Aggregate counts
             // over invisible tasks are still disclosure.
+            //
+            // THE ONE PLACE `client_visible` IS SPELT BY HAND. Every other read
+            // path now goes through DetailedActivity::scopeVisibleTo(); a join
+            // predicate is a raw query builder, not an Eloquent builder, so the
+            // scope cannot reach it. It must stay a join predicate rather than a
+            // WHERE: a WHERE on the null side of a LEFT JOIN drops whole modules
+            // instead of zeroing their counts, which is the over-disclosure
+            // above traded for a different one.
+            //
+            // If a gate is ever added forbidding `client_visible` outside the
+            // scope, this is its single documented exception.
             ->leftJoin('detailed_activities', function ($join) use ($user) {
                 $join->on('detailed_activities.sub_activity_id', '=', 'sub_activities.id');
                 if ($user->isClient()) {
