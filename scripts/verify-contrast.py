@@ -30,7 +30,7 @@
 # Full analysis, including the proposed assertions 8-10 that would close these:
 # specs/023-gantt-reports-tokens/accessibility-review.md
 
-import re, io, sys
+import re, io, sys, glob
 
 RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
 # Strip comments FIRST for the declaration parse: this feature adds a ratio comment
@@ -320,6 +320,130 @@ if xfail_drift:
         print('  ' + d)
     print('  Update DESIGN.md and this script together, or fix --primary and'
           ' remove it from XFAIL.')
+
+# ------------------------------------------- Assertion 8: the mapping bijection
+#
+# Every ratio above is computed from a `--name` declaration. None of them can
+# tell whether Tailwind ever EMITS a utility for that name -- that needs a
+# `--color-name: var(--name)` line in `@theme inline`.
+#
+# Not hypothetical. `--popover` and `--popover-foreground` were referenced by
+# tooltip.jsx and WorkProgram's Gantt hover card and declared NOWHERE, so
+# `bg-popover` emitted no CSS at all and every tooltip in the app rendered
+# transparent -- through a fully green gate, for three consecutive features.
+#
+# It also closes the tamper the ratio rows structurally cannot see: rename
+# `--color-popover` while leaving `--popover` declared, and every measured ratio
+# still passes while the utility silently stops existing.
+theme_inline = re.search(r'@theme inline\s*\{(.*?)\n\}', css, re.S)
+bijection = []
+if not theme_inline:
+    bijection.append('@theme inline block not found - the mapping cannot be checked')
+else:
+    # Identity-checked. Capturing only the var() argument verifies "this token is
+    # referenced somewhere in @theme inline", NOT "this token has a --color-X
+    # line" -- and the utility name is what decides whether `bg-popover` emits.
+    # Without the `n == v` test, renaming --color-popover to --color-poopover
+    # while leaving --popover declared passes GREEN, which is the exact tamper
+    # the comment above claims to catch. All 26 mappings are already identity,
+    # so this costs nothing.
+    mapped = set(n for n, v in re.findall(
+        r'--color-([\w-]+):\s*var\(--([\w-]+)\)', theme_inline.group(1)) if n == v)
+    light_t, dark_t = set(block(':root')), set(block('.dark'))
+
+    for miss in sorted(light_t - dark_t):
+        bijection.append('--%s is declared in :root but not in .dark' % miss)
+    for miss in sorted(dark_t - light_t):
+        bijection.append('--%s is declared in .dark but not in :root' % miss)
+    for miss in sorted(light_t - mapped):
+        bijection.append('--%s is declared but never mapped in @theme inline, so no '
+                         'utility is emitted for it' % miss)
+
+    for miss in sorted(mapped - (light_t | dark_t)):
+        bijection.append('--%s is mapped in @theme inline but never declared, so the '
+                         'utility emits an empty var()' % miss)
+
+if bijection:
+    ok = False
+    print()
+    print('TOKEN DECLARATIONS AND @theme inline HAVE COME APART:')
+    for d in bijection:
+        print('  ' + d)
+
+# --------------------------- Assertion 10-lite: the -foreground suffix sweep
+#
+# Deliberately NOT the general bg-*/text-*/border-* sweep. Measured, that version
+# gives 43 hits: 2 true positives and 41 false positives, because Tailwind ships
+# builtin colours (bg-white, text-red-500) that legitimately need no token.
+# Restricted to names ending in `-foreground` it has zero false positives
+# *provably*: Tailwind ships no builtin colour with that suffix, so the suffix is
+# itself the design-token marker.
+# Every .jsx/.js under src, not a hand-listed four. The zero-false-positive
+# property comes from the SUFFIX, not from the file list -- widening is free, and
+# the hand-listed version covered 4 of 39 files, so `text-sidebar-foreground`
+# injected into App.jsx passed a green gate. No try/except either: a rename must
+# fail loudly rather than silently shrink coverage, which is the going-quiet mode
+# this script's own header refuses.
+src = [io.open(f, encoding='utf-8').read()
+       for f in sorted(glob.glob('frontend/src/**/*.jsx', recursive=True)
+                       + glob.glob('frontend/src/**/*.js', recursive=True))]
+
+undefined = []
+declared = set(block(':root'))
+for used in sorted(set(re.findall(
+        r'\b(?:bg|text|border|ring|fill|stroke)-([\w-]*-foreground)\b', '\n'.join(src)))):
+    if used not in declared:
+        undefined.append('--%s is used as a utility but never declared - it emits nothing'
+                         % used)
+
+if undefined:
+    ok = False
+    print()
+    print('A -foreground UTILITY REFERS TO A TOKEN THAT DOES NOT EXIST:')
+    for d in undefined:
+        print('  ' + d)
+
+# ------------------------------- Popover: the 3:1 tier this script never had
+#
+# The floating-surface pair. The binding ratio is NOT the same-named pair
+# (20.15 light / 13.70 dark) but --muted-foreground, because both consumers place
+# muted text inside the popover.
+#
+# Fill and outline are COMPLEMENTARY -- neither carries the boundary alone. Over
+# the status bars the outline drops to 1.56-2.58 and the fill carries at
+# 5.45-9.03; over grid and background the fill is 1.00-1.19 and the outline
+# carries at 3.12-4.15. One measured gap: the baseline bar leaves fill 1.65 and
+# outline 2.18/2.12.
+#
+# 3.0 is asserted as a VOLUNTARY tier, not a binding one. 1.4.11 governs the
+# boundaries of UI *components*, and a non-interactive tooltip is not one -- so
+# no success criterion requires this. It is held anyway because the value is a
+# design-system decision that should not drift silently.
+pop_fail = []
+print()
+for theme, sel in (('light', ':root'), ('dark', '.dark')):
+    t = block(sel)
+    if 'popover' not in t:
+        pop_fail.append('%s: --popover is not declared' % theme)
+        continue
+    for name, need in (('popover-foreground', 4.5), ('foreground', 4.5),
+                       ('muted-foreground', 4.5), ('popover-border', 3.0)):
+        if name not in t:
+            pop_fail.append('%s: --%s is not declared' % (theme, name))
+            continue
+        r = ratio(t[name], t['popover'])
+        print('%-6s%-20s on --popover %6.2f  needs %.1f   %s'
+              % (theme, '--' + name, r, need, 'ok' if r >= need else 'FAIL'))
+        if r < need:
+            pop_fail.append('%s: --%s on --popover is %.2f, below %.1f'
+                            % (theme, name, r, need))
+
+if pop_fail:
+    ok = False
+    print()
+    print('THE POPOVER SURFACE IS NOT LEGIBLE:')
+    for d in pop_fail:
+        print('  ' + d)
 
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)
