@@ -70,7 +70,7 @@ implementations were written and validated during the review.
 |---|---|---|
 | `enforce_admins: false` + 0 required approvals means branch protection **does not constrain the person who enabled it** | `docs/repo-settings.md` | OPEN — correct for a solo maintainer, wrong the moment a second committer arrives |
 | Branch `023-gantt-reports-tokens` kept alive deliberately | Git Workflow Master Q2 | Delete once `specs/024-*/spec.md` lands on `main` |
-| **The `011`/`012` stack — 2 and 3 commits ahead, and `012` is built on `011`** | — | **OPEN. Do not delete.** They are one decision, not two branches: `012` contains both of `011`'s commits, so they cannot be reviewed independently and deleting `011` alone loses nothing. Both sit **68 commits behind `main`**, so any revival opens with a rebase that will not be clean. Three outcomes: rebase and finish, cherry-pick what survives, or `git tag archive/011-012` and delete. Absent a named champion, tag-and-delete — a branch untouched for 68 commits is an unmade decision wearing a branch name |
+| **The `011`/`012` stack** | issue #13 | **CLOSED** — archived as tag `archive/011-012` and both branches deleted. See Closed below |
 | `013-sprint-retrospectives`, `022-dark-status-contrast` | — | Merged, 0 ahead of `main`, deleted. Note the trap on `013`: its **local** ref reported "ahead 1", which is ahead of its *remote tracking ref*, not of `main` — the commit is on `main`. Reading that as unmerged work would have preserved a branch for nothing |
 
 ---
@@ -126,9 +126,11 @@ conversion as needing its own spec.
 
 - **Issue #8 does not cover M1**, though this file's header implies it does. The structural
   hue-loss finding — the one that forced the Hue-Loss Rule — is tracked in no issue.
-- **The branch inventory was wrong.** `origin/011-project-client-access-control` is **2 commits
-  ahead** of `main` and `origin/012-help-center` is **3 ahead** — they carry unmerged work, not
-  stale refs. `013` and `022` are merged and deletable. Do **not** delete `011` or `012`.
+- **The branch inventory was wrong.** `origin/011-project-client-access-control` was **2 commits
+  ahead** of `main` and `origin/012-help-center` **3 ahead** — they carried unmerged work, not
+  stale refs. `013` and `022` were merged and deletable. *(Resolved 2026-08-27: `011`/`012` are now
+  archived as tag `archive/011-012` and deleted — see Closed. The finding stands as written; the
+  work was real, it just found no champion.)*
 - **Constitution follow-ups are absent**: the 1.3.0 Sync Impact Report carries a still-pending
   `TODO(TYPESCRIPT_ADOPTION)` and an amendment obligation if `impeccable` is renamed.
 - **A deferred *verification* action, not a code item**, so no list caught it: `023`'s browser pass
@@ -186,6 +188,21 @@ the #14 sign-off implied it had.
   Found by the audit of this file; fixed in PR #11 with three tests proven to fail without the fix.
 
   The lesson is the entry, not the bug: **close individual findings, never surfaces.**
+- **The `011`/`012` branch stack** (issue #13). **ARCHIVED AND DELETED** — preserved as the annotated
+  tag **`archive/011-012`**, pushed and verified resolvable from a fresh clone before either branch
+  was deleted. `011` was an ancestor of `012`, so the one tag on `012`'s tip holds all three commits.
+  Revive with `git checkout -b revive archive/011-012`.
+
+  **The piece most likely worth cherry-picking is the server-side duration derivation** —
+  `DurationCalculator.php` plus 207 lines of tests — because it is self-contained backend work that
+  does *not* depend on the 363 stale lines of `WorkProgram.jsx` churn in the same commit, which
+  predate 021/022/023 rewriting the Gantt palette, the status vocabulary and the tokens on that file.
+  Also inside: the `ProjectAccess.jsx` page and the Help Center. The tag is the **only** copy of
+  `specs/012-help-center/`; `specs/011-project-client-access-control/` is already on `main`.
+
+  Retired at **83 commits behind `main`**, not the 68 recorded above — the figure was re-measured at
+  decision time rather than trusted, and it had drifted twice while the decision sat open. That drift
+  is the argument, not a footnote.
 - **Build-time contrast enforcement** (022 #1). **DELIVERED** in 022 — `scripts/verify-contrast.py`
   runs as the `design-tokens` CI job.
 - **Retokenise the Gantt bar palette and the Reports progress ring** (022 #4). **DELIVERED** in 023 —
