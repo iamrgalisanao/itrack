@@ -20,6 +20,28 @@
   --foreground: #08060d;
   --card: #ffffff;
   --card-foreground: #08060d;
+  /* Floating surfaces (tooltip, and any popover built on these names).
+     Undefined until now: `bg-popover` and `text-popover-foreground` were
+     referenced by components/ui/tooltip.jsx and WorkProgram's Gantt hover card
+     but emitted no CSS at all, so every tooltip in the app rendered transparent
+     over whatever sat behind it.
+
+     --popover is NOT a free choice. Both consumers place `text-foreground` and
+     `text-muted-foreground` children inside, so the binding ratio is
+     --muted-foreground (5.73 light / 5.94 dark), not the same-named pair at
+     20.15. That rules out the usual inverted dark chip, which would put
+     #08060d near 1:1 on a dark fill -- trading a transparent tooltip for an
+     invisible one.
+
+     Light #ffffff matches dropdown-menu.jsx and select.jsx, so tooltips read as
+     the same floating surface as menus rather than a third one. Dark diverges
+     from --card deliberately: #1c1d24 would sit at 1.11:1 against the cards it
+     floats over. --popover-border carries the 1.4.11 boundary in BOTH themes
+     (3.61 / 3.49); the dark fill alone is only 1.11:1 off --card, so the ring
+     is doing that work, not the fill. */
+  --popover: #ffffff;
+  --popover-foreground: #08060d;
+  --popover-border: #86868e;
   --primary: #a631ff;
   --primary-foreground: #ffffff;
   --secondary: #f4f3ec;
@@ -63,6 +85,9 @@
   --foreground: #f3f4f6;
   --card: #1c1d24;
   --card-foreground: #f3f4f6;
+  --popover: #24262f;
+  --popover-foreground: #f3f4f6;
+  --popover-border: #737a88;
   --primary: #c084fc;
   --primary-foreground: #16171d;
   --secondary: #1f2028;
@@ -136,6 +161,9 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover-border: var(--popover-border);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);

@@ -2694,7 +2694,28 @@ export default function WorkProgram() {
                                   )}
 
                                   {/* Hover popover tooltip */}
-                                  <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg border border-border/80 z-50 w-64 transition-all duration-200">
+                                  {/* Hand-rolled hover card, not the shared Tooltip. `bg-popover`
+                                      and `text-popover-foreground` emitted nothing until the tokens
+                                      were defined, so this rendered transparent over the timeline
+                                      grid and the bars behind it (WCAG 1.4.3).
+
+                                      `ring-1`, not `border`: index.css:192 has an UNLAYERED
+                                      `* { border-color }` that outranks @layer utilities, so a
+                                      `border-popover-border` utility would be silently overridden
+                                      and ship a 1.27:1 edge -- the original defect's exact failure
+                                      mode, no error, wrong pixels. ring-color is untouched by it.
+
+                                      STILL BROKEN, deliberately not fixed here (issue #8 / 024):
+                                      this is mouse-only -- no tabIndex, role, onKeyDown or focus
+                                      style (WCAG 2.1.1, 1.4.13), while the same file has the
+                                      correct pattern at :1738. And `opacity-0` does not remove an
+                                      element from the accessibility tree, so with no aria-hidden a
+                                      screen reader reads this entire card inline for every Gantt
+                                      row. aria-hidden alone would be worse, not better: it would
+                                      delete the information for screen-reader users while leaving
+                                      it mouse-only for everyone else. The fix is a real tooltip
+                                      with a focusable trigger, which is 024's job. */}
+                                  <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg ring-1 ring-popover-border z-50 w-64 transition-all duration-200">
                                     <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b pb-1">
                                       {row.code && <span className="text-muted-foreground mr-1">[{row.code}]</span>}
                                       {row.name}

@@ -321,5 +321,108 @@ if xfail_drift:
     print('  Update DESIGN.md and this script together, or fix --primary and'
           ' remove it from XFAIL.')
 
+# ------------------------------------------- Assertion 8: the mapping bijection
+#
+# Every ratio above is computed from a `--name` declaration. None of them can
+# tell whether Tailwind ever EMITS a utility for that name -- that needs a
+# `--color-name: var(--name)` line in `@theme inline`.
+#
+# Not hypothetical. `--popover` and `--popover-foreground` were referenced by
+# tooltip.jsx and WorkProgram's Gantt hover card and declared NOWHERE, so
+# `bg-popover` emitted no CSS at all and every tooltip in the app rendered
+# transparent -- through a fully green gate, for three consecutive features.
+#
+# It also closes the tamper the ratio rows structurally cannot see: rename
+# `--color-popover` while leaving `--popover` declared, and every measured ratio
+# still passes while the utility silently stops existing.
+theme_inline = re.search(r'@theme inline\s*\{(.*?)\n\}', css, re.S)
+bijection = []
+if not theme_inline:
+    bijection.append('@theme inline block not found - the mapping cannot be checked')
+else:
+    mapped = set(re.findall(r'--color-[\w-]+:\s*var\(--([\w-]+)\)', theme_inline.group(1)))
+    light_t, dark_t = set(block(':root')), set(block('.dark'))
+
+    for miss in sorted(light_t - dark_t):
+        bijection.append('--%s is declared in :root but not in .dark' % miss)
+    for miss in sorted(dark_t - light_t):
+        bijection.append('--%s is declared in .dark but not in :root' % miss)
+    for miss in sorted(light_t - mapped):
+        bijection.append('--%s is declared but never mapped in @theme inline, so no '
+                         'utility is emitted for it' % miss)
+
+if bijection:
+    ok = False
+    print()
+    print('TOKEN DECLARATIONS AND @theme inline HAVE COME APART:')
+    for d in bijection:
+        print('  ' + d)
+
+# --------------------------- Assertion 10-lite: the -foreground suffix sweep
+#
+# Deliberately NOT the general bg-*/text-*/border-* sweep. Measured, that version
+# gives 43 hits: 2 true positives and 41 false positives, because Tailwind ships
+# builtin colours (bg-white, text-red-500) that legitimately need no token.
+# Restricted to names ending in `-foreground` it has zero false positives
+# *provably*: Tailwind ships no builtin colour with that suffix, so the suffix is
+# itself the design-token marker.
+src = []
+for path in ('frontend/src/components/ui/tooltip.jsx',
+             'frontend/src/components/ui/dropdown-menu.jsx',
+             'frontend/src/components/ui/select.jsx',
+             'frontend/src/pages/WorkProgram.jsx'):
+    try:
+        src.append(io.open(path, encoding='utf-8').read())
+    except OSError:
+        pass
+
+undefined = []
+declared = set(block(':root'))
+for used in sorted(set(re.findall(
+        r'\b(?:bg|text|border|ring|fill|stroke)-([\w-]*-foreground)\b', '\n'.join(src)))):
+    if used not in declared:
+        undefined.append('--%s is used as a utility but never declared - it emits nothing'
+                         % used)
+
+if undefined:
+    ok = False
+    print()
+    print('A -foreground UTILITY REFERS TO A TOKEN THAT DOES NOT EXIST:')
+    for d in undefined:
+        print('  ' + d)
+
+# ------------------------------- Popover: the 3:1 tier this script never had
+#
+# The floating-surface pair. The binding ratio is NOT the same-named pair
+# (20.15 light / 13.70 dark) but --muted-foreground, because both consumers place
+# muted text inside the popover. 3.0 is the 1.4.11 non-text threshold for the
+# ring, which carries the boundary in BOTH themes: the dark fill is only 1.11:1
+# off --card, so elevation is the ring's job, not the fill's.
+pop_fail = []
+print()
+for theme, sel in (('light', ':root'), ('dark', '.dark')):
+    t = block(sel)
+    if 'popover' not in t:
+        pop_fail.append('%s: --popover is not declared' % theme)
+        continue
+    for name, need in (('popover-foreground', 4.5), ('foreground', 4.5),
+                       ('muted-foreground', 4.5), ('popover-border', 3.0)):
+        if name not in t:
+            pop_fail.append('%s: --%s is not declared' % (theme, name))
+            continue
+        r = ratio(t[name], t['popover'])
+        print('%-6s%-20s on --popover %6.2f  needs %.1f   %s'
+              % (theme, '--' + name, r, need, 'ok' if r >= need else 'FAIL'))
+        if r < need:
+            pop_fail.append('%s: --%s on --popover is %.2f, below %.1f'
+                            % (theme, name, r, need))
+
+if pop_fail:
+    ok = False
+    print()
+    print('THE POPOVER SURFACE IS NOT LEGIBLE:')
+    for d in pop_fail:
+        print('  ' + d)
+
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)

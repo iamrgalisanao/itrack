@@ -21,7 +21,7 @@ dichromacy simulation + CIEDE2000).
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| **C3** | `--popover`/`--popover-foreground` undefined → `bg-popover` emits nothing → **every tooltip in the app** renders at 1.00–3.52:1 | **OPEN** (verified: no `popover` in `index.css`) | App-wide, currently shipping. Larger live failure than the one 023 fixed. WCAG 1.4.3, 1.4.13 |
+| **C3** | `--popover`/`--popover-foreground` undefined → `bg-popover` emits nothing → tooltips render transparent | **CLOSED** — tokens defined, mapped, and gated. **But only the 1.4.3 half.** See below | The blast radius was overstated: `TooltipTrigger asChild` wraps real focusable elements at `App.jsx:223/364/386`, so Radix already supplied focus-trigger and Escape-dismiss. **1.4.13 never failed for the shared component** — only for the one hand-rolled div |
 | **C1** | `GroupSummaryBar.jsx:75-82` segment bar is colour-only; blue/purple at 1.04:1 under deuteranopia; blocked/delayed are two shades of one hue in **normal** vision | OPEN | WCAG 1.4.1, 1.1.1 |
 | **C2** | `WorkProgram.jsx` Gantt bar is a mouse-only control — no `tabIndex`, `role`, `onKeyDown`, `aria-label`, focus style | OPEN | The same file has the correct pattern at `:1738-1743`. Mitigated by the Edit button, but undocumented and hand-duplicated. WCAG 4.1.2, 2.4.7 |
 | **M2** | `Reports.jsx:732-749` — `not_started`, `completed`, `delayed` all fall through to `bg-primary/70`. **Completed and delayed are the same violet** | **OPEN** (verified: no `case 'delayed'`) | Same defect class 023 fixed one file over. Escaped both gates. Least contested item in the queue |
@@ -30,9 +30,18 @@ dichromacy simulation + CIEDE2000).
 | N1–N6 | Critical-path has no programmatic equivalent; `title`-only info; same status three different hues across views; untokenised 021-era literals in `Reports.jsx:489,675`; group accents collide under CVD at ≥6 groups; weekend shading at 1.01:1 | OPEN | Minor |
 | S1–S3 | No `forced-colors` support; no automated a11y check in CI; add CVD simulation to the gate | OPEN | Suggestions |
 
-**Proposed gate extensions** (assertions 8/9/10): hue separation under all three dichromacies; a 3:1
-tier; an undefined-token guard that would have caught `bg-popover` on day one. Reference
-implementations were written and validated during the review.
+**Gate extensions**: assertion 8 (declaration/`@theme inline` bijection), assertion 10-lite (the
+`-foreground` suffix sweep) and a 3:1 tier are **DELIVERED**. Proven against the bug as it actually
+shipped: restore `index.css` to its pre-fix state and the gate exits 1 with *"`--popover-foreground`
+is used as a utility but never declared"*. Four further tampers each fail by name.
+
+10-lite is deliberately narrower than the proposed assertion 10. Measured, the general
+`bg-*`/`text-*`/`border-*` sweep gives 43 hits — 2 true positives, 41 false — because Tailwind ships
+builtin colours that need no token. Restricted to the `-foreground` suffix it has **zero** false
+positives provably: Tailwind ships no builtin colour with that suffix, so the suffix *is* the
+design-token marker.
+
+**Still open**: assertion 9 (hue separation under the three dichromacies).
 
 ---
 
@@ -115,10 +124,18 @@ conversion as needing its own spec.
 
 ### Couplings this file's table layout hid
 
-- **C2 and C3 are one fix on the Gantt, not two rows.** C3 requires replacing the hand-rolled
-  `opacity-0 group-hover` div with Radix `Tooltip` (1.4.13 needs focus-triggered and dismissible),
-  and a Radix trigger requires the bar to be focusable — which *is* C2. Scheduling them apart means
-  doing the Gantt bar twice.
+- **C2 and C3 are one fix on the Gantt — for the Gantt only.** ~~C3 requires replacing the
+  hand-rolled div with Radix `Tooltip`~~ — **this generalised wrongly.** Verified: every *shared*
+  `TooltipTrigger asChild` wraps a real `<Link>` or `<button>`, so Radix already supplied
+  focus-trigger and Escape-dismiss and 1.4.13 never failed there. The coupling holds for exactly one
+  element, `WorkProgram.jsx:2697`. That is what made the token-only fix legitimate rather than a
+  mask — it closed 1.4.3 app-wide and left one div's 2.1.1/1.4.13 for 024.
+- **New, found while fixing C3, in neither review**: `opacity-0` does **not** remove an element from
+  the accessibility tree, and `WorkProgram.jsx:2697` carries no `aria-hidden` — so a screen reader
+  reads that entire hover card inline for every Gantt row. Recorded in a comment at the site rather
+  than patched: `aria-hidden` alone would *delete* the information for screen-reader users while
+  leaving it mouse-only for everyone else. The fix is a real tooltip with a focusable trigger, which
+  is C2.
 - **M2, C1, N3 and "status vocabulary alignment" are one problem in four sections**, filed rows
   apart with no cross-reference. 023 excluded `matchStatusColor` *because* of this coupling.
 
