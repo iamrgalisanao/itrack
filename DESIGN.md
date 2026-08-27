@@ -115,6 +115,27 @@ the numbers cannot rot silently. Checkable without running the app:
 `python scripts/verify-contrast.py`.
 
 ### Named Rules
+**The Hue-Loss Rule.** Two status colors that must be told apart MUST remain distinguishable when
+hue is removed. Contrast against a *surface* says nothing about distinguishability from *each other*,
+and those are different requirements that pull in opposite directions.
+
+This is not a footnote to the rule below — it is a correction to it. Tuning every status token to
+clear a similar ratio against the same shared surfaces drives the tokens toward **equal luminance
+relative to one another**, which is precisely the property that makes them collapse when hue is
+lost. Measured under simulated dichromacy, the current palette's status fills sit at **1.00–1.66:1
+against each other**: luminance carries essentially no signal, so once hue goes there is nothing
+left. Red and green — failure and success — become near-identical for roughly 6% of male users.
+Satisfying the AA Floor Rule uniformly is what caused this. Running it harder makes it worse.
+
+So: when you set status colors, solve both constraints together. Keep ≥ 4.5:1 against surfaces
+**and** keep deliberate lightness separation between the statuses themselves. They are compatible;
+they were simply never solved jointly. Where a surface is dense enough that colour is the scanning
+mechanism, add a non-colour channel too — a leading glyph, a bar-end shape, a texture.
+
+**Colour is never the only carrier.** Every status surface pairs its colour with the status name as
+text. That is what keeps the palette conformant while the hue-loss problem above is outstanding, and
+it is why removing a text label is a bigger change than it looks.
+
 **The AA Floor Rule.** No status or accent color ships at a lightness that fails 4.5:1 against
 **every surface it renders on — including a tint of itself** — or against its paired foreground.
 Where a common default (e.g. Tailwind's 500-weight green/amber/blue) fails, move **as many steps as
@@ -190,6 +211,33 @@ hover/active response. There is no multi-tier elevation system; surfaces are sep
 ### Named Rules
 **The Flat-By-Default Rule.** Don't add elevation beyond `shadow-sm`. If a surface needs to stand out,
 reach for the border or the accent color, not a heavier shadow.
+
+**The Timeline Status Map.** Gantt bars are flat fills drawn from the semantic tokens — never
+gradients, and never hard-coded values. This is the canonical status→colour map for the timeline:
+
+| Status | Fill | Ink on the bar |
+|---|---|---|
+| `completed` | `--success` | `--success-foreground` |
+| `in_progress` | `--info` | `--info-foreground` |
+| `for_review` | `--warning` | `--warning-foreground` |
+| `delayed`, `blocked` | `--destructive` | `--destructive-foreground` |
+| `backlog`, `not_started`, `pending` | `--muted-foreground` | `--background` |
+
+Not-started work is **neutral, not red**. It is not an error state, and colouring it as one was an
+accident of a hard-coded literal that survived until it was given a name.
+
+Anything drawn on a bar — the percentage label, the milestone marker — takes the paired ink, and the
+progress overlay is `bg-foreground/20`, **not** `bg-white/20`. That is load-bearing, not cosmetic:
+ink and overlay then sit on opposite sides of every fill, so label contrast rises monotonically with
+overlay opacity and the bare bar is the worst case. With a white overlay the labels measured
+1.86–3.00:1. Source of truth: `frontend/src/lib/ganttPalette.js`, asserted by
+`scripts/verify-contrast.py`.
+
+**Critical-path emphasis sits outside the bar**: `outline: 2px solid var(--foreground)` at
+`outline-offset: 2px`. It cannot be a red ring — delayed and blocked bars are themselves
+`--destructive`, so red-on-red is 1.00:1, and no other token clears it either (`--primary` on dark
+`--info` is 1.04:1). Offsetting moves the contrast partner to the row background, where it is
+14.7:1 or better regardless of status. The former `0 0 10px` glow is gone, per the rule above.
 
 ## Shapes
 

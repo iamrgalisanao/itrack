@@ -1,3 +1,35 @@
+# WHAT THIS GATE CANNOT SEE
+#
+# Read this before citing a green run as evidence that a colour decision is
+# sound. A Section 508 review of the system this script guards found three
+# blind spots, and the first is not a gap -- it is a way this gate makes things
+# worse.
+#
+# 1. It NEVER COMPARES TWO PALETTE COLOURS TO EACH OTHER. Every measurement here
+#    is token-vs-surface or ink-vs-fill. Distinguishability between statuses is
+#    a between-token property and there is no such check anywhere in this file.
+#    Worse: tuning every token to clear a similar ratio against the same shared
+#    surfaces drives them toward EQUAL LUMINANCE RELATIVE TO ONE ANOTHER, which
+#    is exactly what makes them collapse when hue is removed. Measured under
+#    simulated dichromacy, the status fills sit at 1.00-1.66:1 against each
+#    other -- failure and success become indistinguishable. This gate's passing
+#    condition and that failure are causally linked. Running it harder makes it
+#    worse. See DESIGN.md's Hue-Loss Rule.
+#
+# 2. IT ONLY KNOWS 4.5:1. There is no 3:1 tier, so all of WCAG 1.4.11 non-text
+#    contrast -- form-control borders, focus rings, bar edges, chart segment
+#    adjacency -- is outside its universe. `--input` sits at 1.27:1 today.
+#
+# 3. IT READS `--name: #hex` AND ONE JS OBJECT. Every Tailwind utility is
+#    invisible to it: taskStatus.js, groupSummary.js, and Reports.jsx's
+#    matchStatusColor are all unchecked, which is most status colour in the app
+#    by surface area. Absence is invisible too -- a reference to an undefined
+#    token yields no row and no error, which is how `bg-popover` shipped
+#    transparent app-wide.
+#
+# Full analysis, including the proposed assertions 8-10 that would close these:
+# specs/023-gantt-reports-tokens/accessibility-review.md
+
 import re, io, sys
 
 RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
@@ -103,6 +135,182 @@ if drift:
     ok = False
     print('\nDOCUMENTED RATIOS DO NOT MATCH THE VALUES:')
     for d in drift:
+        print('  ' + d)
+
+# ---------------------------------------------------------------- Gantt (023)
+# The timeline's bar/label pairings. Read from frontend/src/lib/ganttPalette.js
+# rather than from the component: getGanttBarStyles is a switch with
+# fall-through, and a regex over that would stop matching after any refactor and
+# go quiet. This checks the MAP; whether the component uses the map is Gate 4's
+# job (a literal sweep) and the browser pass, not this script's.
+GANTT_JS = 'frontend/src/lib/ganttPalette.js'
+PHP_ENUMS = ['backend/app/Http/Controllers/DetailedActivityController.php',
+             'backend/app/Http/Controllers/TaskboardController.php']
+gantt_fail = []
+
+js = io.open(GANTT_JS, encoding='utf-8').read()
+
+# Anchor to the named export, not to loose `fill:`/`ink:` pairs. An earlier
+# version matched entries anywhere in the file, so renaming the export left all
+# eight parseable: the app broke on import while the gate stayed green. Found by
+# tamper proof A, which is the entire reason that proof exists.
+_blk = re.search(r'export\s+const\s+GANTT_STATUS_TOKENS\s*=\s*\{(.*?)\n\}', js, re.S)
+STATUS_TOKENS = {} if not _blk else {
+    m.group(1): (m.group(2), m.group(3))
+    for m in re.finditer(r"(\w+):\s*\{\s*fill:\s*'([\w-]+)',\s*ink:\s*'([\w-]+)'\s*\}",
+                         _blk.group(1))
+}
+_ov = re.search(r"export\s+const\s+GANTT_PROGRESS_OVERLAY\s*=\s*\{\s*token:\s*'([\w-]+)',"
+                r"\s*alpha:\s*([\d.]+)", js)
+
+# Assertion 1 - parse guard. Structural only: is the export there, and did it
+# yield anything? Deliberately NOT a >= 8 count -- that duplicated assertion 2
+# and short-circuited it, so removing a status reported "parse guard" instead of
+# naming the uncovered status (tamper proof B). Completeness is assertion 2's
+# job; this one only answers "did the parser find its subject at all".
+if not _blk:
+    gantt_fail.append('parse guard: GANTT_STATUS_TOKENS export not found in %s' % GANTT_JS)
+elif not STATUS_TOKENS:
+    gantt_fail.append('parse guard: GANTT_STATUS_TOKENS parsed to zero entries in %s' % GANTT_JS)
+if not _ov:
+    gantt_fail.append('parse guard: GANTT_PROGRESS_OVERLAY did not parse in %s' % GANTT_JS)
+
+if not gantt_fail:
+    ov_token, ov_alpha = _ov.group(1), float(_ov.group(2))
+
+    # Assertion 2 - enum coverage. The backend is authoritative for what a status
+    # can be; `pending` is synthesised client-side for parent rows. This is the
+    # assertion that would have caught the original bug, where backlog, for_review
+    # and blocked reached red through a `default` branch.
+    # Union across every controller that validates the list, not just the first
+    # match: the same enum is repeated on store, on update, and in the Taskboard
+    # controller as `sometimes|in:`. Adding a status to one and not the others
+    # would otherwise slip past.
+    declared = set()
+    for path in PHP_ENUMS:
+        php = io.open(path, encoding='utf-8').read()
+        for m in re.finditer(r"'status'\s*=>\s*'(?:sometimes\|)?in:([a-z_,]+)'", php):
+            declared |= set(m.group(1).split(','))
+    if not declared:
+        gantt_fail.append('enum coverage: could not read a status list from %s'
+                          % ', '.join(PHP_ENUMS))
+    for s in sorted(declared | {'pending'}):
+        if s not in STATUS_TOKENS:
+            gantt_fail.append('enum coverage: status %r has no Gantt colour' % s)
+
+    print()
+    print('%-6s%-14s %8s %8s   %s' % ('theme', 'gantt', 'bar', 'overlay', 'verdict'))
+    gantt_measured = {}
+    for theme, sel in (('light', ':root'), ('dark', '.dark')):
+        t = block(sel)
+        seen = set()
+        for status in sorted(STATUS_TOKENS):
+            fill_tok, ink_tok = STATUS_TOKENS[status]
+            if fill_tok not in t or ink_tok not in t:
+                gantt_fail.append('%s %s: token --%s or --%s missing from %s'
+                                  % (theme, status, fill_tok, ink_tok, sel))
+                continue
+            fill, ink = t[fill_tok], t[ink_tok]
+            # Assertion 3 - the bare bar. With assertion 5 holding, this is the
+            # binding case: the overlay can only move contrast away from here.
+            on_bar = ratio(ink, fill)
+            # Assertion 4 - the composited overlay, at the alpha the module
+            # declares. Change the alpha in JS and this recomputes; it is not
+            # hard-coded here.
+            on_ov = ratio(ink, blend(t[ov_token], fill, ov_alpha))
+            if min(on_bar, on_ov) < 4.5:
+                gantt_fail.append('%s %s: bar %.2f, overlay %.2f (need 4.5)'
+                                  % (theme, status, on_bar, on_ov))
+            # Assertion 5 - the direction invariant. This is what makes assertion
+            # 4 durable instead of a lucky number: ink and overlay must sit on
+            # opposite sides of the fill, so contrast rises monotonically with
+            # alpha. Revert the overlay to white in light mode and this fires
+            # even at an alpha that happens to squeak past assertion 4.
+            if (lum(t[ov_token]) > lum(fill)) == (lum(ink) > lum(fill)):
+                gantt_fail.append('%s %s: overlay --%s and ink --%s are on the SAME side of '
+                                  '--%s; contrast no longer rises with alpha'
+                                  % (theme, status, ov_token, ink_tok, fill_tok))
+            # ...and check the interval, not just the endpoints. Opposite total
+            # luminance does NOT imply monotonicity: with fill #0000ff, overlay
+            # #ff8800 and black ink it dips 2.44 -> 2.17 before rising. Three of
+            # the ten shipped pairs fail the per-channel dominance that would
+            # guarantee it, so the property is true here by arithmetic rather
+            # than by structure -- which means it has to be measured, not argued.
+            sweep = min(ratio(ink, blend(t[ov_token], fill, a / 20.0)) for a in range(21))
+            if sweep < min(on_bar, on_ov) - 0.01:
+                gantt_fail.append('%s %s: contrast dips to %.2f mid-alpha, below both endpoints '
+                                  '(%.2f / %.2f) - the overlay is not monotone here'
+                                  % (theme, status, sweep, on_bar, on_ov))
+            # One printed row per fill family, not per status: delayed/blocked
+            # share a fill, and the three not-started statuses share another.
+            if fill_tok not in seen:
+                seen.add(fill_tok)
+                fam = 'neutral' if fill_tok == 'muted-foreground' else fill_tok
+                gantt_measured[(fam, theme)] = (on_bar, on_ov)
+                print('%-6s%-14s %8.2f %8.2f   %s'
+                      % (theme, fam, on_bar, on_ov,
+                         'ok' if min(on_bar, on_ov) >= 4.5 else 'FAIL'))
+
+    # Assertion 6 - the recorded ratios in index.css. Its own sentinel and its own
+    # two-float regex, keyed by (fill family, theme). It cannot collide with the
+    # status-token parser above: those rows need `--name` plus three floats, and
+    # these carry no `--` prefix and two columns. 022's len(DOCUMENTED) check is
+    # deliberately left alone -- the count is unaffected either way.
+    GANTT_DOC = {}
+    for tm in re.finditer(r'Gantt,\s*(light|dark):(.*?)(?=Gantt,|\*/)', RAW, re.S):
+        for row in re.finditer(r'^\s*([a-z]+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s*$',
+                               tm.group(2), re.M):
+            GANTT_DOC[(row.group(1), tm.group(1))] = (float(row.group(2)), float(row.group(3)))
+    # Non-vacuity guard: without this, deleting the comment block makes the loop
+    # below iterate over nothing and pass. Assertion 1 guards the module parse;
+    # this guards the comment parse.
+    if len(GANTT_DOC) != 10:
+        gantt_fail.append('assertion 6: expected 10 documented Gantt rows in index.css, found %d'
+                          % len(GANTT_DOC))
+    # Both directions. Walking only measured -> documented let a fill family drop
+    # out of the map entirely and go unchecked: it produces no measured row, the
+    # loop below skips it, and the count above still passes because it counts
+    # comment rows, not families. Remapping for_review from warning back to
+    # destructive -- the exact semantic bug this feature fixed -- passed a green
+    # gate until this check existed.
+    for key in sorted(set(GANTT_DOC) - set(gantt_measured)):
+        gantt_fail.append('assertion 6: %s %s is documented but never measured - has a status '
+                          'been remapped away from that fill?' % (key[1], key[0]))
+    for key, (b, o) in sorted(gantt_measured.items()):
+        if key not in GANTT_DOC:
+            gantt_fail.append('assertion 6: %s %s has no documented row' % (key[1], key[0]))
+            continue
+        db, do = GANTT_DOC[key]
+        for label, doc, act in (('bar', db, b), ('overlay', do, o)):
+            if abs(doc - round(act, 2)) > 0.005:
+                gantt_fail.append('assertion 6: %s %s %s: comment says %.2f, computed %.2f'
+                                  % (key[1], key[0], label, doc, act))
+
+    # Assertion 7 - the module and the component must actually be joined.
+    # Everything above proves the MAP is legible. None of it proves the component
+    # uses the map: reverting the overlay to bg-white/20 drops three light
+    # families below AA, and deleting the inline `color` drops every pairing to
+    # 1.40-3.52, both with a green gate. Gate 4's literal sweep does not catch
+    # either -- they are Tailwind classes and a deleted line, not hex.
+    #
+    # This is presence-checking single literals, not parsing the switch. The plan
+    # declined the latter because a regex over branching goes quiet after a
+    # refactor; a presence assertion fails loudly instead, which is the opposite
+    # failure mode. Needles are derived from the module, so changing the alpha
+    # there moves this check with it.
+    wp_path = 'frontend/src/pages/WorkProgram.jsx'
+    wp = io.open(wp_path, encoding='utf-8').read()
+    for needle in ('bg-%s/%d' % (ov_token, round(ov_alpha * 100)),
+                   'background: `var(--${fill})`',
+                   'color: `var(--${ink})`'):
+        if needle not in wp:
+            gantt_fail.append('component drift: %r not found in %s - the module and the '
+                              'component have come apart' % (needle, wp_path))
+
+if gantt_fail:
+    ok = False
+    print('\nGANTT BAR/LABEL CONTRACT VIOLATED:')
+    for d in gantt_fail:
         print('  ' + d)
 
 if xfail_drift:

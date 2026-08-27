@@ -99,6 +99,24 @@ Tenant/project-scoping for reads goes through `Project::accessibleTo($user)` (an
 
 `.specify/memory/constitution.md` is the binding project constitution — read it before large changes. Its principles (fail-closed access control, API resources only, tests grow with the feature, audit sensitive mutations, additive migrations, real-auth-only, mandatory coding-standard skills, and a Definition-of-Done gate covering tests/authz/tenant-isolation/OWASP/code-slop review) are enforced expectations, not suggestions. It also has a full **Frontend Design and Review Governance** section: the `frontend-design` and `impeccable` skills must both be applied automatically to any frontend-creating or frontend-reviewing task (the latter scoped to Impeccable's Operate mode — iTrack is a suite of internal tools, not a marketing surface), findings are classified Critical/Major/Minor/Suggestion, and Critical/Major findings block completion unless explicitly accepted.
 
+### Specialist agent routing (mandatory, and route by surface)
+
+`.specify/memory/constitution.md` → **Specialist Agent Routing** names the subagent types that must
+be dispatched for particular work surfaces. Two things about it are easy to get wrong:
+
+- **The trigger is the surface the diff touches, not the wording of the request.** "Adjust the token
+  values" is an accessibility surface. The rule exists because features 021-023 did WCAG contrast
+  work across three consecutive features without ever routing the **Section 508 Accessibility
+  Specialist** — each one read as design-token work — so colourblind discriminability was never
+  checked on a red/amber/green status system where two states share red.
+- **Dispatch during planning, not only at review.** A specialist brought in after implementation can
+  only find defects.
+
+Shortest form: accessibility surface → Section 508 Accessibility Specialist. Chart/timeline/encoding
+→ Data Visualization Engineer. Auth → Identity & Access Engineer. Query/index → Database Optimizer.
+CI/branch protection → DevOps Automator. Plan artifacts → Software Architect. Implemented code →
+Code Reviewer. Skipping a routed specialist is an exception and is recorded in plan.md.
+
 ### Installed skills that govern implementation (not optional references)
 
 Per Constitution Principle VII, these are enforced, not passive docs:

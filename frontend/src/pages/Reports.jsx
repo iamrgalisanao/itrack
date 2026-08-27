@@ -236,7 +236,11 @@ export default function Reports() {
   const generatedAt = reportData?.generated_at ? new Date(reportData.generated_at).toLocaleString() : ''
 
   const overallProgressVal = Math.round(summary.overall_progress || 0)
-  const barColor = overallProgressVal >= 70 ? '#22c55e' : overallProgressVal >= 30 ? '#f59e0b' : '#aa3bff'
+  // Tokens, not literals. The third value used to be the pre-2026 accent, which
+  // was retired for failing AA at 4.39:1 — see the provenance note in
+  // index.css. Low progress is an accent, not an error state, so it maps to
+  // --primary rather than to red.
+  const barColor = overallProgressVal >= 70 ? 'var(--success)' : overallProgressVal >= 30 ? 'var(--warning)' : 'var(--primary)'
 
   return (
     <div className="space-y-6 print-report">

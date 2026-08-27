@@ -11,6 +11,7 @@ import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
 import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
 import TaskboardView from '@/components/TaskboardView'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
+import { GANTT_STATUS_TOKENS, GANTT_LABEL_SUPPRESSED } from '@/lib/ganttPalette'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -572,77 +573,97 @@ export default function WorkProgram() {
     return { left, width }
   }
 
+  // Flat token fill, no gradient. DESIGN.md's Creative North Star names this
+  // surface: "flat, thin-bordered surfaces everywhere data has to be scanned in
+  // volume — tables, Kanban cards, Gantt bars." The design system defines one
+  // value per status per theme, so a gradient necessarily invented two more
+  // that nothing measured.
+  //
+  // `color` is set here on purpose: the percentage label and the milestone
+  // diamond inherit it. The call site has no other access to the ink.
+  //
+  // No `border` key — the surviving `border` className picks up --border from
+  // the global rule in index.css, which is the system's hairline.
   const getGanttBarStyles = (status, isCritical = false) => {
-    let baseStyles
-    switch (status) {
-      case 'completed':
-        baseStyles = {
-          background: 'linear-gradient(135deg, #10b981, #059669)',
-          border: '1px solid #047857',
-        }
-        break
-      case 'in_progress':
-        baseStyles = {
-          background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-          border: '1px solid #1d4ed8',
-        }
-        break
-      case 'delayed':
-      case 'review':
-        baseStyles = {
-          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-          border: '1px solid #b45309',
-        }
-        break
-      case 'not_started':
-      case 'pending':
-      default:
-        baseStyles = {
-          background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-          border: '1px solid #b91c1c',
-        }
-        break
+    const { fill, ink } = GANTT_STATUS_TOKENS[status] ?? GANTT_STATUS_TOKENS.not_started
+    const baseStyles = {
+      background: `var(--${fill})`,
+      color: `var(--${ink})`,
     }
 
+    // The critical-path ring cannot live on the bar. Delayed and blocked bars
+    // are themselves --destructive, so a red ring on them is 1.00:1, and no
+    // other token clears it either (--primary on dark --info is 1.04:1).
+    // `outline` with an offset draws on the row background instead, where the
+    // contrast partner is --background/--card: 14.7:1 at worst, whatever the
+    // status. Outlines also don't affect layout, so nothing reflows.
     if (isCritical) {
       return {
         ...baseStyles,
-        boxShadow: '0 0 10px rgba(239, 68, 68, 0.85)',
-        border: '2px solid #ef4444',
+        outline: '2px solid var(--foreground)',
+        outlineOffset: '2px',
       }
     }
     return baseStyles
   }
 
+  // The /30 border tints currently render as `--border` grey and are kept to
+  // express intent, nothing more. index.css has an unlayered
+  // `* { border-color: var(--color-border) }` that outranks everything in
+  // @layer utilities — the trap DESIGN.md documents. Badge's own
+  // `border-transparent` is inside that layer and is equally inert, so the ring
+  // survives with or without these classes; an earlier version of this comment
+  // claimed they were what saved it, which was wrong. They come good if that
+  // global rule is ever scoped.
+  //
+  // Neutral uses bg-muted, not bg-muted-foreground/10: that self-tint measures
+  // 4.23:1 at /15, and the AA floor is judged on the band's worst case.
   const getGanttStatusColor = (status) => {
     switch (status) {
       case 'completed':
-        return 'bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
+        return 'bg-success/10 text-success border-success/30'
       case 'in_progress':
-        return 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800'
+        return 'bg-info/10 text-info border-info/30'
+      case 'for_review':
+        return 'bg-warning/10 text-warning border-warning/30'
       case 'delayed':
-      case 'review':
-        return 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
+      case 'blocked':
+        return 'bg-destructive/10 text-destructive border-destructive/30'
+      case 'backlog':
       case 'not_started':
       case 'pending':
+        return 'bg-muted text-muted-foreground border-muted-foreground/30'
       default:
-        return 'bg-red-100 text-red-700 border-red-300 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
+        return 'bg-muted text-muted-foreground border-muted-foreground/30'
     }
   }
 
+  // Exhaustive over the API's statuses plus the `pending` rollup. Previously
+  // `blocked`, `backlog` and `for_review` all fell through to `default` and were
+  // labelled "Pending" — a blocked task read as merely not started yet.
   const getGanttStatusLabel = (status) => {
     switch (status) {
       case 'completed':
         return 'Completed'
       case 'in_progress':
         return 'In Progress'
+      case 'for_review':
+        return 'For Review'
       case 'delayed':
-      case 'review':
-        return 'Review'
+        return 'Delayed'
+      case 'blocked':
+        return 'Blocked'
+      case 'backlog':
+        return 'Backlog'
       case 'not_started':
+        return 'Not Started'
       case 'pending':
-      default:
         return 'Pending'
+      default:
+        // Show the unknown value rather than substituting a plausible one.
+        // Silently rendering "Not Started" is exactly how `blocked` read as
+        // "Pending" for so long (FR-008).
+        return status ? status.replace(/_/g, ' ') : 'Unknown'
     }
   }
 
@@ -2655,21 +2676,21 @@ export default function WorkProgram() {
                                   {/* Progress fill */}
                                   {row.progress > 0 && (
                                     <div
-                                      className="absolute left-0 top-0 bottom-0 bg-white/20 rounded-l-[5px] transition-all duration-300 pointer-events-none"
+                                      className="absolute left-0 top-0 bottom-0 bg-foreground/20 rounded-l-[5px] transition-all duration-300 pointer-events-none"
                                       style={{ width: `${row.progress}%` }}
                                     />
                                   )}
 
                                   {/* Progress label (only if width is large enough and not pending/0%) */}
-                                  {actualPos.width > 50 && row.status !== 'pending' && row.status !== 'not_started' && row.progress > 0 && (
-                                    <span className="text-[9px] font-bold text-white z-10 truncate select-none">
+                                  {actualPos.width > 50 && !GANTT_LABEL_SUPPRESSED.includes(row.status) && row.progress > 0 && (
+                                    <span className="text-[9px] font-bold z-10 truncate select-none">
                                       {row.progress !== undefined ? `${row.progress}%` : ''}
                                     </span>
                                   )}
 
                                   {/* Milestone diamond for 0-duration or 1-day tasks */}
                                   {actualPos.width <= 16 && (
-                                    <div className="w-2.5 h-2.5 rotate-45 bg-white border border-border/30 mx-auto z-10" />
+                                    <div className="w-2.5 h-2.5 rotate-45 bg-current border border-border/30 mx-auto z-10" />
                                   )}
 
                                   {/* Hover popover tooltip */}

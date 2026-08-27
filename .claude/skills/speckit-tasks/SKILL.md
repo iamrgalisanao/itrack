@@ -65,6 +65,11 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **IF EXISTS**: Load `.specify/memory/constitution.md` for project principles and governance constraints
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
+3a. **Precondition: Software Architect verification gate on this plan.** `/speckit-plan`'s step 7 requires plan.md to carry a `## Software Architect Verification` section recording that gate's outcome. Check it now, before generating any task:
+   - **Section absent, or present but not recording `PASSED (clean)` or `PASSED (accepted exceptions)`**: this plan has not cleared review. **STOP.** Do not write `tasks.md`. Tell the user the plan needs the Software Architect gate run (or resumed) via `/speckit-plan` before tasks can be generated, and offer to run that verification now (dispatch the Software Architect subagent per `speckit-plan` step 7, iterating revise → re-verify, then write the section into plan.md) rather than silently proceeding.
+   - **Section present and `PASSED`**: proceed. If it recorded accepted exceptions, treat those exact exceptions as known — do not generate tasks to "fix" them unless the user asks.
+   - This check exists because gating only at `/speckit-implement` does not prevent the harm. By the time that gate fires, `tasks.md` already exists carrying the unverified plan's errors, and the natural remediation — run the gate now — produces a *corrected plan* sitting beside an *uncorrected tasks.md*, with nothing forcing regeneration. That is exactly how feature 022's task list carried a wrong count and a phantom failure through to implementation.
+
 3. **Execute task generation workflow**:
    - Load plan.md and extract tech stack, libraries, project structure
    - Load spec.md and extract user stories with their priorities (P1, P2, P3, etc.)
@@ -223,6 +228,7 @@ Every task MUST strictly follow this format:
 
 ## Done When
 
+- [ ] Software Architect verification gate (step 3a) confirmed `PASSED` on plan.md before any task was generated
 - [ ] tasks.md generated with all phases, task IDs, and file paths
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with task count, story breakdown, and MVP scope
