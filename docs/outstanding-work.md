@@ -155,7 +155,7 @@ reviewer can grep for. That worked — PRs #14 and #15 converted six of seven re
 the seventh is annotated as the documented exception.
 
 **The field axis still has none.** "Remember to wrap the tree in `DetailedActivityResource`" is
-hand-rolled identically in three places — `ModuleController:64`, `SubActivityController:46`,
+hand-rolled identically in three places — `ModuleController:71`, `SubActivityController:46`,
 `SubActivityController:110` — and backed only by a hardcoded six-row test provider. A new nested
 endpoint repeats C-NEW and nothing fires.
 
