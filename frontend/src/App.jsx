@@ -209,7 +209,7 @@ function SidebarNavLink({ path, label, icon: Icon, groupLabel, collapsed, indent
         <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
       )}
       <Icon className={['h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'].join(' ')} />
-      {!collapsed && <span>{label}</span>}
+      <span className={collapsed ? 'sr-only' : undefined}>{label}</span>
       {!collapsed && isActive && (
         <ChevronRight className="ml-auto h-3.5 w-3.5 text-primary/60" />
       )}
@@ -355,7 +355,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
               ].join(' ')}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{label}</span>}
+              <span className={collapsed ? 'sr-only' : undefined}>{label}</span>
             </button>
           )
           if (!collapsed) return <div key={label}>{button}</div>
@@ -377,7 +377,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
               ].join(' ')}
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>Sign Out</span>}
+              <span className={collapsed ? 'sr-only' : undefined}>Sign Out</span>
             </button>
           )
           if (!collapsed) return signOutButton
