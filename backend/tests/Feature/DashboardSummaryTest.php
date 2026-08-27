@@ -199,6 +199,79 @@ class DashboardSummaryTest extends TestCase
         $this->assertSame(1, $response->json('stats.detailed_activities'));
     }
 
+    public function test_module_heatmap_excludes_internal_tasks_for_clients(): void
+    {
+        ['project' => $project, 'subActivity' => $subActivity] = $this->makeChain();
+        $client = $this->createUser(User::ROLE_CLIENT);
+        $this->assign($client, $project);
+
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'in_progress',
+            'client_visible'  => false,
+        ]);
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'completed',
+            'client_visible'  => true,
+        ]);
+
+        $response = $this->actingAs($client)->getJson('/api/dashboard');
+
+        $response->assertOk();
+        $row = $response->json('module_heatmap.0');
+
+        // The heatmap is per-module counts, which reads as harmless aggregate
+        // until you notice it discloses how much internal work exists and what
+        // state it is in. Its siblings on this endpoint were filtered during
+        // 021; this one was missed because it is a raw DB join rather than
+        // Eloquent, so it did not match the pattern anyone was searching for.
+        $this->assertSame(1, $row['total']);
+        $this->assertSame(1, $row['completed']);
+        $this->assertSame(0, $row['in_progress']);
+    }
+
+    public function test_module_heatmap_keeps_modules_whose_tasks_are_all_internal(): void
+    {
+        ['project' => $project, 'subActivity' => $subActivity] = $this->makeChain();
+        $client = $this->createUser(User::ROLE_CLIENT);
+        $this->assign($client, $project);
+
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'in_progress',
+            'client_visible'  => false,
+        ]);
+
+        $response = $this->actingAs($client)->getJson('/api/dashboard');
+
+        $response->assertOk();
+        // Filtering in the join predicate rather than a where clause is what
+        // makes this pass. A where on the joined table would drop the module
+        // entirely, replacing an over-disclosure with a different one: the
+        // Client would learn a module exists only when it has visible work.
+        $this->assertCount(1, $response->json('module_heatmap'));
+        $this->assertSame(0, $response->json('module_heatmap.0.total'));
+    }
+
+    public function test_module_heatmap_is_unfiltered_for_internal_roles(): void
+    {
+        ['project' => $project, 'subActivity' => $subActivity] = $this->makeChain();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $project);
+
+        DetailedActivity::factory()->create([
+            'sub_activity_id' => $subActivity->id,
+            'status'          => 'in_progress',
+            'client_visible'  => false,
+        ]);
+
+        $response = $this->actingAs($member)->getJson('/api/dashboard');
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json('module_heatmap.0.total'));
+    }
+
     public function test_headline_status_counts_are_unfiltered_for_internal_roles(): void
     {
         ['project' => $project, 'subActivity' => $subActivity] = $this->makeChain();

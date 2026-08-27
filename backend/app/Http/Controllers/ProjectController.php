@@ -282,13 +282,19 @@ class ProjectController extends Controller
         // 021-dashboard-my-work (research.md R7): accomplishment-first metric
         // for the restructured summary row. `updated_at` is the completion
         // proxy — `actual_end_date` is too sparsely populated to count on.
-        // Unlike the older counts above (which pre-date the client_visible
-        // flag and are deferred cleanup), this key renders prominently, so a
-        // Client's copy must exclude internal tasks.
         $completedRecentQuery = (clone $detailedActivityQuery)
             ->where('status', 'completed')
             ->where('updated_at', '>=', now()->subDays(7));
 
+        // Redundant — $detailedActivityQuery already carries this filter — but
+        // kept because it is load-bearing if that clone is ever reordered.
+        //
+        // A previous comment here claimed the counts above "pre-date the
+        // client_visible flag and are deferred cleanup". That was false: they
+        // are filtered at the shared query. It was stale rather than harmless
+        // — an audit read it, believed there was an unfiltered leak, and
+        // reported one that did not exist. A comment describing a defect that
+        // was already fixed manufactures work.
         if ($user->isClient()) {
             $completedRecentQuery->where('client_visible', true);
         }
@@ -330,7 +336,21 @@ class ProjectController extends Controller
             ->whereIn('modules.project_id', $projectIds)
             ->leftJoin('activities', 'activities.module_id', '=', 'modules.id')
             ->leftJoin('sub_activities', 'sub_activities.activity_id', '=', 'activities.id')
-            ->leftJoin('detailed_activities', 'detailed_activities.sub_activity_id', '=', 'sub_activities.id')
+            // The join predicate, not a where clause: this is a LEFT join, and a
+            // WHERE on the joined table would drop modules whose tasks are all
+            // internal instead of showing them with a zero count — turning an
+            // over-disclosure into a different one, the absence of a module.
+            //
+            // Sibling of the filters on $detailedActivityQuery above. That one
+            // was added during 021; this query was missed because it is raw DB
+            // rather than Eloquent and reads as "just counts". Aggregate counts
+            // over invisible tasks are still disclosure.
+            ->leftJoin('detailed_activities', function ($join) use ($user) {
+                $join->on('detailed_activities.sub_activity_id', '=', 'sub_activities.id');
+                if ($user->isClient()) {
+                    $join->where('detailed_activities.client_visible', true);
+                }
+            })
             ->select(
                 'modules.id as module_id',
                 'modules.name as module_name',
