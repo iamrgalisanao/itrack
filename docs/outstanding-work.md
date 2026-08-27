@@ -70,7 +70,8 @@ implementations were written and validated during the review.
 |---|---|---|
 | `enforce_admins: false` + 0 required approvals means branch protection **does not constrain the person who enabled it** | `docs/repo-settings.md` | OPEN — correct for a solo maintainer, wrong the moment a second committer arrives |
 | Branch `023-gantt-reports-tokens` kept alive deliberately | Git Workflow Master Q2 | Delete once `specs/024-*/spec.md` lands on `main` |
-| Three stale remote branches (`011-`, `012-`, `013-`) | — | Unreviewed; predate this work |
+| **The `011`/`012` stack — 2 and 3 commits ahead, and `012` is built on `011`** | — | **OPEN. Do not delete.** They are one decision, not two branches: `012` contains both of `011`'s commits, so they cannot be reviewed independently and deleting `011` alone loses nothing. Both sit **68 commits behind `main`**, so any revival opens with a rebase that will not be clean. Three outcomes: rebase and finish, cherry-pick what survives, or `git tag archive/011-012` and delete. Absent a named champion, tag-and-delete — a branch untouched for 68 commits is an unmade decision wearing a branch name |
+| `013-sprint-retrospectives`, `022-dark-status-contrast` | — | Merged, 0 ahead of `main`, deleted. Note the trap on `013`: its **local** ref reported "ahead 1", which is ahead of its *remote tracking ref*, not of `main` — the commit is on `main`. Reading that as unmerged work would have preserved a branch for nothing |
 
 ---
 
@@ -133,8 +134,9 @@ conversion as needing its own spec.
 - **A deferred *verification* action, not a code item**, so no list caught it: `023`'s browser pass
   never saw a `for_review` bar with progress, the critical-path outline, the 0%/100% overlay edges,
   or a `width <= 16` milestone — the seed data has only `in_progress` and `pending`/`not_started`.
-- **`DESIGN.md:278-282` understates C1's blast radius**: it names four `GroupSummaryBar` consumers;
-  there are six.
+- **`DESIGN.md:278-282` understates C1's blast radius**: it names four `GroupSummaryBar` consumers.
+  There are five, plus the `lib/groupSummary.js` helper. The one `DESIGN.md` omits is
+  **`MyWorkPanel.jsx`** — named here so 024 does not have to re-derive it.
 
 ### Verified clean
 
