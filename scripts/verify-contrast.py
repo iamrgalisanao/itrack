@@ -30,7 +30,7 @@
 # Full analysis, including the proposed assertions 8-10 that would close these:
 # specs/023-gantt-reports-tokens/accessibility-review.md
 
-import re, io, sys
+import re, io, sys, glob
 
 RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
 # Strip comments FIRST for the declaration parse: this feature adds a ratio comment
@@ -351,6 +351,10 @@ else:
         bijection.append('--%s is declared but never mapped in @theme inline, so no '
                          'utility is emitted for it' % miss)
 
+    for miss in sorted(mapped - (light_t | dark_t)):
+        bijection.append('--%s is mapped in @theme inline but never declared, so the '
+                         'utility emits an empty var()' % miss)
+
 if bijection:
     ok = False
     print()
@@ -366,15 +370,15 @@ if bijection:
 # Restricted to names ending in `-foreground` it has zero false positives
 # *provably*: Tailwind ships no builtin colour with that suffix, so the suffix is
 # itself the design-token marker.
-src = []
-for path in ('frontend/src/components/ui/tooltip.jsx',
-             'frontend/src/components/ui/dropdown-menu.jsx',
-             'frontend/src/components/ui/select.jsx',
-             'frontend/src/pages/WorkProgram.jsx'):
-    try:
-        src.append(io.open(path, encoding='utf-8').read())
-    except OSError:
-        pass
+# Every .jsx/.js under src, not a hand-listed four. The zero-false-positive
+# property comes from the SUFFIX, not from the file list -- widening is free, and
+# the hand-listed version covered 4 of 39 files, so `text-sidebar-foreground`
+# injected into App.jsx passed a green gate. No try/except either: a rename must
+# fail loudly rather than silently shrink coverage, which is the going-quiet mode
+# this script's own header refuses.
+src = [io.open(f, encoding='utf-8').read()
+       for f in sorted(glob.glob('frontend/src/**/*.jsx', recursive=True)
+                       + glob.glob('frontend/src/**/*.js', recursive=True))]
 
 undefined = []
 declared = set(block(':root'))

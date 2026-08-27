@@ -33,12 +33,33 @@
      #08060d near 1:1 on a dark fill -- trading a transparent tooltip for an
      invisible one.
 
-     Light #ffffff matches dropdown-menu.jsx and select.jsx, so tooltips read as
-     the same floating surface as menus rather than a third one. Dark diverges
-     from --card deliberately: #1c1d24 would sit at 1.11:1 against the cards it
-     floats over. --popover-border carries the 1.4.11 boundary in BOTH themes
-     (3.61 / 3.49); the dark fill alone is only 1.11:1 off --card, so the ring
-     is doing that work, not the fill. */
+     Light #ffffff HAPPENS TO EQUAL what dropdown-menu.jsx and select.jsx use --
+     but they set `bg-background`, not `bg-popover`, so that is a value
+     coincidence and not a shared contract. It does not survive theming: in dark
+     their surface is #16171d against --card #1c1d24 (1.11:1) while this one is
+     #24262f, making three distinct floating surfaces. Pointing those two at
+     --popover would make the sentence true rather than lucky; recorded in
+     docs/outstanding-work.md rather than done here.
+
+     Dark diverges from --card deliberately: #1c1d24 would sit at 1.11:1 against
+     the cards it floats over.
+
+     Fill and outline are COMPLEMENTARY -- neither carries the boundary alone.
+     Over the status bars the outline drops to 1.56-2.58 and the fill carries at
+     5.45-9.03; over grid and background the fill is 1.00-1.19 and the outline
+     carries at 3.12-4.15. One measured gap: the baseline bar
+     (`bg-muted-foreground/35`, compositing to #cbc8ce light / #454851 dark)
+     leaves fill 1.65 and outline 2.18/2.12, both under 3:1. 1.4.11 governs UI
+     *components* and a non-interactive tooltip is not one, so no SC binds -- a
+     low-vision usability gap, recorded rather than hidden.
+
+     `outline`, NOT `ring`: Tailwind v4 implements ring as pure box-shadow, and
+     forced-colors mode forces `box-shadow: none`. A ringed tooltip renders
+     Canvas on Canvas with no boundary at all in Windows High Contrast, and
+     nothing in this file compensates. outline-width survives forced-colors, the
+     UA repaints outline-color as a system colour, and outline follows
+     border-radius -- while staying immune to the unlayered `* { border-color }`
+     rule that made plain `border` unusable here in the first place. */
   --popover: #ffffff;
   --popover-foreground: #08060d;
   --popover-border: #86868e;

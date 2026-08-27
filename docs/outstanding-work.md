@@ -21,7 +21,9 @@ dichromacy simulation + CIEDE2000).
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| **C3** | `--popover`/`--popover-foreground` undefined → `bg-popover` emits nothing → tooltips render transparent | **CLOSED** — tokens defined, mapped, and gated. **But only the 1.4.3 half.** See below | The blast radius was overstated: `TooltipTrigger asChild` wraps real focusable elements at `App.jsx:223/364/386`, so Radix already supplied focus-trigger and Escape-dismiss. **1.4.13 never failed for the shared component** — only for the one hand-rolled div |
+| **C3a** | `--popover`/`--popover-foreground` undefined → `bg-popover` emits nothing → tooltips render transparent (1.4.3) | **CLOSED** — tokens defined, mapped, gated | Blast radius was overstated: all three `TooltipTrigger` sites are `asChild` onto a real `<Link>`/`<button>`, so Radix already supplied focus-open, Escape-dismiss and hoverable content. **1.4.13 never failed for the shared component** |
+| **C3b** | `WorkProgram.jsx:2718` hand-rolled hover card is mouse-only (2.1.1) and its content is read inline by screen readers on every Gantt row — `opacity-0` does not remove an element from the accessibility tree | **OPEN** → 024 | Split out of C3 because marking the parent CLOSED would have put an untested "Supports" into a VPAT. See the sr-only note below |
+| **C-SIDEBAR** | **The collapsed sidebar has no accessible names at all.** `App.jsx:212/358` gate the label out when collapsed, and lucide-react auto-applies `aria-hidden="true"` to its icons, so the `<Link>` and both footer `<button>`s have an **empty** accessible name. Radix's `aria-describedby` is a *description* and only exists while the tooltip is open — in browse mode it never opens | **OPEN — Critical**, pre-existing | **WCAG 2.4.4 (A) and 4.1.2 (A).** Screen readers announce the whole collapsed rail as "link… link… button". Fix is `aria-label={label}` in three places. Found while confirming C3a's narrowing — the shared tooltip path is *1.4.13-clean and 4.1.2-broken*, and closing C3 without this row would have read as a clean bill of health |
 | **C1** | `GroupSummaryBar.jsx:75-82` segment bar is colour-only; blue/purple at 1.04:1 under deuteranopia; blocked/delayed are two shades of one hue in **normal** vision | OPEN | WCAG 1.4.1, 1.1.1 |
 | **C2** | `WorkProgram.jsx` Gantt bar is a mouse-only control — no `tabIndex`, `role`, `onKeyDown`, `aria-label`, focus style | OPEN | The same file has the correct pattern at `:1738-1743`. Mitigated by the Edit button, but undocumented and hand-duplicated. WCAG 4.1.2, 2.4.7 |
 | **M2** | `Reports.jsx:732-749` — `not_started`, `completed`, `delayed` all fall through to `bg-primary/70`. **Completed and delayed are the same violet** | **OPEN** (verified: no `case 'delayed'`) | Same defect class 023 fixed one file over. Escaped both gates. Least contested item in the queue |
@@ -131,11 +133,20 @@ conversion as needing its own spec.
   element, `WorkProgram.jsx:2697`. That is what made the token-only fix legitimate rather than a
   mask — it closed 1.4.3 app-wide and left one div's 2.1.1/1.4.13 for 024.
 - **New, found while fixing C3, in neither review**: `opacity-0` does **not** remove an element from
-  the accessibility tree, and `WorkProgram.jsx:2697` carries no `aria-hidden` — so a screen reader
-  reads that entire hover card inline for every Gantt row. Recorded in a comment at the site rather
-  than patched: `aria-hidden` alone would *delete* the information for screen-reader users while
-  leaving it mouse-only for everyone else. The fix is a real tooltip with a focusable trigger, which
-  is C2.
+  the accessibility tree, and the Gantt hover card carries no `aria-hidden` — so a screen reader
+  reads that entire card inline for every Gantt row, including "Click timeline bar to edit",
+  mouse-only advice read aloud to people who cannot act on it. Blanket `aria-hidden` would be worse:
+  the card is the **only** DOM source of Actual start/end, Duration, and Progress for suppressed
+  labels, so hiding it deletes information for screen-reader users alone.
+  **But "defer to 024" was a false dichotomy** — the 508 review named a third option available now,
+  ~5 lines: `aria-hidden` on the card **plus** an `sr-only` span in the left-pane row carrying those
+  three values. No new focusable element, no keyboard-interaction design, no 024 dependency. Do that
+  rather than parking a two-hour change behind a feature.
+- **The floating surface is not actually shared.** `dropdown-menu.jsx:17` and `select.jsx:54` use
+  `bg-background`, not `bg-popover` — so light `#ffffff` matching is a value coincidence that does
+  not survive theming. Light: menu surface **1.00:1** against `--card`, edge **1.27:1**. Dark:
+  **1.11:1** / **1.53:1**, and dark makes the tooltip a *third* floating surface. Pointing both at
+  `--popover` + the same outline gives three components one contract. **OPEN — Major**, pre-existing.
 - **M2, C1, N3 and "status vocabulary alignment" are one problem in four sections**, filed rows
   apart with no cross-reference. 023 excluded `matchStatusColor` *because* of this coupling.
 
