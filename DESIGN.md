@@ -115,6 +115,27 @@ the numbers cannot rot silently. Checkable without running the app:
 `python scripts/verify-contrast.py`.
 
 ### Named Rules
+**The Hue-Loss Rule.** Two status colors that must be told apart MUST remain distinguishable when
+hue is removed. Contrast against a *surface* says nothing about distinguishability from *each other*,
+and those are different requirements that pull in opposite directions.
+
+This is not a footnote to the rule below — it is a correction to it. Tuning every status token to
+clear a similar ratio against the same shared surfaces drives the tokens toward **equal luminance
+relative to one another**, which is precisely the property that makes them collapse when hue is
+lost. Measured under simulated dichromacy, the current palette's status fills sit at **1.00–1.66:1
+against each other**: luminance carries essentially no signal, so once hue goes there is nothing
+left. Red and green — failure and success — become near-identical for roughly 6% of male users.
+Satisfying the AA Floor Rule uniformly is what caused this. Running it harder makes it worse.
+
+So: when you set status colors, solve both constraints together. Keep ≥ 4.5:1 against surfaces
+**and** keep deliberate lightness separation between the statuses themselves. They are compatible;
+they were simply never solved jointly. Where a surface is dense enough that colour is the scanning
+mechanism, add a non-colour channel too — a leading glyph, a bar-end shape, a texture.
+
+**Colour is never the only carrier.** Every status surface pairs its colour with the status name as
+text. That is what keeps the palette conformant while the hue-loss problem above is outstanding, and
+it is why removing a text label is a bigger change than it looks.
+
 **The AA Floor Rule.** No status or accent color ships at a lightness that fails 4.5:1 against
 **every surface it renders on — including a tint of itself** — or against its paired foreground.
 Where a common default (e.g. Tailwind's 500-weight green/amber/blue) fails, move **as many steps as
