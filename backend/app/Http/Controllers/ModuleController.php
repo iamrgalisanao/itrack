@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\DetailedActivityResource;
 use App\Models\Module;
 use App\Models\Project;
 use App\Models\User;
@@ -34,11 +35,9 @@ class ModuleController extends Controller
         // Client sees only client-visible tasks with client-visible comment counts
         $isClient = $user->isClient();
 
-        return $project->modules()->with([
-            'activities.subActivities.detailedActivities' => function ($query) use ($isClient) {
-                if ($isClient) {
-                    $query->where('client_visible', true);
-                }
+        $modules = $project->modules()->with([
+            'activities.subActivities.detailedActivities' => function ($query) use ($user, $isClient) {
+                $query->visibleTo($user);
                 $query->withCount([
                     'comments as comments_count' => function ($q) use ($isClient) {
                         if ($isClient) {
@@ -48,6 +47,33 @@ class ModuleController extends Controller
                 ]);
             }
         ])->get();
+
+        // Filtering the rows was never enough. This tree used to be returned as
+        // raw models, so every task a Client legitimately saw also carried
+        // notes, root_cause, resolution, evidence, responsible, assignee_user_id
+        // and sprint_label -- the exact set DetailedActivityResource's Client
+        // branch exists to withhold, on the endpoint behind Kanban, Schedule and
+        // Work Program. Row visibility and field visibility are two halves of
+        // one rule; the resource owns the second half.
+        // attributesToArray(), not toArray(): the latter serialises the whole
+        // loaded subtree -- every task with all 37 raw columns -- and then
+        // relies on last-key-wins to discard it under the explicit key below.
+        // That materialises in memory precisely the data this method exists to
+        // suppress, and survives only as long as nobody reorders the spread.
+        // attributesToArray() never builds it. These models declare no
+        // $appends, so the own-attribute output is identical.
+        return $modules->map(fn ($module) => [
+            ...$module->attributesToArray(),
+            'activities' => $module->activities->map(fn ($activity) => [
+                ...$activity->attributesToArray(),
+                'sub_activities' => $activity->subActivities->map(fn ($subActivity) => [
+                    ...$subActivity->attributesToArray(),
+                    'detailed_activities' => DetailedActivityResource::collection(
+                        $subActivity->detailedActivities
+                    )->resolve($request),
+                ]),
+            ]),
+        ]);
     }
 
     // ─── POST /api/projects/{project}/modules ───────────────────────────────

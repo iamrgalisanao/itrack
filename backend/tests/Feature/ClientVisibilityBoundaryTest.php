@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\Comment;
 use App\Models\DetailedActivity;
 use App\Models\Module;
 use App\Models\Project;
@@ -35,6 +36,19 @@ class ClientVisibilityBoundaryTest extends TestCase
 
     /** Appears only on the internal task. Must never reach a Client. */
     private const SENTINEL = 'SENTINEL-INTERNAL-DO-NOT-DISCLOSE';
+
+    /**
+     * Appears on the internal-only *fields* of a task the Client may legitimately
+     * see. Guards the other axis: the row is allowed through, the fields are not.
+     *
+     * The row sentinel above cannot detect this. It sits only on the hidden task,
+     * so an endpoint that filters rows correctly and then serialises raw models
+     * passes it while disclosing notes, root_cause, resolution and evidence on
+     * every visible task. That is a real defect the first version of this file
+     * could not see -- the same shape as the misses it was written to prevent: a
+     * gate measuring the wrong axis.
+     */
+    private const FIELD_SENTINEL = 'FIELD-SENTINEL-INTERNAL-ONLY';
 
     private function createUser(string $role, string $dept = 'IT'): User
     {
@@ -96,6 +110,12 @@ class ClientVisibilityBoundaryTest extends TestCase
             'status'          => 'in_progress',
             'duration_months' => 0,
             'duration_days'   => 0,
+            // Client-visible row, internal-only fields. Every one of these is
+            // outside DetailedActivityResource's Client branch by design.
+            'notes'           => self::FIELD_SENTINEL,
+            'root_cause'      => self::FIELD_SENTINEL,
+            'resolution'      => self::FIELD_SENTINEL,
+            'evidence'        => self::FIELD_SENTINEL,
         ]);
 
         return compact('chain', 'client', 'internal', 'visible');
@@ -139,6 +159,12 @@ class ClientVisibilityBoundaryTest extends TestCase
             $response->getContent(),
             "{$url} disclosed an internal task to a Client"
         );
+
+        $this->assertStringNotContainsString(
+            self::FIELD_SENTINEL,
+            $response->getContent(),
+            "{$url} disclosed internal fields of a client-visible task to a Client"
+        );
     }
 
     public function test_sub_activity_endpoints_still_return_the_visible_task(): void
@@ -157,6 +183,88 @@ class ClientVisibilityBoundaryTest extends TestCase
         }
     }
 
+    /**
+     * `comments_count` is produced by ModuleController's `withCount` and by
+     * nothing else, so moving that tree onto DetailedActivityResource could
+     * have dropped it. Nothing in the suite covered it, and the frontend reads
+     * it as `?? 0` at eight call sites -- so the regression would have shipped
+     * as every task silently showing zero comments, with no error anywhere.
+     *
+     * The count is also a disclosure surface in its own right: an internal
+     * comment on a client-visible task must not raise the number a Client sees.
+     */
+    public function test_modules_tree_keeps_comment_counts_and_scopes_them_by_visibility(): void
+    {
+        ['chain' => $chain, 'client' => $client, 'visible' => $visible] = $this->seedBoundary();
+
+        Comment::create([
+            'detailed_activity_id' => $visible->id,
+            'author'               => 'PM',
+            'author_role'          => 'Project Manager',
+            'body'                 => 'Shared with the client',
+            'visibility'           => Comment::VISIBILITY_CLIENT_VISIBLE,
+        ]);
+        Comment::create([
+            'detailed_activity_id' => $visible->id,
+            'author'               => 'PM',
+            'author_role'          => 'Project Manager',
+            'body'                 => self::FIELD_SENTINEL,
+            'visibility'           => Comment::VISIBILITY_INTERNAL,
+        ]);
+
+        $url = "/api/projects/{$chain['project']->id}/modules";
+
+        $seen = fn ($user) => data_get(
+            $this->actingAs($user, 'sanctum')->getJson($url)->json(),
+            '0.activities.0.sub_activities.0.detailed_activities'
+        );
+
+        $clientTasks = collect($seen($client))->firstWhere('id', $visible->id);
+        $this->assertNotNull($clientTasks, 'Client lost the visible task entirely');
+        $this->assertArrayHasKey('comments_count', $clientTasks, 'comments_count was dropped');
+        $this->assertSame(1, $clientTasks['comments_count'], 'Client saw the internal comment in the count');
+
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $chain['project']);
+        $memberTask = collect($seen($member))->firstWhere('id', $visible->id);
+        $this->assertSame(2, $memberTask['comments_count']);
+    }
+
+    /**
+     * The other half of the boundary, and the half this file kept forgetting to
+     * assert: what a Client must still RECEIVE.
+     *
+     * Neither /schedule nor /work-program is role-guarded (App.jsx:699, :688),
+     * so Clients render both from this tree. `Schedule.jsx:367` decides what is
+     * a milestone with `duration_months === 0 && duration_days === 0`. Move
+     * those two fields behind the internal branch and that comparison becomes
+     * `undefined === 0` -- false, always. Milestone detection stops working for
+     * Clients only, nothing throws, and no test notices.
+     *
+     * Every assertion above this one checks that a Client sees less. This one
+     * checks the fix did not overshoot, which is the failure mode the field
+     * axis invites.
+     */
+    public function test_client_still_receives_the_fields_their_own_pages_render(): void
+    {
+        ['chain' => $chain, 'client' => $client, 'visible' => $visible] = $this->seedBoundary();
+
+        $task = collect(data_get(
+            $this->actingAs($client, 'sanctum')
+                ->getJson("/api/projects/{$chain['project']->id}/modules")
+                ->json(),
+            '0.activities.0.sub_activities.0.detailed_activities'
+        ))->firstWhere('id', $visible->id);
+
+        foreach (['duration_months', 'duration_days', 'plan_start_date', 'plan_end_date', 'status', 'progress'] as $field) {
+            $this->assertArrayHasKey($field, $task, "Client lost {$field}, which their own pages render");
+        }
+
+        // Specifically the milestone comparison, not merely the key's presence.
+        $this->assertSame(0, $task['duration_months']);
+        $this->assertSame(0, $task['duration_days']);
+    }
+
     public function test_internal_roles_still_see_the_internal_task(): void
     {
         ['chain' => $chain] = $this->seedBoundary();
@@ -168,5 +276,10 @@ class ClientVisibilityBoundaryTest extends TestCase
 
         $response->assertOk();
         $this->assertStringContainsString(self::SENTINEL, $response->getContent());
+
+        // The other direction: the fix must withhold these fields from Clients
+        // without withholding them from everyone. Filtering unconditionally
+        // would satisfy the assertions above and break the app.
+        $this->assertStringContainsString(self::FIELD_SENTINEL, $response->getContent());
     }
 }

@@ -145,6 +145,34 @@ comments are inert prose — all four columns carry real user ids.
 
 ---
 
+## Authorization — the field axis has no owner
+
+Recorded from the architect's sign-off on PR #15. It is the one structural finding from that review
+that no code change closed, and it is the same defect shape one level up from the one #15 fixed.
+
+`DetailedActivity::scopeVisibleTo()` gave the **row** axis an owner: a named scope whose absence a
+reviewer can grep for. That worked — PRs #14 and #15 converted six of seven read-scoping sites, and
+the seventh is annotated as the documented exception.
+
+**The field axis still has none.** "Remember to wrap the tree in `DetailedActivityResource`" is
+hand-rolled identically in three places — `ModuleController:71`, `SubActivityController:46`,
+`SubActivityController:110` — and backed only by a hardcoded six-row test provider. A new nested
+endpoint repeats C-NEW and nothing fires.
+
+| Item | Status |
+|---|---|
+| A resource per tree level (`ModuleResource`, `ActivityResource`, `SubActivityResource`) so nesting cannot return raw models | OPEN — the real fix |
+| CI gate forbidding `client_visible` outside `scopeVisibleTo`, allowlisting the heatmap `LEFT JOIN` **and** the four instance-level checks (`DetailedActivityController:171`, `AttachmentController:108`, `CommentController:79`, `NotificationController:170`) | OPEN — queued with 025 |
+| `Schedule.jsx:372` renders an assignee filter from `t.responsible`, which Clients correctly do not receive, so their dropdown collapses to `['all']` | OPEN — hide the control for Clients; frontend, rides with 024 |
+
+**Two lessons worth more than the items.** First, the boundary test asserted at length what a Client
+must *not* see and never once asserted what a Client must still *receive* — so the #15 fix silently
+broke milestone detection on `/schedule` for Clients only, and the suite stayed green. Both
+directions now have tests. Second, naming the row axis' owner did not give the field axis one, and
+the #14 sign-off implied it had.
+
+---
+
 ## Closed — verified, not assumed
 
 - **`recent_activities` leaked internal tasks to Clients** (021). **FIXED** — `ProjectController.php`

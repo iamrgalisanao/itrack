@@ -57,7 +57,7 @@ class MyWorkController extends Controller
             // Defence in depth: Clients cannot currently be assignees at all,
             // so this is normally a no-op — but if that policy ever loosens,
             // internal tasks must not surface here.
-            ->when($user->isClient(), fn ($q) => $q->where('client_visible', true));
+            ->visibleTo($user);
 
         $counts = $this->bucketCounts($base(), $today, $weekEnd);
 

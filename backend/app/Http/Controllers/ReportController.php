@@ -74,7 +74,7 @@ class ReportController extends Controller
             // which is how the dashboard heatmap survived a whole feature's
             // audit.
             ->with(['modules.activities.subActivities.detailedActivities' => fn ($q) => $q
-                ->when($user->isClient(), fn ($qq) => $qq->where('client_visible', true)),
+                ->visibleTo($user),
                 'modules.activities.subActivities.detailedActivities.predecessors'])
             ->orderBy('id')
             ->get();
