@@ -191,6 +191,33 @@ hover/active response. There is no multi-tier elevation system; surfaces are sep
 **The Flat-By-Default Rule.** Don't add elevation beyond `shadow-sm`. If a surface needs to stand out,
 reach for the border or the accent color, not a heavier shadow.
 
+**The Timeline Status Map.** Gantt bars are flat fills drawn from the semantic tokens — never
+gradients, and never hard-coded values. This is the canonical status→colour map for the timeline:
+
+| Status | Fill | Ink on the bar |
+|---|---|---|
+| `completed` | `--success` | `--success-foreground` |
+| `in_progress` | `--info` | `--info-foreground` |
+| `for_review` | `--warning` | `--warning-foreground` |
+| `delayed`, `blocked` | `--destructive` | `--destructive-foreground` |
+| `backlog`, `not_started`, `pending` | `--muted-foreground` | `--background` |
+
+Not-started work is **neutral, not red**. It is not an error state, and colouring it as one was an
+accident of a hard-coded literal that survived until it was given a name.
+
+Anything drawn on a bar — the percentage label, the milestone marker — takes the paired ink, and the
+progress overlay is `bg-foreground/20`, **not** `bg-white/20`. That is load-bearing, not cosmetic:
+ink and overlay then sit on opposite sides of every fill, so label contrast rises monotonically with
+overlay opacity and the bare bar is the worst case. With a white overlay the labels measured
+1.86–3.00:1. Source of truth: `frontend/src/lib/ganttPalette.js`, asserted by
+`scripts/verify-contrast.py`.
+
+**Critical-path emphasis sits outside the bar**: `outline: 2px solid var(--foreground)` at
+`outline-offset: 2px`. It cannot be a red ring — delayed and blocked bars are themselves
+`--destructive`, so red-on-red is 1.00:1, and no other token clears it either (`--primary` on dark
+`--info` is 1.04:1). Offsetting moves the contrast partner to the row background, where it is
+14.7:1 or better regardless of status. The former `0 0 10px` glow is gone, per the rule above.
+
 ## Shapes
 
 Radius scale: `sm` (0.375rem), `md` (0.5rem), `lg` (0.75rem), `xl` (1rem), plus `full` (pill) for
