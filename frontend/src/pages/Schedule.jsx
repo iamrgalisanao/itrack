@@ -652,7 +652,7 @@ export default function Schedule() {
                 isTaskMilestone
                   ? 'bg-purple-500 border-purple-500 text-white'
                   : taskOverdue
-                  ? 'bg-destructive border-destructive text-white'
+                  ? 'bg-destructive border-destructive'
                   : t.status === 'completed'
                   ? 'bg-emerald-500 border-emerald-500 text-white'
                   : 'bg-card border-muted-foreground'
