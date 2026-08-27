@@ -11,7 +11,7 @@ import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
 import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
 import TaskboardView from '@/components/TaskboardView'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
-import { GANTT_STATUS_TOKENS } from '@/lib/ganttPalette'
+import { GANTT_STATUS_TOKENS, GANTT_LABEL_SUPPRESSED } from '@/lib/ganttPalette'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -607,17 +607,14 @@ export default function WorkProgram() {
     return baseStyles
   }
 
-  // Every branch must name a border colour. The call site renders these on a
-  // shadcn Badge, whose default variant contributes `border-transparent`, and
-  // twMerge only lets this string win for properties it actually names — omit
-  // the border and the pill silently loses its ring.
-  //
-  // The /30 tints are intentionally kept but currently render as `--border`
-  // grey: index.css has an unlayered `* { border-color: var(--color-border) }`
-  // that beats Tailwind's utility layer, the trap DESIGN.md documents. They
-  // still do their job here (defeating `border-transparent`, so the ring
-  // survives), and they express the intended tint for whenever that global rule
-  // is scoped. Don't "fix" them by deleting them — that brings the bug back.
+  // The /30 border tints currently render as `--border` grey and are kept to
+  // express intent, nothing more. index.css has an unlayered
+  // `* { border-color: var(--color-border) }` that outranks everything in
+  // @layer utilities — the trap DESIGN.md documents. Badge's own
+  // `border-transparent` is inside that layer and is equally inert, so the ring
+  // survives with or without these classes; an earlier version of this comment
+  // claimed they were what saved it, which was wrong. They come good if that
+  // global rule is ever scoped.
   //
   // Neutral uses bg-muted, not bg-muted-foreground/10: that self-tint measures
   // 4.23:1 at /15, and the AA floor is judged on the band's worst case.
@@ -663,7 +660,10 @@ export default function WorkProgram() {
       case 'pending':
         return 'Pending'
       default:
-        return 'Not Started'
+        // Show the unknown value rather than substituting a plausible one.
+        // Silently rendering "Not Started" is exactly how `blocked` read as
+        // "Pending" for so long (FR-008).
+        return status ? status.replace(/_/g, ' ') : 'Unknown'
     }
   }
 
@@ -2682,7 +2682,7 @@ export default function WorkProgram() {
                                   )}
 
                                   {/* Progress label (only if width is large enough and not pending/0%) */}
-                                  {actualPos.width > 50 && row.status !== 'pending' && row.status !== 'not_started' && row.progress > 0 && (
+                                  {actualPos.width > 50 && !GANTT_LABEL_SUPPRESSED.includes(row.status) && row.progress > 0 && (
                                     <span className="text-[9px] font-bold z-10 truncate select-none">
                                       {row.progress !== undefined ? `${row.progress}%` : ''}
                                     </span>

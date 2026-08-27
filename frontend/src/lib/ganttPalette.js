@@ -44,5 +44,11 @@ export const GANTT_STATUS_TOKENS = {
  */
 export const GANTT_PROGRESS_OVERLAY = { token: 'foreground', alpha: 0.20 }
 
-/** Statuses that render no percentage: nothing has started, so there is none. */
+/**
+ * Statuses whose bars render no percentage label. Consumed by WorkProgram's
+ * label condition, so this list and the component cannot drift apart.
+ *
+ * `backlog` is deliberately absent: it can legitimately carry progress, and the
+ * `progress > 0` guard at the call site already hides the label when it does not.
+ */
 export const GANTT_LABEL_SUPPRESSED = ['not_started', 'pending']

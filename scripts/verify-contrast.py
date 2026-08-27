@@ -112,7 +112,8 @@ if drift:
 # go quiet. This checks the MAP; whether the component uses the map is Gate 4's
 # job (a literal sweep) and the browser pass, not this script's.
 GANTT_JS = 'frontend/src/lib/ganttPalette.js'
-PHP_ENUM = 'backend/app/Http/Controllers/DetailedActivityController.php'
+PHP_ENUMS = ['backend/app/Http/Controllers/DetailedActivityController.php',
+             'backend/app/Http/Controllers/TaskboardController.php']
 gantt_fail = []
 
 js = io.open(GANTT_JS, encoding='utf-8').read()
@@ -149,14 +150,21 @@ if not gantt_fail:
     # can be; `pending` is synthesised client-side for parent rows. This is the
     # assertion that would have caught the original bug, where backlog, for_review
     # and blocked reached red through a `default` branch.
-    php = io.open(PHP_ENUM, encoding='utf-8').read()
-    m = re.search(r"'status'\s*=>\s*'in:([a-z_,]+)'", php)
-    if not m:
-        gantt_fail.append('enum coverage: could not read the status list from %s' % PHP_ENUM)
-    else:
-        for s in m.group(1).split(',') + ['pending']:
-            if s not in STATUS_TOKENS:
-                gantt_fail.append('enum coverage: status %r has no Gantt colour' % s)
+    # Union across every controller that validates the list, not just the first
+    # match: the same enum is repeated on store, on update, and in the Taskboard
+    # controller as `sometimes|in:`. Adding a status to one and not the others
+    # would otherwise slip past.
+    declared = set()
+    for path in PHP_ENUMS:
+        php = io.open(path, encoding='utf-8').read()
+        for m in re.finditer(r"'status'\s*=>\s*'(?:sometimes\|)?in:([a-z_,]+)'", php):
+            declared |= set(m.group(1).split(','))
+    if not declared:
+        gantt_fail.append('enum coverage: could not read a status list from %s'
+                          % ', '.join(PHP_ENUMS))
+    for s in sorted(declared | {'pending'}):
+        if s not in STATUS_TOKENS:
+            gantt_fail.append('enum coverage: status %r has no Gantt colour' % s)
 
     print()
     print('%-6s%-14s %8s %8s   %s' % ('theme', 'gantt', 'bar', 'overlay', 'verdict'))
@@ -190,6 +198,17 @@ if not gantt_fail:
                 gantt_fail.append('%s %s: overlay --%s and ink --%s are on the SAME side of '
                                   '--%s; contrast no longer rises with alpha'
                                   % (theme, status, ov_token, ink_tok, fill_tok))
+            # ...and check the interval, not just the endpoints. Opposite total
+            # luminance does NOT imply monotonicity: with fill #0000ff, overlay
+            # #ff8800 and black ink it dips 2.44 -> 2.17 before rising. Three of
+            # the ten shipped pairs fail the per-channel dominance that would
+            # guarantee it, so the property is true here by arithmetic rather
+            # than by structure -- which means it has to be measured, not argued.
+            sweep = min(ratio(ink, blend(t[ov_token], fill, a / 20.0)) for a in range(21))
+            if sweep < min(on_bar, on_ov) - 0.01:
+                gantt_fail.append('%s %s: contrast dips to %.2f mid-alpha, below both endpoints '
+                                  '(%.2f / %.2f) - the overlay is not monotone here'
+                                  % (theme, status, sweep, on_bar, on_ov))
             # One printed row per fill family, not per status: delayed/blocked
             # share a fill, and the three not-started statuses share another.
             if fill_tok not in seen:
@@ -216,6 +235,15 @@ if not gantt_fail:
     if len(GANTT_DOC) != 10:
         gantt_fail.append('assertion 6: expected 10 documented Gantt rows in index.css, found %d'
                           % len(GANTT_DOC))
+    # Both directions. Walking only measured -> documented let a fill family drop
+    # out of the map entirely and go unchecked: it produces no measured row, the
+    # loop below skips it, and the count above still passes because it counts
+    # comment rows, not families. Remapping for_review from warning back to
+    # destructive -- the exact semantic bug this feature fixed -- passed a green
+    # gate until this check existed.
+    for key in sorted(set(GANTT_DOC) - set(gantt_measured)):
+        gantt_fail.append('assertion 6: %s %s is documented but never measured - has a status '
+                          'been remapped away from that fill?' % (key[1], key[0]))
     for key, (b, o) in sorted(gantt_measured.items()):
         if key not in GANTT_DOC:
             gantt_fail.append('assertion 6: %s %s has no documented row' % (key[1], key[0]))
@@ -225,6 +253,27 @@ if not gantt_fail:
             if abs(doc - round(act, 2)) > 0.005:
                 gantt_fail.append('assertion 6: %s %s %s: comment says %.2f, computed %.2f'
                                   % (key[1], key[0], label, doc, act))
+
+    # Assertion 7 - the module and the component must actually be joined.
+    # Everything above proves the MAP is legible. None of it proves the component
+    # uses the map: reverting the overlay to bg-white/20 drops three light
+    # families below AA, and deleting the inline `color` drops every pairing to
+    # 1.40-3.52, both with a green gate. Gate 4's literal sweep does not catch
+    # either -- they are Tailwind classes and a deleted line, not hex.
+    #
+    # This is presence-checking single literals, not parsing the switch. The plan
+    # declined the latter because a regex over branching goes quiet after a
+    # refactor; a presence assertion fails loudly instead, which is the opposite
+    # failure mode. Needles are derived from the module, so changing the alpha
+    # there moves this check with it.
+    wp_path = 'frontend/src/pages/WorkProgram.jsx'
+    wp = io.open(wp_path, encoding='utf-8').read()
+    for needle in ('bg-%s/%d' % (ov_token, round(ov_alpha * 100)),
+                   'background: `var(--${fill})`',
+                   'color: `var(--${ink})`'):
+        if needle not in wp:
+            gantt_fail.append('component drift: %r not found in %s - the module and the '
+                              'component have come apart' % (needle, wp_path))
 
 if gantt_fail:
     ok = False

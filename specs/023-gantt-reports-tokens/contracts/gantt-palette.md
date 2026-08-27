@@ -49,9 +49,12 @@ Added to `scripts/verify-contrast.py`, which already reads `frontend/src/index.c
 values. Six in total — five about the module, plus assertion 6 about the recorded ratios. None can
 pass vacuously.
 
-1. **Parse guard.** The regex must yield **at least 8** entries, and `GANTT_PROGRESS_OVERLAY` must
-   parse to a token name and a float. Zero entries is a hard failure, never a quietly skipped loop.
-   Every assertion below is only as trustworthy as this one.
+1. **Parse guard.** Structural only: the `GANTT_STATUS_TOKENS` export must be found — anchored to
+   the export, not to loose `fill:`/`ink:` pairs anywhere in the file — it must yield at least one
+   entry, and `GANTT_PROGRESS_OVERLAY` must parse. Deliberately **not** a count of 8: that
+   duplicated assertion 2 and short-circuited it, so deleting a status reported "parse guard"
+   instead of naming the uncovered status. Completeness is assertion 2's job; this one only answers
+   "did the parser find its subject at all". Every assertion below is only as trustworthy as this.
 
 2. **Enum coverage.** Parse `in:backlog,not_started,...` from
    `backend/app/Http/Controllers/DetailedActivityController.php` and assert every value has an
