@@ -95,9 +95,12 @@ colour and confirm the Gantt bar follows it.
   translucent overlay drawn between the label and the bar.
 - **FR-002**: Status colours used by the Gantt bars and the Reports progress ring MUST come from the
   product's shared colour set, so that changing a colour once changes it everywhere.
-- **FR-003**: This change MUST NOT alter which colour communicates which status. A status that reads
-  as amber today still reads as amber afterwards. Correcting the *source* of a colour is in scope;
-  reconsidering its *meaning* is not.
+- **FR-003**: The timeline's status→colour map MUST be re-derived from the product's semantic
+  colours rather than preserved. Three statuses change colour: work awaiting review moves from red
+  to amber, delayed work moves from amber to red (agreeing with the Taskboard and list views), and
+  not-yet-started work moves from red to neutral. Preserving the current map is not an option,
+  because a mechanical re-sourcing would turn "not started is an error" from an accident of a
+  hard-coded value into a named assertion in the source.
 - **FR-004**: The retired brand accent MUST be replaced with the current one.
 - **FR-005**: The label's legibility MUST be established by measurement, not by eye — and the
   measurement MUST account for the translucent overlay, which is precisely what an eye-check and a
@@ -106,6 +109,10 @@ colour and confirm the Gantt bar follows it.
   contrast gate, so this cannot silently regress the way it silently arrived.
 - **FR-007**: Bars that currently show no percentage MUST continue to show none; the width threshold
   and status exclusions that govern this are not changed.
+- **FR-008**: Every status the system accepts, plus the roll-up value used for parent rows, MUST
+  have an explicit colour **and** an explicit label. No status may arrive at either through a
+  fallback branch. Today three statuses reach their colour that way and are consequently mislabelled
+  in the interface — a blocked task is shown as "Pending".
 
 ### Key Entities
 
@@ -118,39 +125,44 @@ colour and confirm the Gantt bar follows it.
 - **Progress ring (existing)**: The circular indicator on the Reports page, coloured by how far
   along a project is. Decorative — it carries no text.
 - **Critical-path highlight (existing)**: A red border and glow applied to a bar *on top of* its
-  status colour. This is a genuine alert rather than a status, so it maps to the product's alert
-  colour naturally — but it is a separate concept from the four statuses and is counted separately.
+  status colour. It is an emphasis marker rather than a status, and it cannot simply adopt the
+  product's alert colour: once delayed and blocked work is itself red, a red ring on a red bar is
+  invisible. Its treatment has to move off the bar entirely.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Every Gantt percentage label that renders meets the contrast floor for its size in
-  both themes. Today **all three** statuses that render a label fail: 1.86:1 (delayed/review),
-  2.13:1 (completed) and 2.78:1 (in progress), against 4.5:1 required. Not-started bars suppress the
-  label entirely and are therefore not part of this count — a fourth failing figure quoted elsewhere
-  was for a label that never appears.
+- **SC-001**: Every timeline percentage label that renders meets the contrast floor for its size in
+  both themes. Today **six** statuses can render a label and **all six fail**, across four colours:
+  3.00:1 (backlog, awaiting-review and blocked, which all reach red through the fallback branch),
+  2.78:1 (in progress), 2.13:1 (completed) and 1.86:1 (delayed) — against 4.5:1 required. Only
+  not-started and the roll-up value suppress the label; percent-complete is recorded independently
+  of status, so every other status can carry one.
 - **SC-002**: Zero status colours remain written directly into the two affected pages; every one is
-  drawn from the shared set. Today there are **seventeen** such values — fourteen in the timeline's
-  bar styling (four statuses × a two-stop gradient plus a border, plus two more for the critical-path
-  highlight) and three in the Reports ring.
+  drawn from the shared set. Today there are **forty-four** such values: fourteen in the timeline's
+  bar styling, twenty-four in the status pill beside it, three fixed whites on the bar itself (the
+  progress overlay, the percentage label, and the milestone marker), and three in the Reports ring.
 - **SC-003**: Changing a shared status colour in one place visibly changes the Gantt bars, with no
   edit to the chart code.
 - **SC-004**: The bar-and-label contrast is checked automatically on every change, and the check
   fails if the pairing drops below the floor.
-- **SC-005**: No status changes which colour it reads as. A reviewer comparing before-and-after
-  screenshots sees the same colour vocabulary, only sourced differently.
+- **SC-005**: Every status resolves through a named semantic colour. Three statuses deliberately
+  change colour, and each change is recorded with its reason — this is a correction of the map, not
+  only of where the map's values come from.
 - **SC-006**: The retired accent no longer appears anywhere in the product.
 
 ## Assumptions
 
 - The accessibility target is the same one the product already uses for text (4.5:1 for normal-size
   text), consistent with the design system's stated floor and with feature 022.
-- The current mapping of status to colour is treated as correct and is preserved, including the
-  choice to show not-started tasks in red. That mapping is arguably questionable — "not started" is
-  not an error condition — but re-deciding it is a design change affecting the whole product's
-  status vocabulary, not a colour-sourcing fix, and it is explicitly out of scope here. Recorded so
-  the decision is visible rather than accidental.
+- The current mapping of status to colour is **not** preserved. Re-sourcing it mechanically would
+  name "not started" as an error, and the timeline's map already disagrees with the rest of the
+  product in both directions — the list views show delayed work in red and not-started work in grey,
+  while the timeline does the opposite. Re-deriving the map is what makes User Story 2 achievable at
+  all; preserving it would leave that story unsatisfiable. The re-derivation is bounded to the
+  timeline's own colour and label logic and does not touch the shared status maps used by the list
+  and board views.
 - The Reports progress ring is decorative and carries no text, so only its colour source changes,
   not its contrast.
 - Fixing the label may require changing the label's colour, the overlay's opacity, or both. Which
@@ -161,8 +173,10 @@ colour and confirm the Gantt bar follows it.
 ## Out of Scope
 
 - Re-deciding what each status colour *means* (see Assumptions).
-- The remaining hard-coded light/dark palette pairs elsewhere in the app. These were measured during
-  feature 022's review at 4.51:1 to 8.44:1 — they all pass, so they are consistency debt rather than
-  an accessibility problem, and are not urgent.
+- The remaining hard-coded light/dark palette pairs elsewhere in the app, and the shared status maps
+  used by the list and board views. These were measured during feature 022's review at 4.51:1 to
+  8.44:1 — they all pass, so they are consistency debt rather than an accessibility problem.
+  Aligning them with the timeline's corrected map is a worthwhile follow-up but is a separate,
+  product-wide change.
 - The known `--primary` contrast exception recorded in `DESIGN.md`, which needs its own feature.
 - High-contrast and forced-colours support, which the product does not implement anywhere yet.

@@ -38,10 +38,22 @@ Two corrections were made during validation rather than carried into planning:
   feature in a row where an asserted count was wrong, which is the argument for counting before
   writing rather than after review.
 
-- **SC-001 originally listed four failing statuses, including not-started at 3.00:1.** That label
-  never renders — the code suppresses the percentage for not-started and pending bars. Three
-  statuses actually render a failing label (1.86:1, 2.13:1, 2.78:1). Claiming a fourth would have
-  put a phantom failure in the success criteria and sent the implementer looking for it.
+- **SC-001 originally listed four failing statuses, including one at 3.00:1. I removed it as a
+  phantom. That removal was itself the error**, caught by architecture review and verified against
+  the source.
+
+  The reasoning was: the code suppresses the percentage for not-started and pending bars, so the
+  red 3.00:1 row describes a label that never renders. Both halves of that are true. The mistake was
+  assuming red belongs only to not-started. The timeline's colour switch has a fallback branch, and
+  the system accepts three further statuses — backlog, awaiting-review and blocked — that reach red
+  through it. None of the three is suppressed, and percent-complete is recorded independently of
+  status, so all three can and do render a red bar with a failing label.
+
+  Corrected: **six** statuses can render a label and all six fail, across four colours. The 3.00:1
+  figure is real; it simply arrives by a route I had not traced. The lesson is narrower than
+  "count first" — I verified the suppression list and the not-started mapping, and stopped there,
+  without checking what *else* resolved to the same colour. A fallback branch is exactly where that
+  kind of assumption hides.
 
 One assumption is deliberately load-bearing and worth a planner's attention: the current mapping of
 status to colour is **preserved**, including showing not-started tasks in red. That mapping is
