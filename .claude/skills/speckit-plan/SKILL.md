@@ -93,6 +93,13 @@ You **MUST** consider the user input before proceeding (if not empty).
    - quickstart.md must include the responsive and accessibility verification steps implied by this feature's interface, plus a **frontend review pass**: compare the implementation against the spec, this constitution, the plan, and comparable existing pages/components, run `/impeccable audit <target>` and `/impeccable critique <target>` against the implemented surface, and classify any findings (from either the manual comparison or Impeccable's output) as Critical/Major/Minor/Suggestion. Critical/Major findings block completion unless explicitly documented and accepted (Constitution Completion Gate).
    - Skip this step entirely for features with no frontend-interface surface (e.g., a pure backend/API-only change) — do not force a Frontend Design Constraints subsection where there's nothing to design.
 
+5a. **Specialist agent routing** (Constitution: Specialist Agent Routing). Before writing Technical Context, decide which specialists this feature's *surface* requires — routing is by the surface the diff will touch, not by how the request was worded. Dispatch them now, during planning, where they can still change the approach; consulted only at review they can do no more than find defects.
+   - **Accessibility surface** — colour contrast, ARIA, keyboard interaction, screen-reader behaviour, focus order, or colour carrying meaning → dispatch **Section 508 Accessibility Specialist**. Note that "adjust the token values" and "make the badge readable" are accessibility surfaces; features 021-023 each read as design-token work and consequently never routed one, so colourblind discriminability went unchecked across three features.
+   - **Data-encoding surface** — charts, timelines, heatmaps, or any mapping of data onto colour/position/size → dispatch **Data Visualization Engineer**. "Is red right for this state" is an encoding question with a discipline behind it.
+   - **Auth/permissions surface** → **Identity & Access Engineer**. **Query/index/migration-performance surface** → **Database Optimizer**. **CI, required checks, or release gating** → **DevOps Automator**.
+   - Record in plan.md, under a **"Specialist Routing"** line in Technical Context, which specialists were dispatched and what they changed. If a routed specialist was **not** dispatched, name it and say why — that is an exception and is recorded like one, not left silent.
+   - This is separate from, and does not replace, the Software Architect verification gate in step 7.
+
 6. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
    - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION"), including the Coding-Standard Constraints subsection from step 4 and the Frontend Design Constraints subsection from step 5 where applicable
    - Fill Constitution Check section from constitution (Principles VII and VIII apply to every feature touching PHP/Laravel or React/TypeScript code; the Frontend Design and Review Governance section applies to every feature with a frontend-interface surface)
@@ -215,6 +222,7 @@ Command ends after Phase 1 design. Report branch, IMPL_PLAN path, generated arti
 
 ## Done When
 
+- [ ] Specialist agent routing (step 5a) decided, dispatched, and recorded in plan.md — including any routed specialist deliberately skipped, with its reason
 - [ ] Plan workflow executed and design artifacts generated
 - [ ] Software Architect verification (step 7) dispatched and iterated to a clean pass or documented impasse, with the outcome recorded in plan.md's `## Software Architect Verification` section
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above

@@ -1,5 +1,26 @@
 <!--
 Sync Impact Report
+- Version change: 1.3.0 → 1.4.0
+- Modified principles: none renamed or removed
+- Added sections:
+  - Specialist Agent Routing (new top-level section, after Development Workflow) — names the
+    subagent types that MUST be dispatched for specific work surfaces, and routes by SURFACE rather
+    than by task description. Prompted by a concrete miss: features 021-023 did WCAG contrast work
+    across three consecutive features without ever dispatching the Section 508 Accessibility
+    Specialist, because "fix the contrast tokens" reads as design-system work rather than
+    accessibility work. Colourblind distinguishability was consequently never checked at all, on a
+    red/amber/green status system where `delayed` and `blocked` now share red.
+- Modified sections:
+  - Frontend Design and Review Governance → Frontend Review Workflow: the review pass now also
+    dispatches the accessibility specialist when the feature touches an accessibility surface.
+  - Development Workflow: adds the routing table as a step, so it fires outside Spec Kit too.
+- Templates/skills requiring updates:
+  - .claude/skills/speckit-plan/SKILL.md — dispatch routing at planning time (done in this change)
+  - .claude/skills/speckit-implement/SKILL.md — routing folded into the step 10 review (done)
+  - CLAUDE.md — points at the routing table (done)
+- Follow-up TODOs: none
+
+Previous report (1.2.0 → 1.3.0) retained below.
 - Version change: 1.2.0 → 1.3.0
 - Modified principles: none renamed or removed
 - Added sections: none (existing Frontend Design and Review Governance section extended in place)
@@ -263,6 +284,13 @@ During implementation, the agent MUST:
 
 ### Frontend Review Workflow
 
+When the reviewed surface touches an accessibility surface as defined in **Specialist Agent
+Routing**, the review pass MUST also dispatch the **Section 508 Accessibility Specialist**, and its
+findings are classified into the same Critical/Major/Minor/Suggestion scheme rather than kept
+separate. `/impeccable audit`'s deterministic checks do not substitute for it: they test what can be
+computed from the markup, not whether the encoding is discriminable or the interaction is operable.
+
+
 The `frontend-design` skill MUST automatically be used when reviewing:
 
 - completed frontend implementation
@@ -447,6 +475,11 @@ unrelated pages and components have not been unintentionally changed.
 
 ## Development Workflow
 
+Before starting work of any size, check **Specialist Agent Routing** below against the surface the
+change will touch, and dispatch what it names. This applies to ad-hoc work as much as to Spec Kit
+features — the routing miss it was written for happened inside a fully-compliant Spec Kit run.
+
+
 1. Every feature starts as a spec (`/speckit-specify`) before any code is
    written — this supersedes the old PRD → epic backlog → implementation
    plan pipeline in `docs/`.
@@ -465,6 +498,45 @@ unrelated pages and components have not been unintentionally changed.
    in addition to Principle VIII — both must pass, not one in place of the
    other.
 
+## Specialist Agent Routing
+
+Some work has a specialist whose whole discipline is that work. Dispatching them is not optional
+politeness — it is the difference between a competent answer and a correct one.
+
+**Route by surface, not by how the task was worded.** This section exists because of a specific
+miss: features 021 through 023 performed WCAG contrast work across three consecutive features and
+never once dispatched the accessibility specialist, because each task presented itself as
+"fix the design tokens". The contrast maths came out right; the questions nobody thought to ask did
+not get asked. Colourblind distinguishability was never checked on a red/amber/green status system
+in which two states now share red. A gate that measures contrast ratios is structurally blind to hue
+discrimination, so no amount of running it would have surfaced this.
+
+| If the change touches… | MUST dispatch | Because |
+|---|---|---|
+| Colour contrast, ARIA, keyboard interaction, screen-reader behaviour, focus order, colour as a carrier of meaning | **Section 508 Accessibility Specialist** | Contrast ratios are one axis of accessibility. Hue discrimination, focus order and assistive-tech behaviour are others, and a contrast gate cannot see them |
+| Charts, timelines, heatmaps, any encoding of data into colour/position/size | **Data Visualization Engineer** | "Is red the right colour for this state" is an encoding question with an established discipline, not a taste question |
+| Plan artifacts before `/speckit-tasks` or `/speckit-implement` | **Software Architect** | Already mandated by Principle VIII and the Spec Kit skills |
+| Implemented code before completion is reported | **Code Reviewer** | Already mandated by `/speckit-implement` step 10 |
+| Branch protection, required checks, CI workflow, release gating | **DevOps Automator** | Repo-settings changes are outward-facing and easy to get subtly wrong |
+| Authentication, session handling, roles, permission boundaries | **Identity & Access Engineer** | Principle I is fail-closed; a specialist reads these differently than a generalist |
+| Query plans, indexes, N+1, migration performance | **Database Optimizer** | |
+
+Rules that make the table bite:
+
+1. **The trigger is the surface the diff touches, not the words in the request.** "Adjust the token
+   values" touches an accessibility surface. So does "make the badge readable". If a reasonable
+   person would call the affected surface accessibility, data visualisation, auth, or CI, the
+   corresponding specialist is mandatory regardless of how the work was described.
+2. **Dispatch during planning, not only at review.** A specialist consulted after implementation can
+   only find defects; consulted during `/speckit-plan` they can change the approach.
+3. **Not dispatching is an exception and is recorded like one.** If a routed specialist is skipped,
+   plan.md says which and why — the same mechanism as a Constitution Check violation. Silence is not
+   an acceptable record.
+4. **The specialist advises; this constitution and the existing design system still outrank them**
+   (see Priority of Authority). Routing adds a voice, it does not transfer authority.
+5. **Generalist agents remain fine for generalist work.** This is not a rule that everything needs a
+   specialist — it is a rule that these seven surfaces do.
+
 ## Governance
 
 This constitution supersedes ad-hoc practice and the frozen `docs/` planning
@@ -478,4 +550,4 @@ compliance checkpoint — a plan that cannot satisfy a principle must either
 change its approach or document the exception and why it's necessary in that
 feature's plan.md, not silently ignore it.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-26
+**Version**: 1.4.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-27
