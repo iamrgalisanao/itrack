@@ -16,8 +16,10 @@ Two problems that live in the same two files, one urgent and one cosmetic.
 **The urgent one**: the Gantt chart's percentage label is unreadable. It is small white text drawn
 on top of a translucent white progress fill, so its real backdrop is the bar lightened by about a
 fifth — much paler than the bar itself. Measured, it sits between 1.86:1 and 2.78:1 where the
-accessibility floor for text this size is 4.5:1. This is the last confirmed contrast failure left
-in the product.
+accessibility floor for text this size is 4.5:1. It is the worst confirmed contrast failure left in
+the product, and the only one on a surface the design system already governs. It is **not** the last
+one: the brand accent fails the same floor at 3.40:1 on a tint of itself, recorded as a known
+exception in `DESIGN.md` and carrying its own follow-up, because no palette step fixes it.
 
 **The cosmetic one**: the colours in the Gantt bars and the Reports progress ring are written
 directly into the page code rather than drawn from the product's shared colour set. When feature
@@ -141,10 +143,14 @@ colour and confirm the Gantt bar follows it.
   2.78:1 (in progress), 2.13:1 (completed) and 1.86:1 (delayed) — against 4.5:1 required. Only
   not-started and the roll-up value suppress the label; percent-complete is recorded independently
   of status, so every other status can carry one.
-- **SC-002**: Zero status colours remain written directly into the two affected pages; every one is
-  drawn from the shared set. Today there are **forty-four** such values: fourteen in the timeline's
-  bar styling, twenty-four in the status pill beside it, three fixed whites on the bar itself (the
-  progress overlay, the percentage label, and the milestone marker), and three in the Reports ring.
+- **SC-002**: Zero status colours remain written directly into the **four surfaces this feature
+  names** — the timeline's bar styling, the status pill beside it, the three fixed whites on the bar
+  itself (the progress overlay, the percentage label, the milestone marker), and the Reports progress
+  ring. Today those four hold **forty-four** hard-coded values: 14 + 24 + 3 + 3.
+
+  The criterion is scoped to those four deliberately. `Reports.jsx` also contains a separate
+  status-colour map for its distribution chart, which this feature does not touch — see Out of Scope.
+  An unscoped "zero colours remain in the two affected pages" would be false on the day it shipped.
 - **SC-003**: Changing a shared status colour in one place visibly changes the Gantt bars, with no
   edit to the chart code.
 - **SC-004**: The bar-and-label contrast is checked automatically on every change, and the check
@@ -177,6 +183,12 @@ colour and confirm the Gantt bar follows it.
 ## Out of Scope
 
 - Re-deciding what each status colour *means* (see Assumptions).
+- **`Reports.jsx`'s `matchStatusColor` (lines 728-745)**, which colours the status-distribution
+  chart from Tailwind palette classes (`bg-slate-400`, `bg-primary/70`, `bg-blue-500/70`, …). It is
+  excluded on purpose rather than overlooked: it speaks a **different vocabulary** — its cases are
+  `todo` and `done`, which are not statuses the system accepts — so retokenising it means first
+  reconciling that vocabulary with the real one, which is the deferred alignment work, not this
+  feature. Bars only, no text on them.
 - The remaining hard-coded light/dark palette pairs elsewhere in the app, and the shared status maps
   used by the list and board views. These were measured during feature 022's review at 4.51:1 to
   8.44:1 — they all pass, so they are consistency debt rather than an accessibility problem.
