@@ -64,6 +64,14 @@ class ClientVisibilityBoundaryTest extends TestCase
      * One internal task carrying the sentinel in every free-text field a raw
      * model would serialise, plus one visible task so an endpoint cannot pass
      * by returning nothing at all.
+     *
+     * Both durations are pinned to 0 deliberately. `/api/reports` only surfaces
+     * tasks its `milestonesForProject()` treats as milestones — both durations
+     * zero — and the factory defaults `duration_days` to 1. Without these two
+     * lines the sentinel is structurally ineligible for the reports payload, so
+     * the `reports` provider row passes whether the filter is there or not.
+     * Verified: revert the ReportController fix and that row fails; restore it
+     * and it passes.
      */
     private function seedBoundary(): array
     {
@@ -77,6 +85,8 @@ class ClientVisibilityBoundaryTest extends TestCase
             'notes'           => self::SENTINEL,
             'client_visible'  => false,
             'status'          => 'in_progress',
+            'duration_months' => 0,
+            'duration_days'   => 0,
         ]);
 
         $visible = DetailedActivity::factory()->create([
@@ -84,6 +94,8 @@ class ClientVisibilityBoundaryTest extends TestCase
             'name'            => 'Shared With Client',
             'client_visible'  => true,
             'status'          => 'in_progress',
+            'duration_months' => 0,
+            'duration_days'   => 0,
         ]);
 
         return compact('chain', 'client', 'internal', 'visible');

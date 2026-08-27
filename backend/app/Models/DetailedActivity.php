@@ -4,7 +4,6 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToProject;
 use Illuminate\Database\Eloquent\Builder;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -108,12 +107,6 @@ class DetailedActivity extends Model
     }
 
     /**
-     * 021-dashboard-my-work — "open" is every status except completed.
-     * `status` is NOT NULL with a default, so a plain inequality is safe and
-     * covers backlog/for_review/blocked, which the dashboard's older
-     * four-status counts silently drop.
-     */
-    /**
      * Constrain to what `$user` may see *within* a project they can already
      * reach. `Project::accessibleTo()` answers "which projects"; this answers
      * "which tasks inside them", which nothing owned before.
@@ -135,6 +128,12 @@ class DetailedActivity extends Model
         );
     }
 
+    /**
+     * 021-dashboard-my-work — "open" is every status except completed.
+     * `status` is NOT NULL with a default, so a plain inequality is safe and
+     * covers backlog/for_review/blocked, which the dashboard's older
+     * four-status counts silently drop.
+     */
     public function scopeOpen(Builder $query): Builder
     {
         return $query->where('status', '!=', 'completed');
