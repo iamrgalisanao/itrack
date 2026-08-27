@@ -55,12 +55,24 @@ Two corrections were made during validation rather than carried into planning:
   without checking what *else* resolved to the same colour. A fallback branch is exactly where that
   kind of assumption hides.
 
-One assumption is deliberately load-bearing and worth a planner's attention: the current mapping of
-status to colour is **preserved**, including showing not-started tasks in red. That mapping is
-arguably wrong — "not started" is not an error — but re-deciding it changes the product's status
-vocabulary everywhere, not just these two files. Recorded in Assumptions and Out of Scope so the
-decision is visible rather than accidental.
+The load-bearing decision, now reversed: the timeline's status→colour map is **re-derived**, not
+preserved. The spec originally preserved it, on the reasoning that re-deciding what red means
+changes the product's status vocabulary everywhere. Architecture review showed preserving was not
+actually available:
 
-No [NEEDS CLARIFICATION] markers were needed: every open question had a defensible default, and the
-one genuinely contestable choice (preserve vs. re-decide the colour mapping) is resolved
-conservatively and recorded rather than asked, because re-deciding is plainly a separate feature.
+- Re-sourcing mechanically would rename `#ef4444` to "the destructive colour", turning "not started
+  is an error" from an accident of a hex literal into a named assertion in the source.
+- It contradicted User Story 2. The list and board views map delayed to red and not-started to grey;
+  the timeline does the opposite. "The same status looks the same everywhere" was unsatisfiable
+  while the map was frozen.
+- Measured, keeping the white label over the white overlay on the corrected tokens fails 6 of 8
+  pairings, so the label fix is only decidable against the re-derived bars.
+
+The re-derivation is bounded to the timeline's own colour and label logic. The shared status maps
+used by the list and board views are untouched and recorded in Out of Scope — they were measured at
+4.51:1–8.44:1 during feature 022's review, so they are consistency debt, not an accessibility
+defect.
+
+No [NEEDS CLARIFICATION] markers were needed. The one genuinely contestable choice — preserve versus
+re-derive the map — was resolved by measurement rather than by asking, because measurement showed
+only one of the two options actually works.
