@@ -150,9 +150,72 @@ class ReportTest extends TestCase
         $response->assertJsonMissingPath('projects.0.blocked_count');
         $response->assertJsonMissingPath('projects.0.status_breakdown');
 
-        // Verify Milestones are returned
-        $response->assertJsonCount(1, 'projects.0.milestones');
-        $response->assertJsonFragment(['name' => 'Project Kickoff Milestone']);
+        // The Client must NOT receive the internal milestone. `client_visible`
+        // defaults to false, so `Project Kickoff Milestone` in setUp() is
+        // internal.
+        //
+        // This assertion used to be its exact inverse -- the suite asserted the
+        // Client DID receive that name, and passed. The leak was encoded as
+        // expected behaviour, which is why 451 green tests never surfaced it and
+        // why fixing the controller turned the suite red. A test that pins a
+        // defect is worse than no test: it converts the fix into a regression.
+        $response->assertJsonMissing(['name' => 'Project Kickoff Milestone']);
+
+        // ...and must still receive one that is genuinely client-visible, or
+        // this endpoint would be "fixed" by returning nothing at all.
+        $visible = $this->project1->modules->first()
+            ->activities->first()
+            ->subActivities->first()
+            ->detailedActivities()->create([
+                'name'            => 'Client Visible Milestone',
+                'status'          => 'completed',
+                'duration_months' => 0,
+                'duration_days'   => 0,
+                'plan_end_date'   => Carbon::now()->subDays(1),
+                'progress'        => 100,
+                'client_visible'  => true,
+            ]);
+
+        $second = $this->actingAs($client, 'sanctum')->getJson(route('reports.index'));
+
+        $second->assertStatus(200);
+        $second->assertJsonCount(1, 'projects.0.milestones');
+        $second->assertJsonFragment(['name' => 'Client Visible Milestone']);
+        $second->assertJsonMissing(['name' => 'Project Kickoff Milestone']);
+
+        $this->assertTrue($visible->client_visible);
+    }
+
+    public function test_client_progress_excludes_internal_tasks(): void
+    {
+        $client = $this->createUser('Client', 'IT');
+        \App\Models\ProjectAssignment::create([
+            'user_id'             => $client->id,
+            'project_id'          => $this->project1->id,
+            'assigned_by_user_id' => $this->createUser('Admin', 'IT')->id,
+        ]);
+
+        $subActivity = $this->project1->modules->first()
+            ->activities->first()
+            ->subActivities->first();
+
+        // One visible task at 0%, alongside setUp()'s internal task at 100%.
+        $subActivity->detailedActivities()->create([
+            'name'           => 'Client Visible Work',
+            'status'         => 'in_progress',
+            'progress'       => 0,
+            'client_visible' => true,
+        ]);
+
+        $response = $this->actingAs($client, 'sanctum')->getJson(route('reports.index'));
+
+        $response->assertStatus(200);
+
+        // Averaging the internal 100% in would both overstate progress and leak
+        // volume: a Client could infer how much work exists that they cannot
+        // see. Aggregates are disclosure -- the lesson the dashboard heatmap
+        // taught one endpoint over.
+        $this->assertSame(0, $response->json('projects.0.progress'));
     }
 
     /**

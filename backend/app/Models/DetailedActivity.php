@@ -107,6 +107,28 @@ class DetailedActivity extends Model
     }
 
     /**
+     * Constrain to what `$user` may see *within* a project they can already
+     * reach. `Project::accessibleTo()` answers "which projects"; this answers
+     * "which tasks inside them", which nothing owned before.
+     *
+     * It exists because `client_visible` was a `where()` every author had to
+     * remember, in five query shapes across nine controllers, and it was
+     * forgotten in at least seven places -- the dashboard heatmap (a raw join),
+     * the Reports tree (an eager load), the sub-activity endpoints (a relation)
+     * -- each found by a separate audit rather than by review.
+     *
+     * Prefer this over an inline where(): it is greppable, so a reviewer can
+     * see its absence.
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return $query->when(
+            $user->isClient(),
+            fn (Builder $q) => $q->where('client_visible', true)
+        );
+    }
+
+    /**
      * 021-dashboard-my-work — "open" is every status except completed.
      * `status` is NOT NULL with a default, so a plain inequality is safe and
      * covers backlog/for_review/blocked, which the dashboard's older
