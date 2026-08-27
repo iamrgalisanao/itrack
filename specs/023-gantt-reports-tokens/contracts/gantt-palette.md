@@ -1,6 +1,6 @@
 # Contract — Gantt Palette Module and Gate Assertions
 
-The interface this feature exposes is a **data module** plus the **five assertions** a build-time
+The interface this feature exposes is a **data module** plus the **six assertions** a build-time
 gate makes about it. There is no API surface.
 
 ## The module
@@ -43,10 +43,11 @@ The third line is what makes the second durable. With ink and overlay on opposit
 fill, contrast rises monotonically with alpha, so the bare bar is the binding case and the alpha is
 a free visual choice. Without it, a passing alpha is a coincidence waiting to be tuned away.
 
-## The five assertions
+## The assertions
 
 Added to `scripts/verify-contrast.py`, which already reads `frontend/src/index.css` for token
-values. None can pass vacuously.
+values. Six in total — five about the module, plus assertion 6 about the recorded ratios. None can
+pass vacuously.
 
 1. **Parse guard.** The regex must yield **at least 8** entries, and `GANTT_PROGRESS_OVERLAY` must
    parse to a token name and a float. Zero entries is a hard failure, never a quietly skipped loop.
@@ -76,12 +77,35 @@ Tailwind v4. Interpolating against `transparent` in any space is premultiplied, 
 existing sRGB `blend()` is therefore correct despite the `in oklab` in the compiled output. Worth a
 comment in the script, because it looks wrong at a glance.
 
+## Assertion 6 — the recorded Gantt ratios
+
+The Gantt ratios are also written beside the tokens in `frontend/src/index.css` and drift-checked —
+but **not** by 022's existing `DOCUMENTED` parser, which cannot be reused. Simulated against the real
+script, both obvious shapes fail:
+
+- A **2-column** block (`bar overlay`, the shape data-model.md uses) yields **zero** matches against
+  022's 5-group regex, which requires three floats. The block is silently unparsed and never checked
+  — a vacuous pass, the exact failure this feature exists to prevent.
+- A **3-column** block parses, but `DOCUMENTED` is keyed by **hex**, so a Gantt row for `#b91c1c`
+  overwrites 022's `--destructive` row `(5.82, 4.54, 6.47)` with the Gantt figures, producing false
+  drift errors. (Simulated: `len(DOCUMENTED)` stays at **8** rather than growing, because the only
+  would-be new key is `--muted-foreground` and the hyphen defeats `[a-z]+` — so the count check does
+  *not* catch this. The silent clobber is the whole problem.)
+
+Assertion 6 therefore requires its own parser:
+
+- a distinct sentinel — a `Gantt, <theme>:` header line — matched by a **separate** regex with two
+  float groups;
+- keyed by `(status, theme)`, **not** by hex, because two statuses share `--destructive` and both
+  themes reuse the same status names;
+- and 022's `len(DOCUMENTED) != 8` check explicitly re-scoped to the text/tint/fill block so the two
+  tables cannot interfere.
+
+A `--muted-foreground` row happens not to collide with 022's regex only because the hyphen defeats
+`[a-z]+`. That is luck, not design, and is not relied on.
+
 ## Breaking-change policy
 
 Changing any entry, the overlay token, or the alpha is a contract change and requires re-running the
 gate. A change satisfying one invariant but not another is not acceptable — that is exactly the
 failure this feature fixes, where a fill was chosen without regard to what sits on it.
-
-The recorded ratios live beside the tokens in `frontend/src/index.css` in the same gate-checked form
-as 022's status blocks: the script parses the comment and fails if a documented figure drifts from
-the computed one.

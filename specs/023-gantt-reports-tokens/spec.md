@@ -96,9 +96,11 @@ colour and confirm the Gantt bar follows it.
 - **FR-002**: Status colours used by the Gantt bars and the Reports progress ring MUST come from the
   product's shared colour set, so that changing a colour once changes it everywhere.
 - **FR-003**: The timeline's status→colour map MUST be re-derived from the product's semantic
-  colours rather than preserved. Three statuses change colour: work awaiting review moves from red
-  to amber, delayed work moves from amber to red (agreeing with the Taskboard and list views), and
-  not-yet-started work moves from red to neutral. Preserving the current map is not an option,
+  colours rather than preserved. **Three colour changes, across five status keys**: work awaiting
+  review moves red→amber, delayed work moves amber→red (agreeing with the Taskboard and list
+  views), and backlog, not-yet-started and the roll-up value all move red→neutral. Backlog is one
+  of the keys that both renders a percentage label today *and* changes colour, so it must not be
+  overlooked. Preserving the current map is not an option,
   because a mechanical re-sourcing would turn "not started is an error" from an accident of a
   hard-coded value into a named assertion in the source.
 - **FR-004**: The retired brand accent MUST be replaced with the current one.
@@ -147,10 +149,12 @@ colour and confirm the Gantt bar follows it.
   edit to the chart code.
 - **SC-004**: The bar-and-label contrast is checked automatically on every change, and the check
   fails if the pairing drops below the floor.
-- **SC-005**: Every status resolves through a named semantic colour. Three statuses deliberately
-  change colour, and each change is recorded with its reason — this is a correction of the map, not
-  only of where the map's values come from.
-- **SC-006**: The retired accent no longer appears anywhere in the product.
+- **SC-005**: Every status resolves through a named semantic colour. **Three colour changes across
+  five status keys** are deliberate, each recorded with its reason — this is a correction of the
+  map, not only of where the map's values come from.
+- **SC-006**: The retired accent no longer appears as a **rendered** value anywhere in the product.
+  It remains named in two provenance comments explaining why it was retired; those are deliberate
+  and must not be removed to satisfy this criterion.
 
 ## Assumptions
 

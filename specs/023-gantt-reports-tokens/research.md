@@ -137,8 +137,11 @@ between, so the label fix must be decided against the *post*-retokenise bars.
   `--primary` against dark `--info` is **1.04:1**, `--foreground` against dark `--warning` is
   **1.52:1**. `outline-offset` moves the ring onto the row background, changing its contrast partner
   to `--background`/`--card`/`--muted`: **18.11–20.15:1 light, 14.73–16.25:1 dark**, independent of
-  status. It fits geometrically: the bar is `h-6` at `top: 8px` in an `h-12` row, so 2px at 2px
-  offset spans 6–38px inside 48px.
+  status. It fits vertically: the bar is `h-6` (24px) in a 48px row at `top: 12px` by default
+  (`showBaseline` is false at `:217`) or 8px with the baseline shown, so 2px at 2px offset spans
+  8–40px or 4–36px — inside 48px either way. Two accepted edge cases, recorded in plan.md: a bar at
+  `left: 0` has its outline clipped on the left by the pane's `overflow-x-auto`, and with the
+  baseline shown the outline's lower band crosses the baseline bar.
 - **Alternatives considered**: (a) keep gradients from `color-mix()` — see above. (b) Keep the glow
   and recolour it — rejected: `DESIGN.md`'s Flat-By-Default Rule explicitly prohibits reaching for a
   heavier shadow. (c) Mark critical path with an icon instead — rejected as a larger UX change than
@@ -148,7 +151,7 @@ between, so the label fix must be decided against the *post*-retokenise bars.
 
 - **Decision**: `frontend/src/lib/ganttPalette.js` is the single source of truth. `WorkProgram.jsx`
   builds inline styles from it; `scripts/verify-contrast.py` regex-parses it and joins it to the
-  tokens in `index.css`. Contract and the five assertions: [contracts/gantt-palette.md](./contracts/gantt-palette.md).
+  tokens in `index.css`. Contract and the six assertions: [contracts/gantt-palette.md](./contracts/gantt-palette.md).
 - **Rationale**: the gate must not be able to pass vacuously, which rules out the two obvious
   options. Parsing the JSX fails because `getGanttBarStyles` is a `switch` with fall-through — a
   regex over it would silently stop matching after any refactor and the check would go quiet. A
@@ -178,9 +181,13 @@ between, so the label fix must be decided against the *post*-retokenise bars.
 
 No frontend suite exists, so verification is explicit:
 
-1. **The gate** — `python scripts/verify-contrast.py`, exit code. Extended with five assertions
-   (contracts/). Landed *before* the JSX change so it is demonstrably red on `main`'s values first;
-   a gate that has only ever seen the fixed state has not been shown to fail.
+1. **The gate** — `python scripts/verify-contrast.py`, exit code. Extended with six assertions
+   (contracts/). It proves the *map* is complete and legible; it cannot prove the component uses the
+   map, because R4 deliberately declines to parse the `switch`. **Gate 4 and Gate 3 together** cover
+   that — Gate 4's literal sweep alone would pass a component that used plain Tailwind classes and
+   imported nothing, so the browser pass is load-bearing.
+   Non-vacuity is shown by the Gate 5 tamper proofs rather than by a red run on `main` — the gate
+   cannot see the old switch, so a "watch it fail first" step is not available here.
 2. **Enum coverage** — adding a status backend-side without a Gantt colour must fail CI. This is the
    assertion that would have caught today's bug.
 3. **Browser, both themes, all eight statuses** — including a `for_review` task with `progress > 0`,

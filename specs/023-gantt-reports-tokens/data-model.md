@@ -96,10 +96,11 @@ output; regenerate rather than retype.
 The badge beside each row, currently 24 Tailwind palette classes across four branches. It becomes
 eight explicit branches on semantic utilities.
 
-**One measured trap.** The four semantic states are safe as `bg-{state}/10 text-{state}` — that is
-the pattern 022 already gates, at 4.54–6.94:1. The neutral states are **not**: the analogous
-`bg-muted-foreground/10 text-muted-foreground` measures **4.23:1** on `--muted` in light mode, a
-fail. Use `bg-muted text-muted-foreground` instead — **5.15:1 light, 6.38:1 dark**.
+**One measured trap.** The four semantic states are safe as `bg-{state}/10 text-{state}` — the
+pattern 022 already gates, at 4.54–6.94:1. The neutral states are **not**. The analogous
+`bg-muted-foreground/N text-muted-foreground` over `--muted` in light mode measures **4.54:1 at /10
+but 4.23:1 at /15**, and the AA Floor Rule's tint test is the 10–15% band *worst case* — so it
+fails. Use `bg-muted text-muted-foreground` instead: **5.15:1 light, 6.38:1 dark**.
 
 This is the same self-tint failure mode 022 found, arriving through a different token. It is
 recorded here because the obvious symmetric choice is the wrong one.

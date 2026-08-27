@@ -19,23 +19,29 @@ Vite explicitly with `npm run dev -- --port 5178 --strictPort` if 5173 is occupi
 Every command below uses an absolute path so it does not matter where the previous one left the
 shell.
 
-## Gate 1 — The contrast gate, demonstrated failing first
-
-The gate is landed **before** the JSX change. Run it on the unmodified component:
+## Gate 1 — The contrast gate
 
 ```bash
 cd g:/Dev/projects/itrack && python scripts/verify-contrast.py; echo "gate exit: $?"
 ```
 
-**Expected at that point**: the five new assertions fail — enum coverage reports `backlog`,
-`for_review` and `blocked` missing, and the bar/label rows fail — `gate exit: 1`.
+**Expected**: every row `ok`, the `--primary` `xfail` row unchanged from 022, `CONTRACT HOLDS`,
+**`gate exit: 0`**.
 
-A gate that has only ever seen the fixed state has not been shown to fail. If it exits 0 before the
-component changes, the parse guard is not doing its job: check that `GANTT_STATUS_TOKENS` is being
-found at all rather than yielding an empty dict.
+**What this gate does and does not prove — read this before trusting it.** It reads
+`ganttPalette.js`, `index.css` and the backend enum. It deliberately does *not* parse
+`getGanttBarStyles` (research.md R4: a regex over a `switch` with fall-through stops matching after
+any refactor and goes quiet). So the gate proves **the map is complete and every pairing is
+legible**. It cannot prove **the component uses the map** — nothing here would catch a
+`getGanttBarStyles` still returning hard-coded hexes while a correct `ganttPalette.js` sat beside it.
 
-**Expected after implementation**: every row `ok`, the `--primary` `xfail` row unchanged from 022,
-`CONTRACT HOLDS`, **`gate exit: 0`**.
+That gap is closed by **Gate 4** (no colour literal survives in either page) and the **Gate 3**
+browser pass. Treat the three as one check with three parts.
+
+Consequently there is no "run it on `main` and watch it fail" step. The gate cannot see the old
+switch, so with a correct module committed it would exit 0 while the component was still broken.
+Non-vacuity is demonstrated instead by the **Gate 5** tamper proofs, run against the finished
+implementation, each of which must turn the gate red.
 
 ## Gate 2 — Build, lint, backend
 
@@ -68,16 +74,19 @@ like real bugs).
 | A bar at `width <= 16` | Milestone diamond; check its colour, not just the bar's |
 | A critical-path bar | Outline must sit *outside* the bar and not clip within the 48px row |
 | A `blocked` task's pill | Must read "Blocked", not "Pending" — that is a live bug today |
-| The neutral (not-started) pill | `bg-muted text-muted-foreground`, **not** `bg-muted-foreground/10` (4.23:1) |
+| The neutral (not-started) pill | `bg-muted text-muted-foreground`, **not** a self-tint (4.54:1 at /10 but 4.23:1 at /15, and the band's worst case binds) |
 | Print preview (Ctrl+P) | Inline styles survive the print rules; bars keep light-theme values |
+| A bar at the timeline's left edge | Its outline is clipped to three sides by the pane's `overflow-x-auto` — accepted, confirm it still reads as emphasis |
+| Toggle Baseline on, on a critical-path bar | The outline's lower band crosses the baseline bar — accepted, confirm it is not confusing |
+| **Change `--warning` in `index.css`, reload** | **Verifies SC-003 and US2 scenario 2** — the `for_review` bar, its pill and the Reports ring must all follow with no edit to chart code. Revert afterwards. |
 
 Light mode **changes visibly**: the completed portion of a bar now reads darker than the remainder
 rather than lighter. That is expected (research.md R2) and is the source of the monotonicity
 property. Confirm it reads as "more done = more ink" and not as a rendering error.
 
-Three statuses **change colour** by design: awaiting-review red→amber, delayed amber→red,
-not-started red→neutral. A status that no longer reads as its intended state is a Critical finding;
-a status that merely looks different from yesterday is not.
+**Three colour changes across five status keys** are by design: awaiting-review red→amber, delayed
+amber→red, and backlog / not-started / roll-up red→neutral. A status that no longer reads as its
+intended state is a Critical finding; a status that merely looks different from yesterday is not.
 
 ## Gate 4 — No colour literals survive
 
@@ -88,8 +97,9 @@ cd g:/Dev/projects/itrack/frontend
 grep -nE "#[0-9a-fA-F]{6}|rgba\(" src/pages/WorkProgram.jsx src/pages/Reports.jsx
 # expected: no matches in getGanttBarStyles or at Reports.jsx:239
 
-# The retired accent must be gone from the whole app
-grep -rn "aa3bff" src
+# The retired accent must be gone as a *rendered* value. Two provenance comments legitimately
+# name it -- src/index.css:15 and DESIGN.md:85 -- and must NOT be deleted to make this pass.
+grep -rn "aa3bff" src/pages src/lib src/components
 # expected: no matches
 
 # The module must hold names, not colours
@@ -142,10 +152,15 @@ view, Bug Tracker). Pre-registered blocking criteria:
 
 **Critical** — any label or diamond still failing AA in either theme (Gate 1 exits non-zero); a
 status reaching a colour or label through a fallback (FR-008); a status that no longer reads as its
-intended state; the critical-path outline clipping or colliding with the bar.
+intended state; the critical-path outline clipping **the bar itself** or colliding with it.
+
+The two outline cases accepted in plan.md are explicitly **not** Critical: the left-edge clip on a
+bar at `left: 0` (the pane is `overflow-x-auto`), and the overlap with the baseline bar when
+Baseline is toggled on. Both are confirmed by eye in Gate 3 and recorded as accepted; re-raising
+either as a blocker is a misreading of this criterion.
 
 **Major** — a colour literal surviving in either page (SC-002); the gate able to pass vacuously
-(Gate 5); the neutral pill using the 4.23:1 self-tint; `DESIGN.md` not updated with the canonical
+(Gate 5); the neutral pill using the self-tint that fails at /15 (4.23:1); `DESIGN.md` not updated with the canonical
 map; the ratios not recorded with the tokens.
 
 **Minor / Suggestion** — record; non-blocking.

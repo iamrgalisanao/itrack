@@ -33,10 +33,17 @@
 
 Two corrections were made during validation rather than carried into planning:
 
-- **SC-002 said "eleven" hard-coded values.** Counted: **seventeen** (14 in the timeline's bar
-  styling, 3 in the Reports ring). The figure was a guess and is now a count. This is the third
-  feature in a row where an asserted count was wrong, which is the argument for counting before
-  writing rather than after review.
+- **SC-002's count was wrong twice: 11 → 17 → 44.** I first wrote "eleven" as a guess. Counting the
+  hex literals gave **seventeen** (14 in the bar styling, 3 in the Reports ring) and I recorded that
+  as the correction. It was still low, because it counted only *hex* literals: it missed the **24
+  Tailwind palette classes** in the status pill and the **three fixed whites** on the bar itself (the
+  overlay, the label, the milestone diamond) — all of them hard-coded colour, all in scope. The
+  spec now says **forty-four**, which is the verified figure.
+
+  Twice wrong in the same field is the more useful lesson than the first miss: the second count was
+  narrower than the claim it was attached to. "Hard-coded colour values" is not "hex literals", and
+  re-counting under the original, unexamined definition reproduced the original error in smaller
+  form.
 
 - **SC-001 originally listed four failing statuses, including one at 3.00:1. I removed it as a
   phantom. That removal was itself the error**, caught by architecture review and verified against
