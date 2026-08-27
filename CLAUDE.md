@@ -117,6 +117,15 @@ Shortest form: accessibility surface → Section 508 Accessibility Specialist. C
 CI/branch protection → DevOps Automator. Plan artifacts → Software Architect. Implemented code →
 Code Reviewer. Skipping a routed specialist is an exception and is recorded in plan.md.
 
+**Version control** → **Git Workflow Master** owns the decision; **Software Architect** must sign
+off before anything irreversible runs. Routine and unsupervised: staging, commit granularity and
+messages, branch creation, pushing a feature branch, opening a PR, local rebases nobody has pulled,
+reverts. Requires architect sign-off first: merging to `main`, deleting a branch, force-pushing,
+rewriting shared history, tagging a release, changing branch protection, or discarding committed
+work. The line is not importance — it is **whether someone who did not run the action can undo it**.
+Routing the decision does not mean routing every keystroke: once a strategy is set, executing it is
+mechanical. See constitution → Version Control Authority.
+
 ### Installed skills that govern implementation (not optional references)
 
 Per Constitution Principle VII, these are enforced, not passive docs:

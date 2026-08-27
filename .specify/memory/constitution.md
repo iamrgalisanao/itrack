@@ -1,5 +1,22 @@
 <!--
 Sync Impact Report
+- Version change: 1.4.0 → 1.5.0
+- Modified principles: none renamed or removed
+- Modified sections:
+  - Specialist Agent Routing: adds **Git Workflow Master** as the owner of version-control
+    decisions, supervised by the **Software Architect** for irreversible or shared-history actions.
+    Adds a "Version Control Authority" subsection defining precisely which actions are routine
+    (decide and execute) and which require architect sign-off before execution, so "supervision"
+    is a checkable condition rather than a sentiment.
+- Rationale: git decisions in this repo have been made ad hoc by the orchestrating session
+  throughout 021-023 — branch naming, commit granularity, merge vs squash, when to push, when to
+  delete a branch. Those came out reasonable, but they were never anybody's discipline, and the
+  irreversible ones (merging to main, deleting branches, enabling branch protection) were decided
+  in the same breath as the reversible ones.
+- Templates/skills requiring updates: CLAUDE.md (done in this change)
+- Follow-up TODOs: none
+
+Previous report (1.3.0 → 1.4.0) retained below.
 - Version change: 1.3.0 → 1.4.0
 - Modified principles: none renamed or removed
 - Added sections:
@@ -520,6 +537,7 @@ discrimination, so no amount of running it would have surfaced this.
 | Branch protection, required checks, CI workflow, release gating | **DevOps Automator** | Repo-settings changes are outward-facing and easy to get subtly wrong |
 | Authentication, session handling, roles, permission boundaries | **Identity & Access Engineer** | Principle I is fail-closed; a specialist reads these differently than a generalist |
 | Query plans, indexes, N+1, migration performance | **Database Optimizer** | |
+| **Any version-control decision** — branching strategy, commit granularity and sequencing, merge vs squash vs rebase, when to push, tagging, history rewrites, branch cleanup | **Git Workflow Master**, supervised by **Software Architect** for the irreversible subset below | These decisions were made ad hoc throughout 021-023. They came out reasonable, but reversible and irreversible choices were being made in the same breath |
 
 Rules that make the table bite:
 
@@ -535,7 +553,42 @@ Rules that make the table bite:
 4. **The specialist advises; this constitution and the existing design system still outrank them**
    (see Priority of Authority). Routing adds a voice, it does not transfer authority.
 5. **Generalist agents remain fine for generalist work.** This is not a rule that everything needs a
-   specialist — it is a rule that these seven surfaces do.
+   specialist — it is a rule that these eight surfaces do.
+
+### Version Control Authority
+
+**Git Workflow Master owns version-control decisions. The Software Architect supervises the
+irreversible ones.** "Supervision" here is a checkable condition, not a sentiment: for the actions
+in the second list, the architect's assessment must exist *before* the action runs, and the outcome
+is recorded with the action.
+
+**Decide and execute — Git Workflow Master alone, no architect gate:**
+staging and commit granularity · commit message content · creating and naming branches · pushing a
+feature branch · opening a PR and writing its body · normal PR updates · local rebases on a branch
+nobody else has pulled · reverting a commit (which is itself an additive, reversible act).
+
+**Architect sign-off required before execution:**
+merging into `main` · deleting any branch · force-pushing anything · rewriting history on a shared
+branch · tagging a release · changing branch protection or required checks · resetting, discarding
+or overwriting committed work · anything that makes another person's clone wrong.
+
+The dividing line is not "important" versus "unimportant" — it is **whether the action can be undone
+by someone who did not run it.** A bad commit message is fixable by anyone; a force-push over a
+colleague's work is not.
+
+Three rules keep this honest:
+
+1. **The routine list is not a licence to batch.** A sequence of individually-routine actions that
+   adds up to an irreversible one (branch, force-push, delete) is irreversible and needs the gate.
+2. **The user's explicit instruction outranks both agents.** If the user says merge it, merge it —
+   the gate exists to stop *unsupervised* irreversibility, not to override the person who owns the
+   repository. Record that the instruction was the authority.
+3. **A skipped gate is recorded, not silent.** Same mechanism as any other routing exception.
+
+Practical note, so this does not become ceremony: routing the *decision* does not mean routing every
+keystroke. Once the branching and commit strategy for a piece of work is decided, executing it is
+mechanical and proceeds directly. The gate is on decisions and on the irreversible list — not on
+each `git add`.
 
 ## Governance
 
@@ -550,4 +603,4 @@ compliance checkpoint — a plan that cannot satisfy a principle must either
 change its approach or document the exception and why it's necessary in that
 feature's plan.md, not silently ignore it.
 
-**Version**: 1.4.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-27
+**Version**: 1.5.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-27
