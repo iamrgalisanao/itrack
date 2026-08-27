@@ -74,11 +74,88 @@ implementations were written and validated during the review.
 
 ---
 
+## Found by auditing this backlog itself
+
+An architecture audit of this file found twelve items it had missed. That is worth recording as
+plainly as the items: a consolidated backlog compiled from six sources still lost things, and one of
+its **Closed** entries actively concealed a live security defect.
+
+### Accepted exceptions, recorded once and never re-examined
+
+These were accepted inside `plan.md` Complexity Tracking blocks or a `tasks.md` line, which no list
+reads. Acceptance is not resolution, and an acceptance nobody revisits becomes a silent permanent
+decision.
+
+| Item | Where accepted | Why it needs revisiting |
+|---|---|---|
+| Critical-path outline is **clipped at the timeline origin** — the pane is `overflow-x-auto`, `left: 0` bars draw their outline at x = −4 | `023/plan.md:123-127` | N1 says critical-path membership has no programmatic equivalent, so the outline is its **sole** encoding — and it is partially absent on the leftmost bar |
+| The outline **overlaps the baseline bar** when baselines are shown | `023/plan.md:127-129` | Accepted on aesthetics; unreviewed since |
+| **`hover:shadow` violates DESIGN.md's Flat-By-Default Rule** and was pre-registered as unraisable | `023/tasks.md:88` | A named design rule has a standing exception recorded only in a task line |
+| **`impeccable polish`/`harden` not run** in 022 or 023 | `022/plan.md:197`, `023/plan.md:224` | The justification ("no interaction or component structure") was true for those diffs. **It does not carry forward** — 024 adds a focusable control and a tooltip interaction. Must be re-decided, not inherited |
+
+### 021's resolution gate is checked while its reviews still say open
+
+`021/tasks.md:137` marks T041 `[x]` — "resolve every Critical and Major finding or document its
+acceptance". But `code-slop-review.md:361` still reads *"all three are open"* and
+`frontend-design-review.md:15` still reads **"BLOCKED — 7 Major"**. Spot-checking shows the fixes
+landed and the documents were never updated. Two of the seven are live and in 024/025 territory:
+
+- **MAJ-5** — a failed status change is shown visually but never announced to assistive technology
+- **MAJ-7** — cancelling quick-add drops focus to `<body>`
+
+### A shipping screen that misdescribes the security model
+
+`frontend/src/pages/Admin.jsx:1451-1461` tells the operator the project *"operates in Mock Auth
+Mode"* and describes `DepartmentGrant` — the **production** authorization path — as prototype
+scaffolding pending "Active Directory/Okta". The substance is accurate, which is what makes it
+harmful: it frames a live authorization mechanism in the vocabulary of the mock role-switcher
+Constitution Principle VI retires. Related: `007/spec.md:119` names the role→per-user grant
+conversion as needing its own spec.
+
+### Couplings this file's table layout hid
+
+- **C2 and C3 are one fix on the Gantt, not two rows.** C3 requires replacing the hand-rolled
+  `opacity-0 group-hover` div with Radix `Tooltip` (1.4.13 needs focus-triggered and dismissible),
+  and a Radix trigger requires the bar to be focusable — which *is* C2. Scheduling them apart means
+  doing the Gantt bar twice.
+- **M2, C1, N3 and "status vocabulary alignment" are one problem in four sections**, filed rows
+  apart with no cross-reference. 023 excluded `matchStatusColor` *because* of this coupling.
+
+### Smaller misses
+
+- **Issue #8 does not cover M1**, though this file's header implies it does. The structural
+  hue-loss finding — the one that forced the Hue-Loss Rule — is tracked in no issue.
+- **The branch inventory was wrong.** `origin/011-project-client-access-control` is **2 commits
+  ahead** of `main` and `origin/012-help-center` is **3 ahead** — they carry unmerged work, not
+  stale refs. `013` and `022` are merged and deletable. Do **not** delete `011` or `012`.
+- **Constitution follow-ups are absent**: the 1.3.0 Sync Impact Report carries a still-pending
+  `TODO(TYPESCRIPT_ADOPTION)` and an amendment obligation if `impeccable` is renamed.
+- **A deferred *verification* action, not a code item**, so no list caught it: `023`'s browser pass
+  never saw a `for_review` bar with progress, the critical-path outline, the 0%/100% overlay edges,
+  or a `width <= 16` milestone — the seed data has only `in_progress` and `pending`/`not_started`.
+- **`DESIGN.md:278-282` understates C1's blast radius**: it names four `GroupSummaryBar` consumers;
+  there are six.
+
+### Verified clean
+
+Zero `TODO`/`FIXME`/`XXX`/`HACK` in `backend/`, `frontend/src/`, `scripts/`. The mock-auth migration
+comments are inert prose — all four columns carry real user ids.
+
+---
+
 ## Closed — verified, not assumed
 
-- **`recent_activities` leaked internal tasks to Clients** (021). **FIXED** — `ProjectController.php:307`
-  filters `client_visible`. It appeared on a "pre-existing defects found during the audit" list, not
-  a deferred list; reading the two lists together would have double-counted it as outstanding.
+- **`recent_activities` leaked internal tasks to Clients** (021). **FIXED** — `ProjectController.php`
+  filters `client_visible`, as do the headline `stats` counts via the shared query.
+
+  **This entry was dangerously incomplete when first written.** It closed *the endpoint* on the
+  strength of one query being fixed. `module_heatmap` on the same endpoint had **no**
+  `client_visible` predicate at all, so a Client received per-module counts of internal tasks —
+  a live tenant-isolation defect, Constitution Principle I. It was recorded exactly once, as a
+  sibling note in `021/owasp-review.md`, and closing the parent here retired the only pointer to it.
+  Found by the audit of this file; fixed in PR #11 with three tests proven to fail without the fix.
+
+  The lesson is the entry, not the bug: **close individual findings, never surfaces.**
 - **Build-time contrast enforcement** (022 #1). **DELIVERED** in 022 — `scripts/verify-contrast.py`
   runs as the `design-tokens` CI job.
 - **Retokenise the Gantt bar palette and the Reports progress ring** (022 #4). **DELIVERED** in 023 —
