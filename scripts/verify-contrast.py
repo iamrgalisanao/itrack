@@ -1,3 +1,35 @@
+# WHAT THIS GATE CANNOT SEE
+#
+# Read this before citing a green run as evidence that a colour decision is
+# sound. A Section 508 review of the system this script guards found three
+# blind spots, and the first is not a gap -- it is a way this gate makes things
+# worse.
+#
+# 1. It NEVER COMPARES TWO PALETTE COLOURS TO EACH OTHER. Every measurement here
+#    is token-vs-surface or ink-vs-fill. Distinguishability between statuses is
+#    a between-token property and there is no such check anywhere in this file.
+#    Worse: tuning every token to clear a similar ratio against the same shared
+#    surfaces drives them toward EQUAL LUMINANCE RELATIVE TO ONE ANOTHER, which
+#    is exactly what makes them collapse when hue is removed. Measured under
+#    simulated dichromacy, the status fills sit at 1.00-1.66:1 against each
+#    other -- failure and success become indistinguishable. This gate's passing
+#    condition and that failure are causally linked. Running it harder makes it
+#    worse. See DESIGN.md's Hue-Loss Rule.
+#
+# 2. IT ONLY KNOWS 4.5:1. There is no 3:1 tier, so all of WCAG 1.4.11 non-text
+#    contrast -- form-control borders, focus rings, bar edges, chart segment
+#    adjacency -- is outside its universe. `--input` sits at 1.27:1 today.
+#
+# 3. IT READS `--name: #hex` AND ONE JS OBJECT. Every Tailwind utility is
+#    invisible to it: taskStatus.js, groupSummary.js, and Reports.jsx's
+#    matchStatusColor are all unchecked, which is most status colour in the app
+#    by surface area. Absence is invisible too -- a reference to an undefined
+#    token yields no row and no error, which is how `bg-popover` shipped
+#    transparent app-wide.
+#
+# Full analysis, including the proposed assertions 8-10 that would close these:
+# specs/023-gantt-reports-tokens/accessibility-review.md
+
 import re, io, sys
 
 RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
