@@ -230,6 +230,41 @@ class ClientVisibilityBoundaryTest extends TestCase
         $this->assertSame(2, $memberTask['comments_count']);
     }
 
+    /**
+     * The other half of the boundary, and the half this file kept forgetting to
+     * assert: what a Client must still RECEIVE.
+     *
+     * Neither /schedule nor /work-program is role-guarded (App.jsx:699, :688),
+     * so Clients render both from this tree. `Schedule.jsx:367` decides what is
+     * a milestone with `duration_months === 0 && duration_days === 0`. Move
+     * those two fields behind the internal branch and that comparison becomes
+     * `undefined === 0` -- false, always. Milestone detection stops working for
+     * Clients only, nothing throws, and no test notices.
+     *
+     * Every assertion above this one checks that a Client sees less. This one
+     * checks the fix did not overshoot, which is the failure mode the field
+     * axis invites.
+     */
+    public function test_client_still_receives_the_fields_their_own_pages_render(): void
+    {
+        ['chain' => $chain, 'client' => $client, 'visible' => $visible] = $this->seedBoundary();
+
+        $task = collect(data_get(
+            $this->actingAs($client, 'sanctum')
+                ->getJson("/api/projects/{$chain['project']->id}/modules")
+                ->json(),
+            '0.activities.0.sub_activities.0.detailed_activities'
+        ))->firstWhere('id', $visible->id);
+
+        foreach (['duration_months', 'duration_days', 'plan_start_date', 'plan_end_date', 'status', 'progress'] as $field) {
+            $this->assertArrayHasKey($field, $task, "Client lost {$field}, which their own pages render");
+        }
+
+        // Specifically the milestone comparison, not merely the key's presence.
+        $this->assertSame(0, $task['duration_months']);
+        $this->assertSame(0, $task['duration_days']);
+    }
+
     public function test_internal_roles_still_see_the_internal_task(): void
     {
         ['chain' => $chain] = $this->seedBoundary();

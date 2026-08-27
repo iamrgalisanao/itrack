@@ -341,16 +341,24 @@ class ProjectController extends Controller
             // rather than Eloquent and reads as "just counts". Aggregate counts
             // over invisible tasks are still disclosure.
             //
-            // THE ONE PLACE `client_visible` IS SPELT BY HAND. Every other read
-            // path now goes through DetailedActivity::scopeVisibleTo(); a join
-            // predicate is a raw query builder, not an Eloquent builder, so the
-            // scope cannot reach it. It must stay a join predicate rather than a
-            // WHERE: a WHERE on the null side of a LEFT JOIN drops whole modules
-            // instead of zeroing their counts, which is the over-disclosure
-            // above traded for a different one.
+            // The one place `client_visible` is spelt by hand IN A QUERY. Every
+            // other read path now goes through DetailedActivity::scopeVisibleTo();
+            // a join predicate is a raw query builder, not an Eloquent builder,
+            // so the scope cannot reach it. It must stay a join predicate rather
+            // than a WHERE: a WHERE on the null side of a LEFT JOIN drops whole
+            // modules instead of zeroing their counts, which is the
+            // over-disclosure above traded for a different one.
             //
-            // If a gate is ever added forbidding `client_visible` outside the
-            // scope, this is its single documented exception.
+            // Four instance-level checks also spell it by hand, on a loaded
+            // model rather than a query, so the scope cannot reach them either:
+            // DetailedActivityController:171, AttachmentController:108,
+            // CommentController:79, NotificationController:170. They are the
+            // `isVisibleTo()` surface, not this one.
+            //
+            // A gate forbidding `client_visible` outside the scope must allow
+            // this line and those four. Naming only this one would have been
+            // the same kind of false comment the note fifty lines above warns
+            // about.
             ->leftJoin('detailed_activities', function ($join) use ($user) {
                 $join->on('detailed_activities.sub_activity_id', '=', 'sub_activities.id');
                 if ($user->isClient()) {

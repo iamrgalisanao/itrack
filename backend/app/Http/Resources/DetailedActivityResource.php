@@ -23,6 +23,18 @@ class DetailedActivityResource extends JsonResource
             'actual_end_date' => $this->actual_end_date,
             'status' => $this->status,
             'progress' => $this->progress,
+            // Schedule geometry, not internal commentary. These sat in the
+            // internal branch because that split was drawn for the flat
+            // /detailed-activities endpoint, where nothing rendered a timeline.
+            // The module tree feeds Schedule and Work Program, and neither
+            // /schedule nor /work-program is role-guarded (App.jsx:699, :688),
+            // so Clients reach both: Schedule.jsx:367 detects a milestone as
+            // `duration_months === 0 && duration_days === 0`, which silently
+            // becomes false when the keys are absent. Withholding them
+            // discloses nothing either -- a Client already receives
+            // plan_start_date and plan_end_date, from which duration derives.
+            'duration_months' => $this->duration_months,
+            'duration_days' => $this->duration_days,
             'client_visible' => $this->client_visible,
             // Produced by ModuleController's withCount, and already scoped to
             // client-visible comments for a Client. Sole producer, so it must
@@ -44,8 +56,6 @@ class DetailedActivityResource extends JsonResource
             'output' => $this->output,
             'responsible' => $this->responsible,
             'support' => $this->support,
-            'duration_months' => $this->duration_months,
-            'duration_days' => $this->duration_days,
             'sort_order' => $this->sort_order,
             'work_type' => $this->work_type,
             'client_name' => $this->client_name,

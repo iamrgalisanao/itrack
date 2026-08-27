@@ -55,12 +55,19 @@ class ModuleController extends Controller
         // branch exists to withhold, on the endpoint behind Kanban, Schedule and
         // Work Program. Row visibility and field visibility are two halves of
         // one rule; the resource owns the second half.
+        // attributesToArray(), not toArray(): the latter serialises the whole
+        // loaded subtree -- every task with all 37 raw columns -- and then
+        // relies on last-key-wins to discard it under the explicit key below.
+        // That materialises in memory precisely the data this method exists to
+        // suppress, and survives only as long as nobody reorders the spread.
+        // attributesToArray() never builds it. These models declare no
+        // $appends, so the own-attribute output is identical.
         return $modules->map(fn ($module) => [
-            ...$module->toArray(),
+            ...$module->attributesToArray(),
             'activities' => $module->activities->map(fn ($activity) => [
-                ...$activity->toArray(),
+                ...$activity->attributesToArray(),
                 'sub_activities' => $activity->subActivities->map(fn ($subActivity) => [
-                    ...$subActivity->toArray(),
+                    ...$subActivity->attributesToArray(),
                     'detailed_activities' => DetailedActivityResource::collection(
                         $subActivity->detailedActivities
                     )->resolve($request),
