@@ -139,7 +139,24 @@ url = pathlib.Path(tmp).as_uri() + '/i.html'
 
 fails = []
 
+# How many check() calls this file is supposed to make.
+#
+# Tamper proofs (T014/T015) prove the assertions that EXIST still fire. Nothing
+# proved that they all still exist -- delete one, or short-circuit the branch
+# that reaches it, and the suite goes green having measured less. That is a
+# strictly worse failure than a wrong value, because there is no red to read.
+#
+# It matters most for a PR that edits this file while this job is a REQUIRED
+# check: for pull_request events the workflow runs the PR's own copy of this
+# script, so the author decides what the gate asserts and branch protection
+# cannot see the difference. Raising this number is then a one-line diff a
+# reviewer looks at, which is the whole mechanism.
+EXPECTED_CHECKS = 16
+checks_run = 0
+
 def check(label, got, want, why):
+    global checks_run
+    checks_run += 1
     ok = got == want if not callable(want) else want(got)
     print('  %-46s %-22s %s' % (label, got, 'ok' if ok else 'FAIL'))
     if not ok:
@@ -301,6 +318,12 @@ with sync_playwright() as pw:
     hc.close()
     browser.close()
 
+
+if checks_run != EXPECTED_CHECKS:
+    fails.append('ran %d check() calls, expected %d -- an assertion was added or '
+                 'REMOVED. If deliberate, update EXPECTED_CHECKS in the same '
+                 'commit so the change is visible in the diff.'
+                 % (checks_run, EXPECTED_CHECKS))
 
 if fails:
     print('\nCASCADE CONTRACT VIOLATED:')

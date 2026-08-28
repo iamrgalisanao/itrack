@@ -36,7 +36,7 @@
 # Full analysis, including the proposed assertions 8-10 that would close these:
 # specs/023-gantt-reports-tokens/accessibility-review.md
 
-import re, io, sys, glob
+import re, io, sys, glob, math, itertools
 
 RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
 # Strip comments FIRST for the declaration parse: this feature adds a ratio comment
@@ -497,9 +497,11 @@ NON_TEXT_TIER = [
 ]
 
 print()
+non_text_rows = 0
 for theme, sel in (('light', ':root'), ('dark', '.dark')):
     t = block(sel)
     for name, surface, need in NON_TEXT_TIER:
+        non_text_rows += 1
         missing = [n for n in (name, surface) if n not in t]
         if missing:
             non_text_fail.append('%s: --%s is not declared'
@@ -512,12 +514,335 @@ for theme, sel in (('light', ':root'), ('dark', '.dark')):
             non_text_fail.append('%s: --%s on --%s is %.2f, below %.1f'
                             % (theme, name, surface, r, need))
 
+# Same reasoning as verify-cascade.py's EXPECTED_CHECKS -- and the FIRST draft
+# of this guard was itself vacuous, which is worth recording because it is the
+# exact defect the guard exists to catch.
+#
+# It read `!= 2 * len(NON_TEXT_TIER)`. Delete a row and the expected value
+# shrinks with it, so the comparison is true by construction and a deleted row
+# passes green. Caught by tamper-testing the guard rather than by reading it;
+# reading it, it looks obviously correct.
+#
+# The literal must be FROZEN. 10 rows x 2 themes.
+EXPECTED_NON_TEXT_ROWS = 20
+if non_text_rows != EXPECTED_NON_TEXT_ROWS:
+    ok = False
+    print('  measured %d non-text rows, expected %d -- a row was added or '
+          'REMOVED from NON_TEXT_TIER, or a branch skipped one. If deliberate, '
+          'update EXPECTED_NON_TEXT_ROWS in the same commit.'
+          % (non_text_rows, EXPECTED_NON_TEXT_ROWS))
+
 if non_text_fail:
     ok = False
     print()
     print('A NON-TEXT CONTRAST PAIR IS BELOW ITS THRESHOLD:')
     for d in non_text_fail:
         print('  ' + d)
+
+
+# ============================================================================
+# FEATURE 024 / PR B1 -- assertions that must exist BEFORE Stories 2 and 3 pick
+# a single colour. Every number here is fixed while it is still expensive to
+# change, rather than after the implementer has seen which value passes.
+# ============================================================================
+
+# ---------------------------------------------------------------- register pin
+#
+# SC-005 makes GANTT_STATUS_TOKENS the register of which statuses may share a
+# fill -- and nothing asserted the sharing. The register is SELF-AMENDING: the
+# planned check was `STATUS_FILL_TOKENS[s] === GANTT_STATUS_TOKENS[s].fill`, so
+# giving `delayed` its own hue means editing both maps and the assertion still
+# passes. Its paired tamper ("give delayed its own hue, the contract must fail")
+# fires only if you edit one map and not the other -- against a mistake, never
+# against a decision.
+#
+# So the sanctioned partition is frozen HERE, as a literal in the gate. Changing
+# who shares a fill now requires editing this file: a diff a reviewer sees.
+#
+# `pending` is excluded deliberately -- it is synthesised client-side for parent
+# rollups and is not a value the API accepts.
+SANCTIONED_SHARED_FILLS = {
+    ('backlog', 'not_started'),
+    ('blocked', 'delayed'),
+}
+
+_gantt = io.open('frontend/src/lib/ganttPalette.js', encoding='utf-8').read()
+_body = re.search(r'GANTT_STATUS_TOKENS\s*=\s*\{(.*?)\n\}', _gantt, re.S)
+if not _body:
+    print('FAIL: GANTT_STATUS_TOKENS is not parseable in ganttPalette.js. The '
+          'register cannot be read, so the pin below would assert nothing.')
+    sys.exit(1)
+
+_register = dict(re.findall(r"(\w+):\s*\{\s*fill:\s*'([\w-]+)'", _body.group(1)))
+_register.pop('pending', None)
+if len(_register) < 7:
+    print('FAIL: read only %d statuses from GANTT_STATUS_TOKENS, expected 7. The '
+          'parse is wrong and the register pin would be measuring a subset.'
+          % len(_register))
+    sys.exit(1)
+
+_groups = {}
+for _status, _fill in _register.items():
+    _groups.setdefault(_fill, []).append(_status)
+_observed_shared = {tuple(sorted(v)) for v in _groups.values() if len(v) > 1}
+
+print()
+print('register pin -- which statuses may share a fill')
+for _fill, _statuses in sorted(_groups.items()):
+    print('  %-18s %s' % ('--' + _fill, ', '.join(sorted(_statuses))))
+
+if _observed_shared != SANCTIONED_SHARED_FILLS:
+    ok = False
+    print()
+    print('THE SHARED-FILL REGISTER CHANGED:')
+    for _p in sorted(_observed_shared - SANCTIONED_SHARED_FILLS):
+        print('  NOT SANCTIONED: %s now share a fill' % ' + '.join(_p))
+    for _p in sorted(SANCTIONED_SHARED_FILLS - _observed_shared):
+        print('  NO LONGER SHARED: %s' % ' + '.join(_p))
+    print('  SC-005 makes this a recorded decision, not a map edit. Update')
+    print('  SANCTIONED_SHARED_FILLS in this file, deliberately.')
+
+
+# ------------------------------------------------ dichromatic separation
+#
+# THE THRESHOLD IS STATED HERE, BEFORE THE FILLS ARE CHOSEN -- AND IT IS NOT A
+# PASS/FAIL LINE ON THE FILLS.
+#
+# Every 024 artifact said the fills must clear "a stated dE00" and not one of
+# them stated it. That leaves the implementer to measure first and then choose a
+# number the measurement clears, which is not a threshold but a rationalisation.
+#
+# 11.0 is the "clearly a different colour" bound. THE STATUS PALETTE DOES NOT
+# CLEAR IT, AND CANNOT BE MADE TO. These are semantic red / amber / green, and
+# that triad is the canonical set that collapses under dichromacy. Measured
+# (Vienot-Brettel-Mollon 1999 + CIEDE2000), six of the forty theme/deficiency/
+# pair combinations fall below 11, and EVERY ONE of them lies inside the
+# red-amber-green triad -- `muted-foreground` and `info` separate cleanly in all
+# four conditions. The worst is for_review vs blocked/delayed at 3.98 in light
+# deuteranopia, and those two segments ABUT in the summary bar.
+#
+# Tuning the tokens does not fix this. Driving every token to clear a similar
+# ratio against the same shared surfaces pushes them toward equal luminance
+# relative to one another, which is the mechanism described at the top of this
+# file: running the 4.5:1 gate harder makes dichromatic collapse worse.
+#
+# So the contract is NOT "fills clear 11". It is: EVERY PAIR BELOW 11 MUST BE
+# SEPARATED BY A CHANNEL THAT IS NOT COLOUR. That is WCAG 1.4.1 expressed as an
+# arithmetic precondition instead of an intention, and it makes the glyph US2
+# adds load-bearing by construction rather than decorative.
+#
+# The set is EXACT equality, not a ceiling: a pair leaving it (an improvement)
+# must be recorded as deliberately as one joining it (a regression). Either way
+# the list of statuses that need a non-colour channel has changed, and that is
+# US2's whole input.
+DICHROMACY_THRESHOLD = 11.0
+DICHROMACY_SUB_THRESHOLD = {
+    ('light', 'protan', 'destructive', 'success'),   # 8.18
+    ('light', 'protan', 'destructive', 'warning'),   # 4.85
+    ('light', 'protan', 'success', 'warning'),       # 7.28
+    ('light', 'deutan', 'destructive', 'warning'),   # 3.98
+    ('dark', 'protan', 'success', 'warning'),        # 9.37
+    ('dark', 'deutan', 'destructive', 'success'),    # 7.07
+}
+STATUS_FILLS = ['muted-foreground', 'info', 'warning', 'destructive', 'success']
+
+
+def _srgb_to_lin(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _lin_to_srgb(c):
+    c = max(0.0, min(1.0, c))
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+
+
+def simulate(hexval, kind):
+    """Vienot-Brettel-Mollon (1999) dichromacy, on Smith-Pokorny LMS."""
+    h = hexval.lstrip('#')
+    r, g, b = [_srgb_to_lin(int(h[i:i + 2], 16) / 255) for i in (0, 2, 4)]
+    l = 17.8824 * r + 43.5161 * g + 4.11935 * b
+    m = 3.45565 * r + 27.1554 * g + 3.86714 * b
+    s = 0.0299566 * r + 0.184309 * g + 1.46709 * b
+    if kind == 'protan':
+        l = 2.02344 * m - 2.52581 * s
+    elif kind == 'deutan':
+        m = 0.494207 * l + 1.24827 * s
+    return (_lin_to_srgb(0.0809444479 * l - 0.1305044090 * m + 0.1167721270 * s),
+            _lin_to_srgb(-0.0102485286 * l + 0.0540193266 * m - 0.1136147080 * s),
+            _lin_to_srgb(-0.0003652968 * l - 0.0041216147 * m + 0.6935022498 * s))
+
+
+def _lab(rgb):
+    r, g, b = [_srgb_to_lin(c) for c in rgb]
+    x = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b
+    y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b
+    z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b
+
+    def f(t):
+        return t ** (1 / 3.0) if t > 216 / 24389.0 else (841 / 108.0) * t + 4 / 29.0
+    fx, fy, fz = f(x / 0.95047), f(y / 1.0), f(z / 1.08883)
+    return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+
+
+def ciede2000(lab1, lab2):
+    L1, a1, b1 = lab1
+    L2, a2, b2 = lab2
+    C1, C2 = math.hypot(a1, b1), math.hypot(a2, b2)
+    Cb = (C1 + C2) / 2.0
+    G = 0.5 * (1 - math.sqrt(Cb ** 7 / (Cb ** 7 + 25.0 ** 7))) if Cb > 0 else 0.5
+    a1p, a2p = (1 + G) * a1, (1 + G) * a2
+    C1p, C2p = math.hypot(a1p, b1), math.hypot(a2p, b2)
+    h1p = math.degrees(math.atan2(b1, a1p)) % 360 if (a1p or b1) else 0.0
+    h2p = math.degrees(math.atan2(b2, a2p)) % 360 if (a2p or b2) else 0.0
+    dLp, dCp = L2 - L1, C2p - C1p
+    if C1p * C2p == 0:
+        dhp = 0.0
+    elif abs(h2p - h1p) <= 180:
+        dhp = h2p - h1p
+    elif h2p - h1p > 180:
+        dhp = h2p - h1p - 360
+    else:
+        dhp = h2p - h1p + 360
+    dHp = 2 * math.sqrt(C1p * C2p) * math.sin(math.radians(dhp) / 2)
+    Lbp, Cbp = (L1 + L2) / 2.0, (C1p + C2p) / 2.0
+    if C1p * C2p == 0:
+        hbp = h1p + h2p
+    elif abs(h1p - h2p) <= 180:
+        hbp = (h1p + h2p) / 2.0
+    elif h1p + h2p < 360:
+        hbp = (h1p + h2p + 360) / 2.0
+    else:
+        hbp = (h1p + h2p - 360) / 2.0
+    T = (1 - 0.17 * math.cos(math.radians(hbp - 30))
+         + 0.24 * math.cos(math.radians(2 * hbp))
+         + 0.32 * math.cos(math.radians(3 * hbp + 6))
+         - 0.20 * math.cos(math.radians(4 * hbp - 63)))
+    Rc = 2 * math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25.0 ** 7)) if Cbp > 0 else 0.0
+    Sl = 1 + (0.015 * (Lbp - 50) ** 2) / math.sqrt(20 + (Lbp - 50) ** 2)
+    Sc, Sh = 1 + 0.045 * Cbp, 1 + 0.015 * Cbp * T
+    Rt = -math.sin(math.radians(2 * (30 * math.exp(-(((hbp - 275) / 25.0) ** 2))))) * Rc
+    return math.sqrt((dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2
+                     + Rt * (dCp / Sc) * (dHp / Sh))
+
+
+print()
+print('dichromatic separation of the status fills (threshold %.1f)'
+      % DICHROMACY_THRESHOLD)
+_observed_sub = set()
+_measured = 0
+for _theme, _sel in (('light', ':root'), ('dark', '.dark')):
+    _t = block(_sel)
+    _absent = [f for f in STATUS_FILLS if f not in _t]
+    if _absent:
+        ok = False
+        print('  %s: --%s not declared -- pairs involving it were NOT measured'
+              % (_theme, ', --'.join(_absent)))
+        continue
+    for _kind in ('protan', 'deutan'):
+        _labs = {f: _lab(simulate(_t[f], _kind)) for f in STATUS_FILLS}
+        for _a, _b in itertools.combinations(sorted(STATUS_FILLS), 2):
+            _d = ciede2000(_labs[_a], _labs[_b])
+            _measured += 1
+            if _d < DICHROMACY_THRESHOLD:
+                _observed_sub.add((_theme, _kind, _a, _b))
+                print('  %-5s %-6s %-18s vs %-18s %6.2f  BELOW -- needs a '
+                      'non-colour channel' % (_theme, _kind, _a, _b, _d))
+
+if _measured != 40:
+    ok = False
+    print('  measured %d pairs, expected 40 -- the sweep did not cover the '
+          'palette and the set below proves nothing.' % _measured)
+
+if _observed_sub != DICHROMACY_SUB_THRESHOLD:
+    ok = False
+    print()
+    print('THE SET OF COLOUR-INDISTINGUISHABLE PAIRS CHANGED:')
+    for _p in sorted(_observed_sub - DICHROMACY_SUB_THRESHOLD):
+        print('  NEW: %s/%s %s vs %s is now below %.1f -- it needs a glyph or '
+              'other non-colour channel' % (_p + (DICHROMACY_THRESHOLD,)))
+    for _p in sorted(DICHROMACY_SUB_THRESHOLD - _observed_sub):
+        print('  RESOLVED: %s/%s %s vs %s now clears %.1f -- record it'
+              % (_p + (DICHROMACY_THRESHOLD,)))
+    print('  US2 takes this set as its input: these are the statuses whose')
+    print('  separation may not rest on colour. Update the literal deliberately.')
+else:
+    print('  %d of %d pairs below threshold, matching the recorded set'
+          % (len(_observed_sub), _measured))
+
+
+# ------------------------------------------- raw palette literals, ratcheted
+#
+# T040 planned to assert "no bg-<palette>-<weight> in Reports.jsx". Two holes.
+#
+# 1. WRONG FILE. The identical defect class lives in taskStatus.js, which is
+#    what US2 rewrites, and in WorkProgram's LIST_STATUS_SEGMENT_CLASSES. The
+#    -foreground sweep above only catches undeclared *-foreground tokens, and
+#    the on_tint assertion measures token VALUES -- neither can see a badge
+#    painted bg-purple-500.
+#
+# 2. A TOKEN UTILITY IS NOT A LITERAL, AND THE LIVE BUG IS A TOKEN UTILITY.
+#    Reports.jsx's matchStatusColor ends `default: return 'bg-primary/70'`,
+#    which is what collapses not_started, completed and delayed into one violet
+#    today. A palette-literal ban would not have caught the defect the ban was
+#    written to prevent. Feature 025 owns the token-default half; this ratchet
+#    owns the literal half and is honest about the boundary.
+#
+# Ratcheted rather than forbidden, because these files are FULL of literals
+# right now and a flat ban would be red on day one -- at which point the
+# implementer either expands scope or weakens the regex, and weakening it is
+# what removes the coverage the contract claims.
+# Scoped to the NAMED MAPS, not whole files. WorkProgram.jsx carries 18 palette
+# literals of which only 4 are status vocabulary; ratcheting the file would tie
+# this gate to unrelated churn and produce a red that says nothing about status
+# colour. The map is the unit of meaning.
+#
+# LIST_STATUS_SEGMENT_CLASSES covers only FOUR statuses -- not_started,
+# in_progress, completed, delayed. backlog, for_review and blocked are absent,
+# which is precisely the silent-drop defect taskStatus.js's own header warns
+# about ("the four-value set used by Work Program's List view predates
+# backlog/for_review/blocked and silently drops rows holding those statuses").
+# US2 owns fixing that; the count here will RISE to 7 when it does, and the
+# ratchet will demand the baseline move in that commit -- which is the correct
+# conversation to force.
+PALETTE_LITERAL_BASELINE = {
+    ('frontend/src/lib/taskStatus.js', 'STATUS_SEGMENT_CLASSES'): 7,
+    ('frontend/src/lib/taskStatus.js', 'STATUS_BADGE_CLASSES'): 28,
+    ('frontend/src/pages/WorkProgram.jsx', 'LIST_STATUS_SEGMENT_CLASSES'): 4,
+}
+_palette_rx = re.compile(
+    r'\b(?:bg|text|border|ring|fill|stroke|from|to|via|divide|outline)-'
+    r'(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|'
+    r'emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-'
+    r'[0-9]{2,3}\b')
+
+print()
+print('raw palette literals in the status vocabularies (ceiling, must not grow)')
+for (_path, _const), _limit in sorted(PALETTE_LITERAL_BASELINE.items()):
+    try:
+        _src = io.open(_path, encoding='utf-8').read()
+    except IOError:
+        ok = False
+        print('  %s :: %s -- FILE NOT FOUND, the ratchet measured nothing'
+              % (_path, _const))
+        continue
+    _m = re.search(re.escape(_const) + r'\s*=\s*\{(.*?)\n\}', _src, re.S)
+    if not _m:
+        ok = False
+        print('  %s :: %s -- MAP NOT FOUND. It was renamed, moved or reshaped; '
+              'this row measured nothing.' % (_path, _const))
+        continue
+    _n = len(_palette_rx.findall(_m.group(1)))
+    print('  %-58s %3d / %3d' % (_const, _n, _limit))
+    if _n > _limit:
+        ok = False
+        print('    ABOVE BASELINE: a raw palette literal entered the status')
+        print('    vocabulary. Use a semantic token -- US2 exists to remove these.')
+    elif _n < _limit:
+        ok = False
+        print('    BELOW BASELINE: good. Lower PALETTE_LITERAL_BASELINE to %d in'
+              % _n)
+        print('    the same commit, or the ceiling stops guarding the new floor.')
+
 
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)
