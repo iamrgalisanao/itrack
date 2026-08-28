@@ -205,6 +205,16 @@ the #14 sign-off implied it had.
 
 ---
 
+## Open decisions — recorded from the #17–#24 run
+
+| Item | Status | Notes |
+|---|---|---|
+| **Row-scoping vs field-scoping has no stated rule.** iTrack has two Client-scoping mechanisms — row-level (`visibility`, `accessibleTo`, `scopeVisibleTo`) and field-level (resource branches) — and nothing says when each applies. `BugResource` uses only the first; `DetailedActivityResource` uses both; **neither is wrong on its face, and that is the problem** — there is nothing to check a new resource against | **OPEN — write the ADR** | The highest-value row here: it prevents a *class*, where PRs #14, #15 and #24 each closed an instance. Surfaced by a false positive — `BugResource` was flagged for returning `priority` to Clients, but `BugTracker.jsx:402/:421` render that column ungated while gating `Status`, so withholding it would have broken the Client bug list. The finding was wrong; the absence of a rule that would have settled it in one step is real. Scope: an ADR plus a decision on `status`/`sprint_label`, not a spec |
+| **Dialog panel has neither a ground nor an edge in dark mode.** `bg-background/82` over a `bg-black/70` scrim composites to `#131419` on `#070709`: **panel 1.09:1, edge 1.53:1** against a 3:1 bar. Light is fine (6.34 / 6.68) | **OPEN — Major**, pre-existing | Same failure #24 fixed for menus, on the other floating surface. Deliberately *not* folded into #24: `backdrop-blur-xl` is a real perceptual cue no contrast ratio captures — a blurred backdrop is distinguishable at equal luminance, which was **not** true of the flat dropdown case — and a modal traps focus, so it is not something a user must find. Fix is `--popover` + `border-popover-border`, or an explicit decision that blur carries the boundary |
+| **The design hook flags `index.css` literals on diffs that never touch it** | OPEN — tooling, low | It fired on a `.jsx`-only PR. A scoping bug that should only report files in the diff. Low priority now that the print literals are registered in `DESIGN.md`'s frontmatter, but it consumed a whole PR before that — a tooling defect generating product work is product work |
+
+---
+
 ## Closed — verified, not assumed
 
 - **`recent_activities` leaked internal tasks to Clients** (021). **FIXED** — `ProjectController.php`
