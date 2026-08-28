@@ -210,8 +210,25 @@
   --font-mono: ui-monospace, Consolas, monospace;
 }
 
-* {
-  border-color: var(--color-border);
+/* Tailwind v3 defaulted border-color to a palette grey; v4 defaults it to
+   currentColor. This rule is the compat shim that keeps a bare `border`
+   looking the way the app was built.
+
+   It MUST stay inside @layer base. Unlayered, it beat every `border-*-color`
+   utility in the application -- not on specificity, but on layer origin,
+   which is consulted first -- so those utilities silently did nothing. That
+   defect shipped four separate times: the tooltip edge in #17, the two hover
+   card separators in the same PR, 112 inert opacity modifiers retired in #20,
+   and the dropdown/select surfaces still open. Every one looked like correct
+   CSS and rendered as if it were absent.
+
+   Inside @layer base it still wins against nothing-in-particular -- an element
+   that sets no border colour of its own -- while any utility now overrides it,
+   which is what every author writing `border-primary` already believed. */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
 }
 
 /* Windows High Contrast / forced-colors: restore a focus indicator.
