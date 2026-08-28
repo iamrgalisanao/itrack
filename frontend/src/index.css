@@ -222,17 +222,26 @@
    replaced it. Every focusable control in the app becomes untrackable by
    keyboard in HCM. WCAG 2.4.7 (AA), and 2.4.11 in 2.2.
 
-   `!important` is deliberate and scoped: it exists only to beat the
-   `outline-style: none` those 122 utilities emit, it applies only in
-   forced-colors mode, and the alternative there is no focus indicator at
-   all. CanvasText is a system colour, so the UA keeps it legible against
-   whatever ground the user has chosen.
+   `Highlight`, not `CanvasText`. Measured in Chromium's HCM palette:
+   CanvasText is rgb(0,0,0) and Highlight is rgb(55,0,110). Every ordinary
+   border in forced-colors is already CanvasText, so a CanvasText outline
+   reads as a second black border rather than a distinct state -- and
+   Chromium paints the focused element's own border in Highlight, so this
+   follows the platform convention instead of competing with it.
+
+   DO NOT DELETE THE `!important` AS REDUNDANT. This block is unlayered, so
+   it already beats @layer utilities on layer origin and does not need
+   `!important` to defeat today's `outline-none`. What `!important` buys is
+   survival if the unlayered `* { border-color }` rule below is ever moved
+   into @layer base and this block moves with it -- at which point layer
+   origin stops protecting it and the 122 `outline-none` utilities win
+   again, silently, restoring exactly the bug this fixes.
 
    This is the general case of the fix the tooltip got in #17: box-shadow
    is not a boundary in HCM, an outline is. */
 @media (forced-colors: active) {
   *:focus-visible {
-    outline: 2px solid CanvasText !important;
+    outline: 2px solid Highlight !important;
     outline-offset: 2px !important;
   }
 }
