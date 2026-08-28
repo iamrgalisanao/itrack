@@ -217,13 +217,30 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 - [ ] T077 Run `code-slop` on the diff: no per-row `useState` in the timeline map, no defensive wrapper around values the caller guarantees, and every comment either records a rejected alternative or is deleted
 - [ ] T078 Run `laravel-owasp-security` scoped to FR-007's surface — a new rendering path for role-restricted data, not an endpoint
 - [ ] T079 Write `verification-record.md` with each gate's **actual output**, every manual result, and every Critical/Major with its resolution. **Regenerate figures, never retype them** — three drafts of 023's artifacts carried hand-transcribed ratios and two were wrong
-> **PR B and PR C will legitimately trip the ratchet, and that is correct.**
-> `scripts/count-control-borders.py` now holds the residue at **equality** (81), not as a ceiling,
-> and the `border-input` site count at equality too (45). T030 replaces the Reports chart and T037
-> retokenises the risk tiles, so both numbers will move — and the gate will fail until
-> `BASELINE_BORDER` / `BASELINE_INPUT_SITES` are updated **in the same commit that moved them**.
-> That is the designed behaviour: a one-sided ceiling let the baseline drift away from the floor,
-> which is the defect this replaced. **Do not "fix" a red ratchet by loosening it back to `>`.**
+> **If the ratchet goes red in PR B, read the failure — do not bump the baseline reflexively.**
+>
+> An earlier version of this note claimed "PR B and PR C will legitimately trip the ratchet" and
+> told the implementer to update the baselines. **That was wrong on its facts, and wrong in the
+> dangerous direction**: it pre-authorised a baseline bump for a red the work will not produce, so
+> a genuine failure would have been silenced by a note that looked like permission.
+>
+> Verified against the tree: `count-control-borders.py` counts **literal `<input|select|textarea>`
+> tags only**. `Reports.jsx`'s 10 residue controls are all in the filter bar (lines 306, 323, 340,
+> 358, 377, 388, 401, 419, 547, 563). T030's chart is at `:667` and T037's tiles at `:504`/`:650` —
+> every element in both regions is a `<div>` or `<span>`, and `Reports.jsx` contains **zero**
+> `border-input` sites. So `BASELINE_BORDER = 81` and `BASELINE_INPUT_SITES = 45` are untouched by
+> Stories 2 and 3 as planned.
+>
+> The three things that *can* trip it, and the correct response to each:
+>
+> | Trip | Response |
+> |---|---|
+> | The new chart's **empty track** is given `border-input` — a plausible choice, since `--border` measures only 1.24:1 against the panel while `--input` clears 3:1. Sites 45 → 46 | **Bump `BASELINE_INPUT_SITES`, same commit.** Legitimate, and the one expected bump in this PR |
+> | A separator or ring written `outline-input` / `ring-input` / `bg-input` instead of a plain utility | **Hard FAIL — never a bump.** The closure check reports "`--input` has a consumer other than plain `border-input`". Fix the class |
+> | Any count *falls* | Lower that baseline in the commit that lowered it |
+>
+> **Never loosen the gate back to `>`.** A one-sided ceiling let the baseline drift away from the
+> floor until it constrained nothing, which is the defect the equality replaced.
 
 - [ ] T080 Update the ACR to **Partially Supports** on 1.4.11 with both residues named: the 81 hand-rolled controls (feature 025) and the progress-overlay edge.
 
