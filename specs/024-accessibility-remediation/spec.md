@@ -115,7 +115,7 @@ An administrator opens the admin panel and sees the production authorization mec
 - **FR-006**: Task information available only in the detail card — level, planned versus actual dates, duration and progress — MUST remain available to screen-reader users after FR-004 is satisfied.
 - **FR-007**: Any screen-reader-only rendering of task data MUST apply the same role-based field restrictions as the visible rendering, MUST derive those restrictions from a single shared definition rather than a duplicate, and MUST withhold a restricted field when the viewer's role cannot be determined.
 - **FR-008**: The system MUST NOT convey any status solely by colour; every status indicator MUST also be identifiable by text, pattern, position or shape.
-- **FR-009**: Adjacent status treatments MUST remain distinguishable from one another under protanopia and deuteranopia simulation.
+- **FR-009**: Adjacent status treatments MUST remain distinguishable from one another under protanopia and deuteranopia simulation. **Threshold: ΔE00 11.0** (Viénot–Brettel–Mollon 1999 + CIEDE2000). *Amended 2026-08-29 — see Amendment A.* The status palette does **not** clear this and cannot be made to, so the requirement is not "fills clear 11": **every pair below 11 MUST be separated by a channel that is not colour.**
 - **FR-010**: Every status the system defines MUST have an explicit representation in the project status chart; no two distinct statuses may share one representation by falling through to a default.
 - **FR-011**: Status representation MUST be consistent between the chart and the summary figures presented alongside it on the same page.
 - **FR-012**: The project status chart MUST make each status's count available without hover or pointer interaction.
@@ -131,6 +131,11 @@ An administrator opens the admin panel and sees the production authorization mec
   deliberate — and doing it here would destroy the one property that makes this story's regressions
   attributable to a single token move. Filed as feature 025. The ratchet in the second clause is what
   stops the residue growing meanwhile.)*
+- **FR-019**: The project status chart MUST distinguish three categories of quantity by **mark type**, not by length alone: *absent* (a count of zero), *below the scale's resolution* (a non-zero count too small to encode honestly as a length), and *proportional*. A clamped minimum length MUST NOT be the sole means of representing a small count. *Added 2026-08-29 — Amendment B.*
+- **FR-020**: A status count MUST NOT be presented twice on the same page in two different visual languages. *Added 2026-08-29 — Amendment C.*
+- **FR-021**: The project status chart MUST retain both its layout and its status colour encoding when printed. *Added 2026-08-29 — Amendment D.*
+- **FR-022**: No status may reach its visual treatment through a default branch — **whether that default names a raw palette colour or a semantic design token.** *Added 2026-08-29 — Amendment E; this strengthens FR-010, which the original gate design could not enforce.*
+
 - **FR-016**: The administrative interface MUST NOT describe a production mechanism as mock, prototype, or scaffolding.
 - **FR-017**: A filter control MUST NOT be presented when it has no options to offer, and when hidden
   its active selection MUST reset so no invisible filter keeps narrowing the view.
@@ -189,7 +194,88 @@ An administrator opens the admin panel and sees the production authorization mec
   recorded before/after visual pass of the three surfaces that consume the status vocabulary** —
   not by the contrast gate alone, which by its own header cannot see the segment classes, the
   group summary map, or the report chart's colours.
+- **SC-011**: On a chart whose largest count is at least one hundred, a status with a count of one renders a mark that is distinguishable from a count of zero **and is not presented as a proportional length**.
+- **SC-012**: The project status chart's layout and status colours are present in a printed or PDF copy of the Reports page.
+- **SC-013**: No status count appears twice on the Reports page in two different visual languages.
 - **SC-010**: No interface text describes a production mechanism as mock or prototype.
+
+## Amendments — 2026-08-29
+
+Recorded here rather than folded silently into the requirements, so that the later UI PRs are not
+secretly carrying new scope. Amendments A and E arose from building PR B1; B, C and D from a
+Data Visualization Engineer review of the Story 3 plan.
+
+### A — FR-009 gains a number, and the requirement inverts
+
+The original FR-009 said treatments must "remain distinguishable under simulation" and named no
+threshold; neither did any plan or contract artifact. That leaves the implementer to measure first
+and then choose a threshold the measurement clears.
+
+Fixed at **ΔE00 11.0** in `scripts/verify-contrast.py` before any fill was chosen. Measured over the
+current fills, **6 of 40** theme/deficiency/pair combinations fall below it, and every one lies
+inside the red/amber/green triad — `muted-foreground` and `info` separate cleanly in all four
+conditions. The worst is `for_review` vs `blocked`/`delayed` at **ΔE00 3.98** in light
+deuteranopia, and those two segments *abut* in the summary bar.
+
+The palette cannot be tuned out of this: driving every token to clear a similar ratio against the
+same shared surfaces pushes them toward equal luminance relative to one another. So the requirement
+became "every sub-threshold pair needs a non-colour channel", which makes the glyph load-bearing by
+construction rather than decorative.
+
+### B — a third mark type (FR-019, SC-011)
+
+FR-013 requires a non-zero count to be distinguishable from zero "regardless of the largest count
+present", and the plan satisfied it with a clamped minimum bar length. **A clamp trades one
+indistinguishability for another**: every count below the clamp's threshold renders at identical
+length, so the reader cannot tell 1 from 7, while the bar still *looks* like a proportional
+encoding and therefore still makes a quantitative claim.
+
+The current chart makes this concrete and is worse than the plan assumed. It is **max-scaled**, not
+share-of-total — `height: (count / max) × 100%` inside a 64px box — so a count of 1 against a
+largest count of 900 renders **0.07px**, and a clamp would take it to the floor alongside every
+other small count.
+
+Three mark types keep the length channel honest: nothing for zero, a **pip** (a fixed small mark,
+visibly *not* a bar) for a count below the scale's resolution, and a proportional bar above it. This
+extends the rule the plan already adopted for zero rather than introducing a new precedent, and it
+makes the replacement for the deleted T041 a real assertion — *"a sub-resolution row renders the pip
+and no bar"* — instead of one certifying that CSS `max()` works.
+
+### C — the duplicated Blocked count (FR-020, SC-013)
+
+The Reports page prints `blocked_count` in a risk tile and, roughly 16px away, the same figure as a
+chart row computed from a second code path. The chart is a **partition** (mutually exclusive, sums
+to a denominator); the tiles are **overlapping predicates** (a task can be overdue *and* blocked
+*and* counted in a status row). Nothing on the panel says so, so a reader who sees "Overdue: 47"
+beside a chart whose largest bar is 30 will try to place 47 on that scale.
+
+`Blocked` is the only one of the three tiles that is also a status. Removing it makes the tiles
+purely derived and the chart purely partition — the two vocabularies stop overlapping instead of
+being reconciled. The remaining tiles should also say that a task may appear in more than one.
+
+### D — print (FR-021, SC-012)
+
+Verified in `frontend/src/index.css`: the print block sets `.flex { display: block !important;
+width: 100% !important; padding: 0 !important }`, and **`print-color-adjust` appears nowhere in the
+stylesheet**. A flex-based chart therefore stacks vertically when printed, and its background fills
+are dropped by the browser — on a page whose primary action is a **Print / Save as PDF** button
+(`Reports.jsx:283`).
+
+The chart must be laid out with grid rather than flex (which is also the honest expression of
+"bars sharing one length scale") and must set `print-color-adjust: exact` on the track and fill.
+
+### E — token-utility defaults are a separate hole from palette literals (FR-022)
+
+The plan's defence against FR-010 was an assertion banning raw `bg-<palette>-<weight>` literals. **It
+would not have caught the defect it was written to prevent.** The live bug is
+`Reports.jsx`'s `matchStatusColor`, whose `default:` returns `bg-primary/70` — a *semantic token
+utility*, which passes a palette-literal ban. That default is what collapses `not_started`,
+`completed` and `delayed` into one violet today.
+
+The two are distinct regression classes and need distinct assertions. B1 shipped the palette-literal
+half as a two-sided ratchet over the named status maps and recorded this boundary in the gate rather
+than implying coverage it does not have. **The token-utility half is unenforced and FR-022 now names
+it.**
 
 ## Assumptions
 
