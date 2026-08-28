@@ -164,7 +164,7 @@ function ProgressSnapshot() {
   const barColor  = pct >= 70 ? 'bg-emerald-500' : pct >= 30 ? 'bg-amber-500' : 'bg-primary'
 
   return (
-    <div className="mx-3 mb-2 rounded-xl border border-border/60 bg-muted/40 p-3 space-y-2">
+    <div className="mx-3 mb-2 rounded-xl border border-border bg-muted/40 p-3 space-y-2">
       <div className="flex items-center gap-2">
         <div className="rounded-md bg-primary/10 p-1.5">
           <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -244,7 +244,7 @@ function SidebarNavGroups({ collapsed, userRole }) {
             key={group.label}
             className={
               collapsed
-                ? groupIndex > 0 ? 'mt-3 pt-3 border-t border-border/60' : ''
+                ? groupIndex > 0 ? 'mt-3 pt-3 border-t border-border' : ''
                 : groupIndex > 0 ? 'mt-4' : ''
             }
           >
@@ -293,7 +293,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
       ].join(' ')}
     >
       {/* Brand + collapse toggle */}
-      <div className={['border-b border-border/60 px-4 py-4', collapsed ? 'px-2' : ''].join(' ')}>
+      <div className={['border-b border-border px-4 py-4', collapsed ? 'px-2' : ''].join(' ')}>
         <div className={['flex items-center gap-3', collapsed ? 'flex-col gap-2' : 'justify-between'].join(' ')}>
           <div className={['flex items-center gap-3 overflow-hidden', collapsed ? 'justify-center' : ''].join(' ')}>
             <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary shrink-0">
@@ -324,7 +324,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
 
       {/* Progress snapshot — only in full sidebar */}
       {!collapsed && (
-        <div className="border-t border-border/60 pt-3">
+        <div className="border-t border-border pt-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-5 mb-2">
             Project Status
           </p>
@@ -334,7 +334,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
 
       {/* Account */}
       {!collapsed && authUser && (
-        <div className="border-t border-border/60 py-3 px-3">
+        <div className="border-t border-border py-3 px-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
             Signed in as
           </p>
@@ -344,7 +344,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
       )}
 
       {/* Footer links */}
-      <div className={['border-t border-border/60 py-3 px-2 space-y-0.5', collapsed ? '' : ''].join(' ')}>
+      <div className={['border-t border-border py-3 px-2 space-y-0.5', collapsed ? '' : ''].join(' ')}>
         {[{ icon: Settings, label: 'Settings' }, { icon: HelpCircle, label: 'Help Center' }].map(({ icon: Icon, label }) => {
           const button = (
             <button
@@ -392,7 +392,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
 
       {/* Theme Toggle */}
       {!collapsed ? (
-        <div className="border-t border-border/60 py-3 px-3">
+        <div className="border-t border-border py-3 px-3">
           <div className="flex items-center justify-between rounded-lg bg-muted/60 p-1">
             <button
               onClick={() => setTheme('light')}
@@ -421,7 +421,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
           </div>
         </div>
       ) : (
-        <div className="border-t border-border/60 py-3 px-2 flex justify-center">
+        <div className="border-t border-border py-3 px-2 flex justify-center">
           <button
             onClick={toggleTheme}
             title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
@@ -492,7 +492,7 @@ function MobileBar() {
         ].join(' ')}
       >
         {/* Drawer header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-border/60">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
             <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary">
               <span className="text-sm font-black text-primary-foreground">i</span>
@@ -517,7 +517,7 @@ function MobileBar() {
         </nav>
 
         {/* Progress in drawer */}
-        <div className="border-t border-border/60 pt-3">
+        <div className="border-t border-border pt-3">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-5 mb-2">
             Project Status
           </p>
@@ -525,7 +525,7 @@ function MobileBar() {
         </div>
 
         {/* Drawer footer */}
-        <div className="border-t border-border/60 py-3 px-3 space-y-3">
+        <div className="border-t border-border py-3 px-3 space-y-3">
           {authUser && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">

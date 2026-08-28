@@ -1009,7 +1009,7 @@ export default function Admin() {
               <CardDescription>Search, filter, and manage real user accounts</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-4 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4 items-end bg-muted/20 p-3 rounded-lg border border-border text-xs">
                 <div className="space-y-1 md:col-span-2">
                   <label htmlFor="user-search" className="font-semibold">Search</label>
                   <div className="relative">
@@ -1457,7 +1457,7 @@ export default function Admin() {
                   <p>
                     For example, granting <strong>Department Head</strong> of <strong>Engineering</strong> visibility to <strong>IT</strong> projects will let ANY user switched to "Department Head" with department "Engineering" view both Engineering and IT projects.
                   </p>
-                  <p className="text-xs border-t pt-2 border-border/80 flex items-start gap-1.5">
+                  <p className="text-xs border-t pt-2 border-border flex items-start gap-1.5">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                     Perfect for testing and prototyping role configurations before introducing production directory integrations (e.g. Active Directory/Okta).
                   </p>
@@ -2119,7 +2119,7 @@ export default function Admin() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Filter Row */}
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-6 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-6 items-end bg-muted/20 p-3 rounded-lg border border-border text-xs">
                 <div className="space-y-1">
                   <label htmlFor="log-filter-action" className="font-semibold">Action</label>
                   <Select

@@ -49,7 +49,7 @@ export default function Login() {
         <div className="absolute top-1/3 right-1/4 h-64 w-64 rounded-full bg-info/15 blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-md rounded-xl border border-border/60 bg-card/80 backdrop-blur-xl shadow-xl p-8 space-y-6">
+      <div className="relative w-full max-w-md rounded-xl border border-border bg-card/80 backdrop-blur-xl shadow-xl p-8 space-y-6">
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary">
             <span className="text-base font-black text-primary-foreground">i</span>

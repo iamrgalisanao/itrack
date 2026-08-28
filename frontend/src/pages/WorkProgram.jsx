@@ -1842,7 +1842,7 @@ export default function WorkProgram() {
                           : null
                         return (
                           <Collapsible key={activity.id} open={isExpanded} onOpenChange={() => expandActivityGroup(activity.id, module.id)}>
-                            <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+                            <div className="relative rounded-xl border border-border shadow-sm overflow-hidden">
                               <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
                               {/* No gap between children, and no container-level
                                   horizontal padding at all — every column here is
@@ -1861,7 +1861,7 @@ export default function WorkProgram() {
                                   keeps its visual distance from the card's actual
                                   border the same as before now that the
                                   container's own right padding is gone. */}
-                              <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
+                              <div className="relative flex items-center py-3 border-b border-border bg-muted/30">
                                 {/* Leading spacer matches the data table's leading
                                     row-actions column so everything after it lines
                                     up with the real columns beneath. */}
@@ -2256,7 +2256,7 @@ export default function WorkProgram() {
 
                                     {userRole !== 'Client' && (
                                       <form
-                                        className="px-3 py-2 border-t border-border/60"
+                                        className="px-3 py-2 border-t border-border"
                                         onSubmit={(e) => {
                                           e.preventDefault()
                                           handleInlineAddSubmit(module.id, activity.id)
@@ -2564,11 +2564,11 @@ export default function WorkProgram() {
                   {/* Timeline Header */}
                   <div className="h-20 bg-muted/20 border-b border-border flex flex-col shrink-0 sticky top-0 z-20">
                     {/* Month headers */}
-                    <div className="flex h-10 border-b border-border/40">
+                    <div className="flex h-10 border-b border-border">
                       {timelineMonths.map((month, idx) => (
                         <div
                           key={idx}
-                          className="border-r border-border/30 flex items-center justify-center text-[11px] font-semibold text-muted-foreground bg-muted/10 shrink-0"
+                          className="border-r border-border flex items-center justify-center text-[11px] font-semibold text-muted-foreground bg-muted/10 shrink-0"
                           style={{ width: `${month.colspan * colWidth}px` }}
                         >
                           {month.label}
@@ -2583,7 +2583,7 @@ export default function WorkProgram() {
                         return (
                           <div
                             key={idx}
-                            className={`border-r border-border/30 flex flex-col items-center justify-center text-[9px] font-medium shrink-0 ${isWeekend ? 'bg-muted/15 text-muted-foreground/60' : 'text-muted-foreground'} ${isTodayDate ? 'bg-primary/10 text-primary font-bold border-r-primary' : ''}`}
+                            className={`border-r border-border flex flex-col items-center justify-center text-[9px] font-medium shrink-0 ${isWeekend ? 'bg-muted/15 text-muted-foreground/60' : 'text-muted-foreground'} ${isTodayDate ? 'bg-primary/10 text-primary font-bold border-r-primary' : ''}`}
                             style={{ width: `${colWidth}px` }}
                           >
                             {colWidth >= 14 && <span>{day.getDate()}</span>}
@@ -2603,7 +2603,7 @@ export default function WorkProgram() {
                         return (
                           <div
                             key={idx}
-                            className={`border-r border-border/10 shrink-0 h-full ${isWeekend ? 'bg-muted/5' : ''}`}
+                            className={`border-r border-border shrink-0 h-full ${isWeekend ? 'bg-muted/5' : ''}`}
                             style={{ width: `${colWidth}px` }}
                           />
                         )
@@ -2690,7 +2690,7 @@ export default function WorkProgram() {
 
                                   {/* Milestone diamond for 0-duration or 1-day tasks */}
                                   {actualPos.width <= 16 && (
-                                    <div className="w-2.5 h-2.5 rotate-45 bg-current border border-border/30 mx-auto z-10" />
+                                    <div className="w-2.5 h-2.5 rotate-45 bg-current border border-border mx-auto z-10" />
                                   )}
 
                                   {/* Hover popover tooltip */}

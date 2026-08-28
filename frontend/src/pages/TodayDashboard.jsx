@@ -160,7 +160,7 @@ export default function TodayDashboard() {
       )}
 
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border/60 pb-5">
+      <div className="flex items-center gap-3 border-b border-border pb-5">
         <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
           <Sunrise className="h-5 w-5 text-primary" />
         </div>
@@ -195,8 +195,8 @@ export default function TodayDashboard() {
             const items = data?.[section.key] ?? []
             const Icon = section.icon
             return (
-              <div key={section.key} className={`rounded-xl border border-border/60 border-t-4 ${section.accent} bg-card shadow-sm`}>
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
+              <div key={section.key} className={`rounded-xl border border-border border-t-4 ${section.accent} bg-card shadow-sm`}>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-foreground" />
                     <h2 className="font-bold text-sm text-foreground">{section.title}</h2>
@@ -225,7 +225,7 @@ export default function TodayDashboard() {
                             }
                           }}
                           aria-label={`Open issue: ${issue.name}`}
-                          className="p-3 rounded-lg border border-border/60 bg-background text-foreground cursor-pointer hover:shadow-md hover:border-border/80 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          className="p-3 rounded-lg border border-border bg-background text-foreground cursor-pointer hover:shadow-md hover:border-border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         >
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <div className="flex items-center gap-1.5">

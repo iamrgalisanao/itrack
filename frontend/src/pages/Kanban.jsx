@@ -304,7 +304,7 @@ export default function Kanban() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Kanban Board</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -328,7 +328,7 @@ export default function Kanban() {
       </div>
 
       {/* Toolbar / Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card p-4 rounded-xl border border-border/60 shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card p-4 rounded-xl border border-border shadow-sm">
         {/* Search */}
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -389,7 +389,7 @@ export default function Kanban() {
           <span className="text-sm font-medium">Loading board data...</span>
         </div>
       ) : tasks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-border/80 rounded-xl p-8 bg-card shadow-sm">
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-border rounded-xl p-8 bg-card shadow-sm">
           <FolderKanban className="h-10 w-10 text-muted-foreground/60 mb-3" />
           <h2 className="text-base font-bold text-foreground">No Tasks Available</h2>
           <p className="text-sm text-muted-foreground max-w-sm mt-1">
@@ -408,7 +408,7 @@ export default function Kanban() {
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, column.id)}
                 className={[
-                  'flex-1 min-w-[280px] max-w-[320px] rounded-xl border border-border/60 bg-muted/20 flex flex-col max-h-[70vh] transition-colors',
+                  'flex-1 min-w-[280px] max-w-[320px] rounded-xl border border-border bg-muted/20 flex flex-col max-h-[70vh] transition-colors',
                   isDraggedOver ? 'bg-primary/5 border-primary/40' : '',
                 ].join(' ')}
               >
@@ -416,7 +416,7 @@ export default function Kanban() {
                     count here is real information, not decorative; kept
                     conservative per the glassmorphism review's risk flag on
                     this dense, long-dwell-time surface. */}
-                <div className={`p-3 border-t-4 ${column.color} rounded-t-xl flex items-center justify-between border-b border-border/40 bg-card/90 backdrop-blur-md`}>
+                <div className={`p-3 border-t-4 ${column.color} rounded-t-xl flex items-center justify-between border-b border-border bg-card/90 backdrop-blur-md`}>
                   <div className="flex items-center gap-2">
                     <h2 className="font-bold text-sm text-foreground">{column.label}</h2>
                     <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-bold">
@@ -446,7 +446,7 @@ export default function Kanban() {
                         }}
                         aria-label={`Open task: ${task.name}`}
                         className={[
-                          'p-3 rounded-lg border border-border/60 bg-card text-foreground cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border/80 transition-all duration-150 relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                          'p-3 rounded-lg border border-border bg-card text-foreground cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border transition-all duration-150 relative group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           taskOverdue ? 'border-l-4 border-l-destructive' : '',
                         ].join(' ')}
                       >
@@ -472,7 +472,7 @@ export default function Kanban() {
                             {/* Dropdown status menu */}
                             {activeMenuId === task.id && (
                               <div className="absolute right-0 top-7 z-30 w-44 bg-card border border-border rounded-lg shadow-lg py-1 text-xs">
-                                <p className="px-3 py-1 font-semibold text-muted-foreground border-b border-border/60">Move to...</p>
+                                <p className="px-3 py-1 font-semibold text-muted-foreground border-b border-border">Move to...</p>
                                 {COLUMNS.filter(c => c.id !== task.status && !(c.id === 'blocked' && isDelayed)).map(col => (
                                   <button
                                     key={col.id}
@@ -527,7 +527,7 @@ export default function Kanban() {
                         </div>
 
                         {/* Card Footer: Assignee & Priority */}
-                        <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[10px]">
+                        <div className="flex items-center justify-between border-t border-border pt-2 text-[10px]">
                           {/* Assignee */}
                           <div className="flex items-center gap-1 text-muted-foreground truncate max-w-[60%]">
                             <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary border border-primary/20 shrink-0">
@@ -555,7 +555,7 @@ export default function Kanban() {
                     )
                   })}
                   {columnTasks.length === 0 && (
-                    <div className="text-center py-6 text-[10px] text-muted-foreground/60 border border-dashed border-border/40 rounded-lg">
+                    <div className="text-center py-6 text-[10px] text-muted-foreground/60 border border-dashed border-border rounded-lg">
                       No tasks
                     </div>
                   )}

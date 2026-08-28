@@ -149,7 +149,7 @@ function QuickAddForm({ bucket, buckets, onBucketChange, projects, modules, plac
     <form
       onSubmit={submit}
       onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
-      className="flex flex-wrap items-start gap-2 px-3 py-2.5 border-t border-border/60 bg-muted/20"
+      className="flex flex-wrap items-start gap-2 px-3 py-2.5 border-t border-border bg-muted/20"
     >
       <div className="flex-1 min-w-[200px]">
         <label className="sr-only" htmlFor={`qa-title-${bucket.key}`}>
@@ -490,7 +490,7 @@ export default function MyWorkPanel({ onTaskMutated }) {
 
         <CardContent className="space-y-3">
           {quickAddBucket && canQuickAdd && (
-            <div className="rounded-xl border border-border/60 overflow-hidden">
+            <div className="rounded-xl border border-border overflow-hidden">
               <QuickAddForm
                 bucket={quickAddBucket}
                 buckets={BUCKETS.filter((b) => b.canQuickAdd)}
@@ -537,9 +537,9 @@ export default function MyWorkPanel({ onTaskMutated }) {
                     })
                   }}
                 >
-                  <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+                  <div className="relative rounded-xl border border-border shadow-sm overflow-hidden">
                     <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${bucket.bar}`} aria-hidden="true" />
-                    <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
+                    <div className="relative flex items-center py-3 border-b border-border bg-muted/30">
                       <CollapsibleTrigger asChild>
                         <button
                           type="button"
@@ -582,7 +582,7 @@ export default function MyWorkPanel({ onTaskMutated }) {
                         rowError={rowError}
                       />
                       {canQuickAdd && bucket.canQuickAdd && quickAddBucket?.key !== bucket.key && (
-                        <div className="px-3 py-2 border-t border-border/60">
+                        <div className="px-3 py-2 border-t border-border">
                           <button
                             type="button"
                             onClick={(e) => openQuickAdd(bucket, e.currentTarget)}
@@ -593,7 +593,7 @@ export default function MyWorkPanel({ onTaskMutated }) {
                         </div>
                       )}
                       {hidden > 0 && (
-                        <div className="px-3 py-2 border-t border-border/60">
+                        <div className="px-3 py-2 border-t border-border">
                           <button
                             type="button"
                             onClick={async () => {

@@ -106,7 +106,7 @@ export default function SupportOpsKnowledgeBase() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border/60 pb-5">
+      <div className="flex items-center gap-3 border-b border-border pb-5">
         <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
           <BookOpen className="h-5 w-5 text-primary" />
         </div>
@@ -140,7 +140,7 @@ export default function SupportOpsKnowledgeBase() {
 
       {/* Filters — each narrows independently of a keyword, and combines with
           it as AND, never widening the result set (FR-006/FR-006a) */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 items-end bg-muted/20 p-3 rounded-lg border border-border/80 text-xs">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 items-end bg-muted/20 p-3 rounded-lg border border-border text-xs">
         <div className="space-y-1">
           <label htmlFor="kb-filter-project" className="font-semibold">Project</label>
           <select
@@ -229,7 +229,7 @@ export default function SupportOpsKnowledgeBase() {
                 }
               }}
               aria-label={`Open full context for: ${issue.name}`}
-              className="p-4 rounded-lg border border-border/60 bg-card text-foreground cursor-pointer hover:shadow-md hover:border-border/80 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="p-4 rounded-lg border border-border bg-card text-foreground cursor-pointer hover:shadow-md hover:border-border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <div className="flex items-center gap-1.5">
