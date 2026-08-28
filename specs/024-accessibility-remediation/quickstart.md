@@ -35,8 +35,18 @@ Must now include:
   LEGIBLE". Adding `(input, 3.0)` to it would measure `--input` against `--popover` only, under a
   false heading, and could not express `--background` or `--card` at all. Generalise it to
   `(token, surface, need)` triples and move the popover rows onto it.
-- **The counted ratchet** (FR-015): assert the number of native controls carrying `border-border`
-  does not exceed 81. One grep. It is what stops the residue growing while 025 is queued.
+- **The counted ratchet** (FR-015), run as its own command:
+
+```bash
+python scripts/count-control-borders.py      # expect exit 0, "RATCHET HOLDS (81 <= 81)"
+```
+
+  **It is not a grep, and that matters.** Three plausible one-liners disagree about this number:
+  `<(input|select|textarea)\b[^>]*?border-border` returns **0** — it terminates on the `>` inside
+  `onChange={(e) => …}`, the identical failure that produced a confident "2 of 127" during planning;
+  the multiline variant returns **499**; a plain `border-border` count returns **228**. The scanner
+  tracks brace depth and returns **81**. Story 4 is the first PR, so it would otherwise install a gate
+  on a baseline nobody could recompute — the same lesson R11a records, one level down.
 - The four `STATUS_FILL_TOKENS` contracts from [data-model.md](./data-model.md#the-contracts).
 
 **Scope discipline**: this is the 023 review's proposed "assertion 9" *narrowed to what 024 changes*.
@@ -79,13 +89,19 @@ Adding a bar fixture trips that guard. Update it deliberately.
 ## Gate 4 — The accessible-text formatter
 
 ```bash
-node --test frontend/src/lib/ganttA11y.test.js     # expect pass
+node --test frontend/src/lib/ganttA11y.test.js     # expect pass  (from the repo root)
 ```
 
-**This must run in CI, and does not today.** `.github/workflows/ci.yml` has four jobs and none
-runs `node --test` — so as originally planned, the *only* automated protection for FR-007 and
-SC-003, this feature's single confidentiality requirement, ran on a laptop. Add it as a step in
-the existing `frontend-build` job; it needs the same `npm ci` and nothing more.
+**This must run in CI, and does not today.** `.github/workflows/ci.yml` has four jobs and none runs
+`node --test` — so as originally planned, the *only* automated protection for FR-007 and SC-003,
+this feature's single confidentiality requirement, ran on a laptop.
+
+**Give it its own job, and mind the path.** `frontend-build` sets
+`defaults: run: working-directory: frontend`, so the documented command pasted into that job resolves
+to `frontend/frontend/src/…` and fails; inside that job it must be `node --test src/lib/…`. Its own
+job avoids the trap and follows the reasoning already written into `ci.yml`: *a different verdict
+deserves a different red X*. A confidentiality-test failure and a compile error are different
+verdicts.
 
 No new test runner, no jsdom. This is the whole of SC-003, and it must assert the **assistive
 string**, not a rendered column:

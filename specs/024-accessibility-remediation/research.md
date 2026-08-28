@@ -11,8 +11,10 @@ because the pattern in them is the finding.
 
 ## R1 — What element the timeline bar should be
 
-**Decision**: convert the existing `<div>` at `WorkProgram.jsx:2652` **in place** to a native
-`<button type="button">`.
+**Decision**: a native `<button type="button">` rather than any ARIA-role construction.
+**Superseded in part by R1a**: the original wording said "convert the div at `:2662` in place", which
+R1a corrects — the card is a descendant of that div, so the button goes *inside* a wrapper instead.
+The element choice below stands; only its placement changed.
 
 **Rationale**: a native button supplies Enter *and* Space activation, the role, and the focus
 semantics for free — that is the hand-rolled `onKeyDown` you otherwise have to write and can get
@@ -21,7 +23,7 @@ wrong. It opens a modal editor, so it is a button and not a link (2.4.4 / 4.1.2)
 **Alternatives considered**:
 
 - **`role="grid"` with `role="row"`/`gridcell`** — *structurally impossible here*, and this is the
-  constraint worth writing down. The left row list (`:2442`) and the bar track (`:2624`) are two
+  constraint worth writing down. The left row list (`:2449`) and the bar track (`:2631`) are two
   separate `getVisibleGanttRows().map()` calls under sibling flex containers. **A `role="row"` cannot
   span two DOM subtrees.** `aria-owns` could theoretically reparent but is the worst-supported ARIA
   property, needs stable minted ids across four row levels, and has partial VoiceOver support.
@@ -39,7 +41,7 @@ copy. **It is itself a defect**, three ways: ARIA's `button` role is *children-p
 `CardTitle as="h2"` inside it is **not exposed as a heading** (heading navigation across the module
 list is silently gone, 1.3.1); the Edit/Delete buttons inside it are interactive descendants of
 `role="button"`, which is non-conforming (4.1.2); and its focus style is `focus-visible:ring-2`. The
-model to cite is the Edit button at `:2513-2523`. Unless `:1738` is also fixed, the file will hold a
+model to cite is the Edit button at `:2532`. Unless `:1738` is also fixed, the file will hold a
 *third* pattern — and the reason this keeps regressing is that there is no canonical one.
 
 **Tab order**: the right pane's DOM order already equals visual row order, so bars are visited in row
@@ -86,7 +88,7 @@ schedule; (b) one `sr-only` node carrying the full field set, referenced by `ari
 ~200-character utterance with no structure, unsearchable in browse mode — which is the failure the
 name/description split exists to prevent.
 
-Part (c) is what the in-file comment at `:2723-2726` explicitly forbids — *"aria-hidden alone would be
+Part (c) is what the in-file comment at `:2730-2733` explicitly forbids — *"aria-hidden alone would be
 worse, not better"* — and that comment is **right about `aria-hidden` alone**. Part (b) is what makes
 it safe. The diff must cite that comment, or a reviewer will correctly object.
 
@@ -97,7 +99,7 @@ elements, and the spec's edge case requires browse mode to work without focus la
 node is read reliably in browse mode *and* serves as the `aria-describedby` target. One node, two
 jobs — the minimum rendering, not an extra one.
 
-**Where it goes: the left pane, after the Edit button (`:2531`).** This is the two-pane answer. In
+**Where it goes: the left pane, after the Edit button (`:2538`).** This is the two-pane answer. In
 browse mode a screen reader reads the entire left pane (N rows) then the entire right pane (N bars);
 put the detail in the right pane and the user hears row K's summary at position K and its detail at
 position N+K, separated by every other row. Placed left, the per-row reading order becomes name →
@@ -130,7 +132,7 @@ formatter receives the *decision* (`{ includeContributor }`), never the role.
 **Rationale, and the correction that matters most**: I assumed the frontend check was defence-in-depth
 over a backend gate. **It was the only gate.** `ModuleController` returned the tree via
 `attributesToArray()` at the module, activity and sub-activity levels with no Client branch, and all
-three tables carry `responsible` — so for **3 of the 4 Gantt row types** `WorkProgram.jsx:2469` was
+three tables carry `responsible` — so for **3 of the 4 Gantt row types** `WorkProgram.jsx:2476` was
 the sole thing withholding it.
 
 That was severed into **PR #26** and fixed separately, because a live disclosure must not wait on an
@@ -408,7 +410,7 @@ for `forced-color-adjust: none` — it opts the element out of the user's settin
 
 ## R13 — Items I had mis-scoped
 
-- **`WorkProgram.jsx:2450-2452` — the row expand/collapse chevron is an unnamed button.** No
+- **`WorkProgram.jsx:2456` — the row expand/collapse chevron is an unnamed button.** No
   `aria-label`, no `aria-expanded`; it announces as "button". **4.1.2 and 1.3.1, both level A, inside
   the 508 legal floor** — unlike most of this feature. It sits three lines from FR-001's target and is
   smaller than anything in Story 1. **Pulled into Story 1.** The prior review missed it because it

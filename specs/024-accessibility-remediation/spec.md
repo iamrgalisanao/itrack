@@ -138,7 +138,15 @@ An administrator opens the admin panel and sees the production authorization mec
   check here reproduces the fail-open shape this feature exists to remove — the role is null until
   auth resolves. Emptiness is the observable the requirement is actually about, fails closed through
   that window, and self-corrects if the field policy changes.)*
-- **FR-018**: Changes made for this feature MUST NOT reduce the contrast or distinguishability of any element that currently meets its threshold.
+- **FR-018**: Changes made for this feature MUST NOT reduce the contrast or distinguishability of any
+  element that currently meets its threshold, **except for one named reduction**: retokenising the
+  status segment vocabulary collapses two red fills that differ by ΔE00 7.64 in normal vision onto a
+  single semantic token. That reduction MUST be compensated by a non-colour channel carrying the
+  same distinction, and the pair MUST already be indistinguishable under dichromacy — i.e. the loss
+  is confined to normal vision, where the compensating channel applies.
+  *(Amended after planning. The exception was first recorded only in the plan, underneath an
+  unamended MUST — which is the pattern this same revision corrected twice elsewhere. A criterion
+  that does not state what it excludes has been weakened, not bounded.)*
 
 ### Key Entities
 
@@ -169,7 +177,12 @@ An administrator opens the admin panel and sees the production authorization mec
   general-purpose border token does not rise above 81. The conformance claim for 1.4.11 after this
   feature is **Partially Supports**, with two named residues: those 81 controls, and the progress
   overlay edge.
-- **SC-009**: No element that met a contrast or distinguishability threshold before this feature falls below it after, verified by the existing automated gates.
+- **SC-009**: No element that met a contrast or distinguishability threshold before this feature
+  falls below it after, other than the single reduction named in FR-018 with its compensating
+  channel in place. **Verified by the input-token separation fixture in the cascade gate, plus a
+  recorded before/after visual pass of the three surfaces that consume the status vocabulary** —
+  not by the contrast gate alone, which by its own header cannot see the segment classes, the
+  group summary map, or the report chart's colours.
 - **SC-010**: No interface text describes a production mechanism as mock or prototype.
 
 ## Assumptions

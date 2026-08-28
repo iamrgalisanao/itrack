@@ -53,7 +53,8 @@ Recorded because this is the sentence that gets copied into an ACR wrong.
 | **Section 508 Accessibility Specialist** | **At planning**, before any code | Rejected the Radix `Tooltip` approach; rejected `role="grid"`; found the in-file "correct pattern" I intended to copy is itself a defect; found an unnamed button three lines from the target; **found the backend disclosure that became PR #26** |
 | **Data Visualization Engineer** | **At planning** | Rotated the chart 90°; replaced max-normalisation with share-of-total; overturned two of my premises about the chart's domain and layout |
 | Identity & Access Engineer | **Not dispatched** — recorded as an exception | The one authorization surface this feature touches (FR-007) is a *frontend re-rendering of already-fetched data*, not an endpoint or policy change. The backend half was severed into PR #26 and reviewed by the Software Architect there. If FR-007's implementation grows a server-side component, route one. |
-| Database Optimizer, DevOps Automator | Not applicable | No query, index, migration, or CI-gating change beyond adding assertions to two existing gates |
+| Database Optimizer | Not applicable | No query, index, or migration |
+| DevOps Automator | **Not dispatched — exception, see CI below** | This feature does add a CI step. The exception is recorded there rather than claimed as "not applicable" here |
 
 Routing was by **the surface the diff touches**, per constitution. That rule exists because 021–023
 each read as design-token work and consequently never routed a 508 specialist; this time routing at
@@ -84,7 +85,7 @@ From `react-vite-best-practices` and `code-slop`, as they bind *this* feature:
 
 **Reused, not invented**: `ganttPalette.js` (`GANTT_STATUS_TOKENS` fill/ink pairs, already AA-gated),
 `taskStatus.js` (`STATUS_ORDER`, `STATUS_SEGMENT_LABELS`), the `--popover-border` token (already at
-the 3.0 tier), the `Edit` button at `WorkProgram.jsx:2513` as the in-file model for a named control,
+the 3.0 tier), the `Edit` button at `WorkProgram.jsx:2532` as the in-file model for a named control,
 and `index.css`'s forced-colors block.
 
 **Deliberately not reused**: `components/ui/tooltip.jsx` for the Gantt card (see research.md R2), and
@@ -125,8 +126,15 @@ a gate that cannot see them imply otherwise (research.md R16):
 1. Retokenising the segment classes collapses two reds — ΔE00 **7.64 in normal vision** — onto one
    `--destructive`. Compensated by the glyph and legend, and the pair was never distinguishable under
    dichromacy, so the loss is in normal vision only.
-2. `for_review` moves purple to amber while the badge map beside it stays purple. **Unmitigated**;
-   either the badge map comes along or the inconsistency is recorded. Decided at task generation.
+2. ~~`for_review` moves purple to amber while the badge map beside it stays purple.~~ **Resolved at
+   verification: `STATUS_BADGE_CLASSES` is retokenised in the same story.** The segment and the badge
+   render one row apart in the same view (`MyWorkPanel.jsx:565`/`:120`,
+   `TaskboardView.jsx:245`/`:294`), so that is the same-page adjacency FR-011 governs — leaving it is
+   nearer an FR-011 violation than a cosmetic residue. Left undone the retokenisation is net-negative
+   on one axis: it trades "segment disagrees with the Gantt" for "segment disagrees with the badge
+   beside it". **Condition**: express the badge as token utilities (`border-warning/40 bg-warning/10
+   text-warning`), not literals, or `verify-contrast.py`'s `on_tint` assertion — which already
+   measures exactly that construction at α 0.10/0.15 — cannot see it.
 
 SC-009's mechanism is the `--input`/`--border` separation fixture **plus** a stated before/after
 visual pass of the three consumer surfaces. The gates cannot see the rest, by `verify-contrast.py`'s
@@ -142,23 +150,33 @@ above with its justification, per the same mechanism as a Constitution Check vio
 ```
 frontend/src/
   lib/
-    ganttA11y.js            NEW — pure formatters + the role predicate (testable)
+    ganttA11y.js            NEW — pure formatters, the role predicate, and the
+                            extracted status label (testable)
     ganttA11y.test.js       NEW — node --test, sentinel-based
-    taskStatus.js           STATUS_FILL_TOKENS added; segment classes retokenised
+    taskStatus.js           STATUS_FILL_TOKENS added; segment classes AND
+                            STATUS_BADGE_CLASSES retokenised together (see below)
+    groupSummary.js         buildSegments gains an optional glyph/ink source,
+                            defaulting to none so non-status callers are untouched
     ganttPalette.js         unchanged, referenced as the vocabulary of record
   pages/
-    WorkProgram.jsx         Story 1 — bar becomes a button; card becomes decorative
+    WorkProgram.jsx         Story 1 — bar div becomes a non-focusable wrapper carrying
+                            `group`; a button inside it takes the visuals and handler;
+                            the card becomes the button's sibling (R1a). Also: the
+                            unnamed chevron, and getGanttStatusLabel extracted to lib/
     Reports.jsx             Story 3 — chart rotated; matchStatusColor deleted
-    Schedule.jsx            Story 5 — assignee filter hidden for Clients
+    Schedule.jsx            Story 5 — assignee filter hidden when it has no options
+                            (never by role — see R14; a role check fails open here)
     Admin.jsx               Story 5 — "Mock Auth Mode" copy
   components/
     GroupSummaryBar.jsx     Story 2 — glyph + legend + outline separator
-  lib/
-    groupSummary.js         buildSegments gains an optional glyph/ink source
   index.css                 Story 4 — --input; forced-colors rule for critical path
 scripts/
-  verify-contrast.py        + --input 3:1 rows, + chart token assertions
-  verify-cascade.py         canary repointed (REQUIRED), + border-input, + HCM segment
+  verify-contrast.py        3.0-tier loop generalised to (token, surface, need);
+                            + --input rows, + the five chart/treatment assertions
+  verify-cascade.py         canary made emission-independent (REQUIRED),
+                            + border-input separation, + HCM segment outline
+  count-control-borders.py  NEW — the ratchet's implementation; the only thing that
+                            reproduces 41/81/5 (see below)
 ```
 
 ## Delivery — three PRs, in this order

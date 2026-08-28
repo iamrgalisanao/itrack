@@ -27,7 +27,7 @@ The button's accessible **name**. Identity only.
 
 **80 chars, not 40.** The name is the only thing distinguishing rows; aggressive truncation
 manufactures duplicates. **Never append "button"** — the role supplies it (4.1.2 anti-pattern).
-**Never append "Click timeline bar to edit"** — FR-005; delete that string at `:2775-2777` rather
+**Never append "Click timeline bar to edit"** — FR-005; delete that string at `:2781-2783` rather
 than rephrasing it.
 
 ### `buildGanttBarDescription(row, { includeContributor }) → string`
@@ -109,8 +109,8 @@ printed beside it (research.md R8).
 
 ## The contracts
 
-Four invariants. Each one is the *machine-checkable* form of a requirement, and each exists because
-the equivalent was previously left to a comment and drifted.
+Five invariants. Each is the *machine-checkable* form of a requirement, and each exists because the
+equivalent was previously left to a comment and drifted.
 
 1. **Enum coverage** — every status in the backend enum union has an entry in `STATUS_FILL_TOKENS`.
    *This is the assertion that would have caught the original defect, where three statuses fell
@@ -122,7 +122,11 @@ the equivalent was previously left to a comment and drifted.
    would reopen what 023 closed. It makes the deliberate sharing enforceable rather than folkloric.*
 3. **Non-text tier** — each distinct fill ≥ 3:1 against the surface the chart renders on. The panel is
    `bg-muted/20` over `bg-card`, so the composite must be computed, not the base.
-4. **Component drift** — `Reports.jsx` contains the literal joining it to the map, **and contains no
+4. **Treatment distinctness** (SC-004) — every pair *sharing* a fill has distinct glyph entries, and
+   every pair with *distinct* fills clears a stated ΔE00 under Brettel–Viénot–Mollon simulation. The
+   measured object is the **treatment**, never the fill: a pairwise fill check fails by construction
+   the moment the sanctioned pairs land.
+5. **Component drift** — `Reports.jsx` contains the literal joining it to the map, **and contains no
    raw palette literal** of the form `bg-<palette>-<weight>`. *Asserting "does not contain
    `matchStatusColor`" was the first draft and is too weak: it is a source-text grep inside a colour
    gate, so it fires on a comment mentioning the name and passes if the switch is renamed
@@ -147,10 +151,14 @@ These are `--popover-border`'s existing values. Zero new colour decisions (resea
 
 None persisted. Two client-side states are added:
 
-- **Focus** on a timeline bar — reveals the detail card via `group-focus-visible`, **not**
-  `group-focus`, or a mouse click pins the card open behind the modal it just launched.
-- **Dismissed** (`dismissedRowId`) — *only if* Scenario 4 is implemented literally. One state on the
-  pane, never one per row inside a ~50-row map. Open decision, carried to tasks.md.
+- **Focus** on a timeline bar — reveals the detail card via
+  `group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`.
+  **Not `group-focus-visible`**: after R1a the `group` is the non-focusable *wrapper*, so that
+  selector can never match and the card would silently never open on keyboard focus — FR-003's first
+  clause failing while the diff looks correct. **Not `group-focus-within`** either: it fires on mouse
+  focus, re-creating the card-pinned-open-behind-the-modal bug R3 identifies.
+- **Dismissed** (`dismissedRowId`) — **decided, not open** (R3a). One state on the pane, cleared on
+  focus change, consumed by one ternary inside the map. Never one hook per row.
 
 ## Consumers
 
@@ -159,4 +167,5 @@ None persisted. Two client-side states are added:
 - `GroupSummaryBar.jsx` — glyph, legend, separator
 - `taskStatus.js` — gains `STATUS_FILL_TOKENS`; its raw-palette segment classes retokenised
 - `scripts/verify-contrast.py`, `scripts/verify-cascade.py` — read these as data
+- `groupSummary.js` — `buildSegments` gains an optional glyph/ink source, defaulting to none
 - **Unchanged, referenced as the vocabulary of record**: `ganttPalette.js`

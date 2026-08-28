@@ -39,18 +39,20 @@ null and therefore **renders** the field before auth resolves.
 
 ## Contract 3 — `STATUS_FILL_TOKENS`
 
-Seven entries, token **names** not values. Held by four assertions in `verify-contrast.py`:
+Seven entries, token **names** not values. Held by **five** assertions in `verify-contrast.py`:
 
 1. enum coverage — every backend status has an entry (`pending` excluded: not in this endpoint's domain)
 2. cross-surface agreement — `STATUS_FILL_TOKENS[s] === GANTT_STATUS_TOKENS[s].fill`, iterating
    over `STATUS_FILL_TOKENS` (seven keys; the Gantt map has eight)
 3. 3:1 against the composited panel surface (`bg-muted/20` over `bg-card`)
-4. component drift — `Reports.jsx` joins to the map **and no longer contains `matchStatusColor`**
-
-5. **treatment distinctness** (SC-004, R15) — every pair sharing a fill has distinct glyph entries;
-   every pair with distinct fills clears a stated ΔE00 under Brettel–Viénot–Mollon simulation. The
-   measured object is the *treatment*, never the fill: a pairwise fill check fails by construction
-   once the sanctioned pairs land.
+4. treatment distinctness (SC-004) — every pair sharing a fill has distinct glyph entries; every pair
+   with distinct fills clears a stated ΔE00 under Brettel–Viénot–Mollon simulation. The measured
+   object is the treatment, never the fill: a pairwise fill check fails by construction once the
+   sanctioned pairs land
+5. component drift — `Reports.jsx` contains the literal joining it to the map, **and contains no raw
+   palette literal** of the form `bg-<palette>-<weight>`. A grep for the old function name was the
+   first draft and is too weak: it fires on a comment mentioning it and passes if the function is
+   renamed. The palette-literal form also covers the risk tiles
 
 Assertion 2 is what makes the deliberately-shared fills enforceable rather than folkloric:
 `GANTT_STATUS_TOKENS` is the **register of which pairs may share**, which is what lets the amended
