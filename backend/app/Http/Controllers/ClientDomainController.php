@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\ClientDomainResource;
 use App\Models\ClientDomain;
 use App\Models\ClientOrganization;
@@ -15,7 +16,7 @@ class ClientDomainController extends Controller
 
     public function index(Request $request, ClientOrganization $clientOrganization)
     {
-        if (!$request->user()->isPmOrAdmin()) {
+        if (!AccessContext::user($request)->isPmOrAdmin()) {
             AuditLogger::denied($request, 'client_domain.list', 'client_organization', $clientOrganization->id);
             return response()->json(['message' => 'Unauthorized: Only Admins and Project Managers can view client domains.'], 403);
         }
@@ -25,7 +26,7 @@ class ClientDomainController extends Controller
 
     public function store(Request $request, ClientOrganization $clientOrganization)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->isAdmin()) {
             AuditLogger::denied($request, 'client_domain.create', 'client_organization', $clientOrganization->id);
@@ -86,7 +87,7 @@ class ClientDomainController extends Controller
 
     public function destroy(Request $request, ClientDomain $clientDomain)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->isAdmin()) {
             AuditLogger::denied($request, 'client_domain.remove', 'client_domain', $clientDomain->id);

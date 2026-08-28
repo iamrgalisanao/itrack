@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\ProjectMembershipResource;
 use App\Models\ClientDomain;
 use App\Models\ProjectMembership;
@@ -18,7 +19,7 @@ class ClientMembershipReviewController extends Controller
 
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->isAdmin() && !$user->isProjectManager()) {
             AuditLogger::denied($request, 'client_membership_review.list', 'project_membership');

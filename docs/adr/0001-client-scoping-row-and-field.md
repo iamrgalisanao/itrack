@@ -71,6 +71,52 @@ Two consequences that are not obvious:
   Filed with the open product question about `status` and `sprint_label` — the UI hides `status`
   while the API returns it, and that inconsistency should be resolved deliberately.
 
+## Decision 1b — audience resolution, the axis the first draft missed
+
+**Every read gate and every resource branch resolves its subject through
+`AccessContext::user($request)`, never `$request->user()`.**
+
+Added after a systematic controller sweep, because Decision 1 as first written **could not classify
+what that sweep found.** Row and field answer *what* is filtered. Neither answers *whose role does
+the filtering* — and a resource can be flawless on both axes while resolving them for the wrong
+person.
+
+Eleven routes did exactly that. A controller-level `user()` helper returning `$request->user()` makes
+every role gate beneath it evaluate the real Admin, so an Admin previewing as a Client passed checks
+the Client was refused:
+
+```
+/api/users                    client=403   preview=200
+/api/audit-logs               client=403   preview=200
+/api/team-members             client=403   preview=200
+/api/projects/{id}/memberships client=403  preview=200
+… eleven in total
+```
+
+**This is not a disclosure defect** — the Admin is entitled to the data either way. It is worse in a
+specific way: preview is the *only* tool for answering "what does this client actually see", and it
+was answering in the **permissive** direction. Three of the six disclosure defects closed on this
+codebase would have been visible in a faithful preview. A preview that over-reports access is worse
+than no preview, because it is trusted.
+
+The two most serious were `ProjectMembershipController` and `ProjectInvitationController` — routes
+the coverage guard classifies as *genuinely Client-reachable by an approved `client_admin`*. Preview
+is the one tool for auditing that exact boundary, and on that boundary it lied.
+
+**Why this axis is more checkable than the other two.** Row and field scoping need a human to decide
+what a column means on a given model. Audience resolution has a single greppable seam and a
+mechanical test: *for any route a Client cannot reach, previewing as that Client must not reach it
+either.* `PreviewFidelityTest` asserts precisely that, both directions, and would have been red on
+eleven rows.
+
+**One subtlety that decides whether a fix is safe.** A controller's `user()` helper usually serves
+both reads and writes, and writes must record the **real** actor. Changing the helper wholesale is
+nonetheless correct here, for two reasons that must both hold: `BlockWritesDuringPreview` rejects
+every non-GET while a preview session is attached, so no write ever executes with a preview target in
+scope; and `AuditLogger::record` reads `$request->user()` off the request itself
+(`AuditLogger.php:47`), never the controller helper. If either stops being true, this reasoning
+expires with it.
+
 ## Decision 2 — the finding that reframes the rule
 
 **Constitution Principle II — "never a raw model or `toArray()`" — is not underspecified. It is
@@ -148,6 +194,13 @@ the moment it is written. The boundary test's blind spots are documented in the 
 discovered — `REACHABLE_NOT_YET_PROVEN` names the rows whose sentinel cannot reach them, which is
 the honest form of a coverage claim and the thing that would have caught #14's vacuous `reports` row.
 
+**On `!$user->isClient()`.** A sweep treating that token as the signal is a 1-in-3 predictor and will
+file two false positives. `ProjectController:139` and `ProjectClientAccess:21` both negate and both
+fail **closed**, because they sit after the positive Admin/PM branches, where the negation *denies*.
+Only `NotificationController:148` **granted** on the negation — a null or unrecognised role is not a
+Client, so it returned true and skipped the visibility check. The signal is not the token; it is
+whether the branch grants or denies, which requires reading the chain it sits in.
+
 **Costs.** The exemption lists must be maintained, and a wrong exemption is a silent hole — the guard
 proves a route was *classified*, never that the classification was right. `NOT_CLIENT_REACHABLE`
 therefore requires a server-side reason; "the UI never links there for a Client" is explicitly not
@@ -156,7 +209,10 @@ Gantt row types until #26.
 
 **Open, filed rather than deferred**: attachment download bypassing parent-task visibility (C2);
 comments and attachments on hidden tasks, plus the existence oracle (M1); the 403 message oracle
-(M2); `health_note` on raw `Project` models and the absence of a `ProjectResource` (M3); Support Ops
+(M2); `health_note`, **`health_updated_by` and `health_updated_at`** on raw `Project` models and the
+absence of a `ProjectResource` (**authz M3** — not to be confused with the accessibility M3 in
+`docs/outstanding-work.md`, which is a contrast finding; the two audits picked the same label);
+Support Ops
 Department Head scoping. All are in `docs/outstanding-work.md`.
 
 ## A note on how this ADR was produced

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\NotificationResource;
 use App\Models\AuditLog;
 use App\Models\Bug;
@@ -145,7 +146,23 @@ class NotificationController extends Controller
 
     private function linkedTaskVisibleTo(User $user, Notification $notification): bool
     {
-        if (!$user->isClient()) {
+        // A positive allowlist, not `!$user->isClient()`.
+        //
+        // The negation GRANTS here, which is the shape the constitution forbids:
+        // a null or unrecognised role is not a Client, so it returned true and
+        // skipped the client_visible check entirely. Verified before the fix --
+        // a null-role user received a notification linked to a task with
+        // `client_visible = false`; a Client did not.
+        //
+        // Blast radius was bounded (visibleToUser() matches user_role = null
+        // against no role-broadcast rows, so only individually-targeted
+        // notifications got through) but bounded is not closed.
+        //
+        // Note the two other `!isClient()` sites in this codebase --
+        // ProjectController:139 and ProjectClientAccess:21 -- are correct,
+        // because their negation DENIES rather than grants. The token is not
+        // the signal; whether the branch grants or denies is.
+        if ($this->isInternalRole($user)) {
             return true;
         }
 
@@ -190,6 +207,15 @@ class NotificationController extends Controller
      * (FR-004) — Clients have no Support Ops access at all, matching
      * SupportOpsController::canView()'s existing inclusion-based check.
      */
+    /** Every non-Client role, stated positively so an unknown role fails closed. */
+    private function isInternalRole(User $user): bool
+    {
+        return $user->isAdmin()
+            || $user->isProjectManager()
+            || $user->isDepartmentHead()
+            || $user->isTeamMember();
+    }
+
     private function isEligibleForSupportOpsDigest(User $user): bool
     {
         return $user->isAdmin() || $user->isProjectManager() || $user->isTeamMember() || $user->isDepartmentHead();
@@ -557,8 +583,23 @@ class NotificationController extends Controller
         }
     }
 
+    /**
+     * Preview-aware, deliberately.
+     *
+     * This returned `$request->user()`, so an Admin previewing as a Client
+     * passed every role gate below as the Admin -- preview answering "what does
+     * this client see" in the PERMISSIVE direction, which is the one direction
+     * that makes it worse than useless. Eleven routes diverged; this was one.
+     *
+     * Safe for writes without a second helper: `BlockWritesDuringPreview`
+     * rejects every non-GET while a preview session is attached, so no write
+     * ever runs with a preview target in scope and `AccessContext::user()`
+     * returns `$request->user()` identically there. Audit identity is unaffected
+     * either way -- `AuditLogger::record` reads `$request->user()` off the
+     * request itself (AuditLogger.php:47), never this helper.
+     */
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 }
