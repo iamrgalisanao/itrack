@@ -109,6 +109,13 @@ class ClientVisibilityBoundaryTest extends TestCase
             'duration_days'   => 0,
         ]);
 
+        $teamMember = \App\Models\TeamMember::create([
+            'side'         => 'internal',
+            'role'         => self::FIELD_SENTINEL,
+            'description'  => self::FIELD_SENTINEL,
+            'abbreviation' => 'SSE',
+        ]);
+
         $visible = DetailedActivity::factory()->create([
             'sub_activity_id' => $chain['subActivity']->id,
             'name'            => 'Shared With Client',
@@ -124,7 +131,7 @@ class ClientVisibilityBoundaryTest extends TestCase
             'evidence'        => self::FIELD_SENTINEL,
         ]);
 
-        return compact('chain', 'client', 'internal', 'visible');
+        return compact('chain', 'client', 'internal', 'visible', 'teamMember');
     }
 
     public static function clientReachableRoutes(): array
@@ -136,6 +143,15 @@ class ClientVisibilityBoundaryTest extends TestCase
             'modules index'        => ['/api/projects/%project%/modules'],
             'dashboard'            => ['/api/dashboard'],
             'reports'              => ['/api/reports'],
+            // The internal staff directory. Added after the route-coverage guard
+            // forced a classification decision here and it was made wrong: both
+            // routes were exempted as "internal directory" -- a description of
+            // the DATA, not a server-side gate, which is the exact reasoning the
+            // guard's own docblock rejects. TeamMemberController::index returned
+            // `TeamMember::all()` raw, so a project-assigned Client received
+            // every person's role and internal description.
+            'team members'         => ['/api/team-members'],
+            'team member show'     => ['/api/team-members/%teamMember%'],
             // Added after PR #26 review found the fix had closed three of
             // eight endpoints. Every one of these returns a raw Eloquent model
             // or relation -- `return $module->load('activities')` and friends --
@@ -153,11 +169,12 @@ class ClientVisibilityBoundaryTest extends TestCase
     #[DataProvider('clientReachableRoutes')]
     public function test_no_client_reachable_endpoint_discloses_an_internal_task(string $template): void
     {
-        ['chain' => $chain, 'client' => $client] = $this->seedBoundary();
+        ['chain' => $chain, 'client' => $client, 'teamMember' => $teamMember] = $this->seedBoundary();
 
         $url = strtr($template, [
             '%project%'     => $chain['project']->id,
             '%module%'      => $chain['module']->id,
+            '%teamMember%'  => $teamMember->id,
             '%activity%'    => $chain['activity']->id,
             '%subActivity%' => $chain['subActivity']->id,
         ]);

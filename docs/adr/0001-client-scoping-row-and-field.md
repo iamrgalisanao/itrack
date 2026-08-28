@@ -60,9 +60,16 @@ Two consequences that are not obvious:
   list of column names would have produced exactly the false positive above. The rule is about what
   the column *means on that model*, which is why it needs a human and cannot be a registry.
 - **Row scoping alone is sufficient only when every column of the model is Client-appropriate.**
-  `BugResource` is defensible today for that reason, not by accident. Whether `status` and
-  `sprint_label` should be withheld from Clients is an open product question filed separately; the UI
-  hides `status` while the API returns it, and that inconsistency should be resolved deliberately.
+  `BugResource` comes close but **does not actually clear its own rule**, and this document asserted
+  otherwise in its first draft. `BugResource` returns `reporter` and `owner` — internal staff names —
+  and Decision 1 classifies `responsible` and `support` as internal *precisely because* they name
+  internal staff. `reporter`/`owner` on a bug are `responsible`-shaped by that test.
+
+  This is recorded rather than resolved because it may well be a deliberate product decision: a
+  Client arguably should see who owns the bug they filed. But the rule and the exception must both be
+  written down, or the next reader re-derives the false positive this ADR opens by describing.
+  Filed with the open product question about `status` and `sprint_label` — the UI hides `status`
+  while the API returns it, and that inconsistency should be resolved deliberately.
 
 ## Decision 2 — the finding that reframes the rule
 
@@ -102,6 +109,18 @@ mechanisms, in the order they were added:
    safe needs fixtures per route and is impractical; forcing a one-line reviewable decision is cheap
    and cannot be satisfied by accident.
    Had it existed, `/api/modules/{module}/activities` would have been red the day it was written.
+
+   **Its limit, and it is not theoretical.** The guard reaches a route only if nobody exempts it.
+   Reviewing the very PR that added it, the architect found `/api/team-members` returning
+   `TeamMember::all()` — the entire internal staff directory, each person's role and free-text
+   description — to any project-assigned Client. It had been classified `NOT_CLIENT_REACHABLE` with
+   the reason `'internal directory'`: a description of the *data*, not a server-side gate, which is
+   the exact reasoning that list's own docblock rejects. The mechanism has a manual override, and
+   the override is where the sixth defect was.
+
+   That is still the guard working, in the strongest available sense: it forced a classification
+   decision into a reviewable, greppable line that a human then got wrong. A route nobody listed
+   would have left no trace at all.
    *A guard over internal **columns** was considered and rejected*: it needs a registry of which
    columns are internal — the same list that can drift — and it guards a failure mode that has never
    occurred. No new model has been the cause of any of the five.
