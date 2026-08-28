@@ -120,6 +120,28 @@ class DetailedActivity extends Model
      * Prefer this over an inline where(): it is greppable, so a reviewer can
      * see its absence.
      */
+    /**
+     * The instance counterpart to `scopeVisibleTo()`.
+     *
+     * `scopeVisibleTo()` owns the QUERY axis -- which task rows a user may
+     * receive. This owns the INSTANCE axis -- whether one already-loaded task
+     * is visible to them. The ADR names four hand-spelt instance checks
+     * (DetailedActivityController, AttachmentController, CommentController,
+     * NotificationController) that the scope structurally could not reach;
+     * this is what they become.
+     *
+     * It exists because derived resources -- comments, attachments -- were
+     * checking their OWN visibility and the project's, and nothing was asking
+     * the parent task. A client-visible comment on a hidden task passed every
+     * gate: the project was accessible, the comment was client_visible. Only
+     * the parent said no, and nobody asked it. Same for an attachment, whose
+     * download streamed the file itself.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        return !$user->isClient() || (bool) $this->client_visible;
+    }
+
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         return $query->when(

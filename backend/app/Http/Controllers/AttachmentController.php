@@ -62,6 +62,12 @@ class AttachmentController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
+        // Same inheritance as comments: the attachment's own visibility is not
+        // the whole answer while its parent task is hidden.
+        if (!$detailedActivity->isVisibleTo($user)) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         $query = $detailedActivity->attachments()->orderBy('created_at', 'asc');
 
         if ($user->isClient()) {
@@ -160,6 +166,15 @@ class AttachmentController extends Controller
 
         // Client can only download client_visible files
         if ($user->isClient() && $attachment->visibility !== Attachment::VISIBILITY_CLIENT_VISIBLE) {
+            return response()->json(['message' => 'Access denied.'], 403);
+        }
+
+        // And only when the parent task is visible to them. Without this the
+        // two checks above both pass for a client-visible attachment on a
+        // hidden task, and the response streams the FILE ITSELF -- not a
+        // field, not a count, the bytes.
+        $task = $attachment->detailedActivity;
+        if ($task && !$task->isVisibleTo($user)) {
             return response()->json(['message' => 'Access denied.'], 403);
         }
 

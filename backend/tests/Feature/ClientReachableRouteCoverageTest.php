@@ -99,9 +99,6 @@ class ClientReachableRouteCoverageTest extends TestCase
      * `reports` row.
      */
     private const REACHABLE_NOT_YET_PROVEN = [
-        'api/detailed-activities/{detailed_activity}/comments'    => 'needs a comment seeded on a hidden task -- audit finding M1',
-        'api/detailed-activities/{detailed_activity}/attachments' => 'needs an attachment seeded on a hidden task -- audit finding M1',
-        'api/attachments/{attachment}/download'                   => 'needs an attachment on a hidden task -- audit finding C2',
         'api/bugs/{bug}'                                          => 'BugController re-checks visibility for Clients and returns BugResource; no sentinel yet',
         'api/projects/{project}/bugs'                             => 'visibility-filtered via BugResource; no sentinel yet',
         'api/glossary-terms'                                      => 'global reference data, returned as raw models -- Principle II',
@@ -209,6 +206,9 @@ class ClientReachableRouteCoverageTest extends TestCase
             '/api/sub-activities/%subActivity%'             => 'api/sub-activities/{sub_activity}',
             '/api/sub-activities/%subActivity%/detailed-activities'
                 => 'api/sub-activities/{sub_activity}/detailed-activities',
+            '/api/detailed-activities/%hiddenTask%/comments' => 'api/detailed-activities/{detailed_activity}/comments',
+            '/api/detailed-activities/%hiddenTask%/attachments' => 'api/detailed-activities/{detailed_activity}/attachments',
+            '/api/attachments/%hiddenAttachment%/download'   => 'api/attachments/{attachment}/download',
             '/api/team-members'                             => 'api/team-members',
             '/api/team-members/%teamMember%'                => 'api/team-members/{team_member}',
             '/api/dashboard'                                => 'api/dashboard',
