@@ -179,6 +179,31 @@ and the fill, not just the text.
 **The One Accent Rule.** Violet is the only expressive color in the system. Status colors communicate
 state, not brand; they are not substitutes for the primary accent on non-status UI.
 
+### Print palette (a workaround, documented so it stops reading as drift)
+
+`index.css`'s `@media print` block hardcodes five literals that appear nowhere else in the system:
+
+| Value | Role in print |
+|---|---|
+| `#ffffff` | card/surface ground |
+| `#000000` | body and heading text |
+| `#555555` | muted text |
+| `#cccccc` | all borders and rules |
+
+They are **not** a designed print palette. They exist because `@media print` does not reset the token
+set, so a page printed from dark mode would otherwise carry dark values onto white paper — dark text
+tokens on a dark card ground, at whatever contrast the printer happens to give. The literals are a
+blunt override that forces legible ink-on-paper regardless of the active theme.
+
+Recorded here for two reasons. First, a design-system linter correctly flags any literal outside this
+document, and these five were re-flagged on every frontend change; an undocumented exception that
+recurs indefinitely trains people to ignore the linter. Second, writing down *why* they exist keeps
+the real fix findable: resetting the token set inside `@media print` retires all five, and is tracked
+in `docs/outstanding-work.md`.
+
+**Do not extend this set.** A new print literal is a sign the token reset is still missing, not that
+the palette needs another entry.
+
 ## Typography
 
 **Body Font:** system-ui, 'Segoe UI', Roboto, sans-serif
