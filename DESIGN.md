@@ -23,6 +23,14 @@ colors:
   # without its ink invites white-on-#f87171, which is 2.77:1.
   status-foreground: "#ffffff"
   status-foreground-dark: "#16171d"
+  # Print-only overrides. NOT palette colours -- see "Print palette" in the body.
+  # They exist solely because @media print does not reset the token set, and they
+  # are registered here only so the design-system detector stops reporting them
+  # on every frontend change. Delete these three with the token reset.
+  # (#ffffff is already neutral-bg, which is why it was never reported.)
+  print-ink: "#000000"
+  print-muted: "#555555"
+  print-rule: "#cccccc"
 typography:
   body:
     fontFamily: "system-ui, 'Segoe UI', Roboto, sans-serif"
@@ -195,6 +203,11 @@ They are **not** a designed print palette. They exist because `@media print` doe
 set, so a page printed from dark mode would otherwise carry dark values onto white paper — dark text
 tokens on a dark card ground, at whatever contrast the printer happens to give. The literals are a
 blunt override that forces legible ink-on-paper regardless of the active theme.
+
+These four are also registered in this file's `colors:` frontmatter, under `print-*` names. That is
+the machine-readable list the design-system detector actually reads — prose and tables in the body do
+not reach it, which is why documenting them here alone left the warnings firing. Registering them is
+what silences the recurrence; this section is what stops the registration reading as endorsement.
 
 **This entry retires with the fix.** Resetting the token set inside `@media print` removes the need
 for all four, at which point this section should be deleted rather than maintained. That reset is
