@@ -78,6 +78,9 @@ BASELINE_NEITHER = 4
 # A floor, not a measurement. If the scanner ever reports fewer control tags
 # than this, it has stopped seeing the app and every number below is noise.
 MIN_TOTAL = 100
+# The closure scan reads .jsx AND .js, so it needs its own floor -- MIN_TOTAL
+# counts control tags, which .js files do not contain.
+MIN_CLOSURE_FILES = 40
 
 
 def mask_comments(src):
@@ -213,6 +216,20 @@ def check_input_closure(files):
     by inspection, which is what lets the residual visual check be four
     elements instead of four screens.
     """
+    # `files` here is .jsx AND .js -- deliberately wider than the tag scan.
+    #
+    # This globbed .jsx only, while the class maps that carry Tailwind strings
+    # (`taskStatus.js`, `groupSummary.js`) are .js. A `bg-input` or `ring-input`
+    # written into one of those maps was invisible, and SC-009's "nothing
+    # unintended moved" quietly stopped being true. `verify-contrast.py` has
+    # globbed both since it was written; this is an alignment, not a new idea.
+    # Caught before the feature that rewrites exactly those two files, not after.
+    if len(files) < MIN_CLOSURE_FILES:
+        print('FAIL: only %d source files found for the closure scan, below the '
+              'floor of %d. The glob is not seeing the app.'
+              % (len(files), MIN_CLOSURE_FILES))
+        return 1
+
     other = {}
     sites = 0
     rx_any = re.compile(r'\b([a-z]+)-input(/[0-9]+)?\b')
@@ -248,7 +265,9 @@ def main():
               'nothing.' % ROOT)
         return 1
 
-    if check_input_closure(files):
+    # Closure over BOTH extensions; the tag scan below stays .jsx-only, because
+    # a .js file has no JSX tags to count.
+    if check_input_closure(files + sorted(ROOT.glob('frontend/src/**/*.js'))):
         return 1
     print()
 
@@ -333,10 +352,19 @@ def main():
         print('Lower BASELINE_BORDER to %d in the same commit that shrank it, or the '
               'gate goes on guarding a ceiling nothing reaches.' % residue)
         return 1
+    # Two-sided, for the same reason the residue is. This was `>` only while the
+    # residue was already `> / <`, and the docstring three screens up argues at
+    # length that a one-sided ceiling drifts away from the floor until it
+    # constrains nothing. Same argument, same file, applied inconsistently.
     if counts['neither'] > BASELINE_NEITHER:
         print('RATCHET VIOLATED: %d controls are unclassifiable, above the %d recorded. '
               'An unbounded `neither` is an unbounded escape hatch -- give the new '
               'control a literal border-input.' % (counts['neither'], BASELINE_NEITHER))
+        return 1
+    if counts['neither'] < BASELINE_NEITHER:
+        print('RATCHET SLACK: `neither` fell to %d, below the recorded %d. Lower '
+              'BASELINE_NEITHER to %d in the same commit that shrank it.'
+              % (counts['neither'], BASELINE_NEITHER, counts['neither']))
         return 1
 
     print('RATCHET HOLDS (residue %d == %d, neither %d <= %d)'
