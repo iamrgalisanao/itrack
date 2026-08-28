@@ -253,9 +253,20 @@ reader is not misled by a cross-reference.
 
 | Item | Status | Notes |
 |---|---|---|
-| **`ReportController:78` eager-loads `detailedActivities.predecessors` unfiltered**, for every role including Client. The sibling relation one line above is constrained with `->visibleTo($user)` | **OPEN** | **Not a leak today** — traced: `predecessors` is read only by `hasDependencyRisk()`, called only from `buildInternalReport()`; the Client path maps an explicit key list that never reaches it. But it loads hidden tasks into memory on a Client request, and it is one added field from being #14 again — whose reports leak *was an eager load*. Constrain it, or record why it must stay unconstrained |
 | **`DetailedActivity::scopeVisibleTo` has the same null-role permissiveness** that `isVisibleTo` was fixed for | OPEN | Safe today for a structural reason the instance method did not have: a query scope is always chained onto `Project::accessibleTo()`, which ends `whereRaw('1 = 0')` for an unknown role, so its permissiveness is unreachable. But that safety is an emergent property of every call site rather than of the scope. Filed beside its twin so both are reasoned about together |
 | **`CommentController:20` `isInternalUser()` is dead code — and the fourth independent copy of the internal-role list** | OPEN | Alongside `NotificationController::isInternalRole`, `RetrospectiveController::canView`, `HasRole::canWrite` — now five with `DetailedActivity::isVisibleTo`. ADR Decision 3.3 says in terms that "three copies of a rule is how the row boundary came to be forgotten in seven places". This is that pattern on the role axis. A single `HasRole::isInternalRole()` is the fix |
+
+**`ReportController:78` is filed with the inference-channel items, not as its own row.**
+It eager-loads `detailedActivities.predecessors` unfiltered on the Client report path, where the
+sibling relation one line above is constrained with `->visibleTo($user)`. Traced twice
+independently and **not a leak**: `predecessors` is referenced once, at `:184`, collapsing to a
+boolean via `contains(isOverdue)`, and `milestonesForProject` emits only
+`id/name/status/plan_end_date/progress` off the already-filtered set.
+
+What it *is* is a **one-bit inference channel over hidden tasks** — which is the same class as the
+existence oracle in M1 and the 403 message oracle in M2. Those want one decision made once, about
+what a Client may infer, rather than three separate patches. Grouped here for that reason. It is also
+one added field from being #14 again, whose reports leak was itself an eager load.
 
 **A note the reviewer asked to be written down before someone simplifies the fixture.** All three C2/M1 rows fail on `FIELD_SENTINEL`, never on `SENTINEL` — derived resources do not carry the task's *name*, so the row sentinel is inert on them. Their entire detection power comes from `FIELD_SENTINEL` being planted in three places at once: the comment `body`, the attachment `original_name`, **and the file's contents on the fake disk**. Dropping any one silently re-vacuates the row it covers.
 
