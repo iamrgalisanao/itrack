@@ -121,9 +121,23 @@ An administrator opens the admin panel and sees the production authorization mec
 - **FR-012**: The project status chart MUST make each status's count available without hover or pointer interaction.
 - **FR-013**: A non-zero count in the project status chart MUST be visually distinguishable from a zero count regardless of the largest count present.
 - **FR-014**: The project status chart MUST accommodate every status the system defines without wrapping or truncating.
-- **FR-015**: The visual boundary of every form control MUST meet the non-text contrast threshold against its adjacent background in both themes.
+- **FR-015**: The visual boundary of every form control **drawn with the input token** MUST meet the
+  non-text contrast threshold against its adjacent background in both themes, and the count of native
+  controls not drawn with that token MUST NOT increase.
+  *(Amended after planning, with the residue stated rather than implied: of 127 native controls, 41
+  take their boundary from the input token and are covered here; **81 take it from the general-purpose
+  border token, which cannot move without changing every hairline in the application**; 5 are
+  unclassified. Migrating those 81 is 81 judgments — on a muted toolbar strip a hairline is sometimes
+  deliberate — and doing it here would destroy the one property that makes this story's regressions
+  attributable to a single token move. Filed as feature 025. The ratchet in the second clause is what
+  stops the residue growing meanwhile.)*
 - **FR-016**: The administrative interface MUST NOT describe a production mechanism as mock, prototype, or scaffolding.
-- **FR-017**: A filter control MUST NOT be presented to a role for which it has no options.
+- **FR-017**: A filter control MUST NOT be presented when it has no options to offer, and when hidden
+  its active selection MUST reset so no invisible filter keeps narrowing the view.
+  *(Amended after planning: the original wording said "to a role", which invites a role check. A role
+  check here reproduces the fail-open shape this feature exists to remove — the role is null until
+  auth resolves. Emptiness is the observable the requirement is actually about, fails closed through
+  that window, and self-corrects if the field policy changes.)*
 - **FR-018**: Changes made for this feature MUST NOT reduce the contrast or distinguishability of any element that currently meets its threshold.
 
 ### Key Entities
@@ -140,10 +154,21 @@ An administrator opens the admin panel and sees the production authorization mec
 - **SC-002**: A screen reader announces each timeline task once, and the announcement contains the task's identity, status and schedule.
 - **SC-003**: Zero fields restricted from a role by the visible interface are exposed to that role through any assistive-technology rendering, verified by an automated test that inspects the assistive text rather than the visible text.
 - **SC-004**: Every pair of status treatments that can appear adjacent is distinguishable under protanopia and deuteranopia simulation, verified by measurement rather than inspection.
-- **SC-005**: Every status the system defines has a distinct representation in the project status chart; no two statuses share one.
+- **SC-005**: No status reaches its treatment through a default branch, and no two statuses are
+  distinguishable by fill alone. Where two statuses deliberately share a fill, each carries a distinct
+  row position, full text label, and printed count. **Sanctioned sharing is recorded in
+  `GANTT_STATUS_TOKENS`** — that file is the register of which pairs may share, so "deliberate" is a
+  checkable property rather than two entries that happen to match.
+  *(Amended after planning: the original wording — "no two statuses share one representation" —
+  asserted the opposite of the design's own CI contract, which pins `blocked`/`delayed` to one fill
+  on purpose. Splitting fill from treatment is what makes both halves machine-checkable.)*
 - **SC-006**: Every status count in the project status chart can be determined without a pointing device.
 - **SC-007**: A status with a count of one is visibly distinguishable from a status with a count of zero on a chart whose largest count is at least one hundred.
-- **SC-008**: Every form control boundary measures at least 3:1 against its adjacent background in both themes.
+- **SC-008**: Every form control boundary **drawn with the input token** measures at least 3:1 against
+  its adjacent background in both themes — 41 of 127 native controls — and the number drawn with the
+  general-purpose border token does not rise above 81. The conformance claim for 1.4.11 after this
+  feature is **Partially Supports**, with two named residues: those 81 controls, and the progress
+  overlay edge.
 - **SC-009**: No element that met a contrast or distinguishability threshold before this feature falls below it after, verified by the existing automated gates.
 - **SC-010**: No interface text describes a production mechanism as mock or prototype.
 

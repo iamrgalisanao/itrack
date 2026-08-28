@@ -29,7 +29,14 @@ python scripts/verify-contrast.py     # expect exit 0
 
 Must now include:
 - `--input` at the **3.0 tier** against `--background`, `--card` and `--popover`, both themes.
-  Add to the **existing** 3.0-tier loop, do not write a second one.
+  **This requires generalising the existing loop first.** The 3.0-tier loop at
+  `verify-contrast.py:423-439` iterates `(name, need)` and **hardcodes the surface** as
+  `t[popover]`, prints "on --popover", and files failures under "THE POPOVER SURFACE IS NOT
+  LEGIBLE". Adding `(input, 3.0)` to it would measure `--input` against `--popover` only, under a
+  false heading, and could not express `--background` or `--card` at all. Generalise it to
+  `(token, surface, need)` triples and move the popover rows onto it.
+- **The counted ratchet** (FR-015): assert the number of native controls carrying `border-border`
+  does not exceed 81. One grep. It is what stops the residue growing while 025 is queued.
 - The four `STATUS_FILL_TOKENS` contracts from [data-model.md](./data-model.md#the-contracts).
 
 **Scope discipline**: this is the 023 review's proposed "assertion 9" *narrowed to what 024 changes*.
@@ -48,7 +55,13 @@ CASCADE_REQUIRED=1 python scripts/verify-cascade.py     # expect exit 0
 
 Three changes:
 
-1. **Repoint assertion 0's canary from `border-input` to `bg-background`.** *Required, not optional.*
+1. **Repoint assertion 0's canary — but not simply at `bg-background`.** *Required, not optional.*
+   `bg-background` depends on `@theme` emitting `--color-background` **and** the `bg-*` utility
+   winning, which is the PR #17 `bg-popover` defect class — so it re-creates the same conflation of
+   "did not load" with "did not win", one surface over. Make the load canary
+   **emission-independent**: read the custom property off the root element and assert it is
+   non-empty. Keep `bg-background` as a *separate* emission assertion. Add `background` to the
+   required-token list at `verify-cascade.py:74`, or the repoint can crash on a missing key.
    The canary's stated premise is that `--input` and `--border` are identical; this feature separates
    them. Left as-is it silently stops being a stylesheet-load check, and if the `* { border-color }`
    rule ever leaves `@layer base` it would `ABORT: the stylesheet did not load` **before** assertion 1
@@ -68,6 +81,11 @@ Adding a bar fixture trips that guard. Update it deliberately.
 ```bash
 node --test frontend/src/lib/ganttA11y.test.js     # expect pass
 ```
+
+**This must run in CI, and does not today.** `.github/workflows/ci.yml` has four jobs and none
+runs `node --test` — so as originally planned, the *only* automated protection for FR-007 and
+SC-003, this feature's single confidentiality requirement, ran on a laptop. Add it as a step in
+the existing `frontend-build` job; it needs the same `npm ci` and nothing more.
 
 No new test runner, no jsdom. This is the whole of SC-003, and it must assert the **assistive
 string**, not a rendered column:
@@ -90,8 +108,11 @@ absent *for the wrong reason* — because the fixture row had no `responsible` a
 ## Gate 5 — Backend suite
 
 ```bash
-cd backend && php artisan test     # expect 463 passing
+cd backend && php artisan test     # expect 0 failures
 ```
+
+**A pass, not a count, is the criterion.** "Expect 463 passing" was the number the *failing* run
+produced (463 passed, 5 failed), so a count stated as a criterion reads green on a red suite.
 
 This feature ships no PHP, so this is a regression check only. It is listed because
 `ClientVisibilityBoundaryTest` now covers the three planning levels (PR #26) and this feature's
@@ -111,6 +132,10 @@ These are **tasks**, not assumptions. Record the result of each.
 | Reports chart at mobile width with all seven statuses | The current grid wraps at four; verify the rotation removed the class of defect |
 | Zero-task and single-status projects | Explicit empty state, and one row at 100% with six zeros |
 | Segment bar glyph at the narrowest real column width | Verify the suppression threshold, and that `overflow-hidden` is not clipping silently |
+| **Protanopia and deuteranopia simulation** of every status treatment | SC-004 says "verified by measurement rather than inspection"; the gate measures *treatments* (R15), but pairwise perceptual judgement still needs an eye |
+| **A count of 1 beside a count of 100+** in the status chart (SC-007) | The gate asserts the floor renders at least 4px; that it reads as *distinguishable from zero* is a different claim |
+| A **20-project** report, not one card | R6 accepts +76px per card; on 20 stacked cards that is +1500px of scroll, and the cost was weighed against a single card |
+| Grep for `mock`, `prototype`, `scaffold` in JSX string literals (SC-010) | SC-010 says "no interface text"; FR-016 fixes one known site. The sweep is the difference between fixing an instance and satisfying the criterion |
 
 ## Frontend review pass (Constitution Completion Gate)
 

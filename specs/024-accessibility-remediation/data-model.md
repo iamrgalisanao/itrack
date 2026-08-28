@@ -19,7 +19,7 @@ The button's accessible **name**. Identity only.
 |---|---|---|
 | code | `row.code` | prefix when present |
 | name | `row.name` | truncate at **~80 chars on a word boundary** |
-| status | `getGanttStatusLabel(row.status)` | never the raw `row.status` |
+| status | `getGanttStatusLabel(row.status)` | never the raw `row.status`. **Requires extracting that function to `lib/` first** — it is a component-scoped arrow at `WorkProgram.jsx:644`, not exported, and a pure module can neither import it nor duplicate it without minting a fifth status vocabulary. `taskStatus.js` carries a competing set (`completed` becomes "Done"); **the Gantt set is authoritative for the announcement**, because the announcement describes the Gantt |
 | dates | `formatDate(...)` | never ISO |
 | progress | `row.progress` | percentage |
 
@@ -115,16 +115,19 @@ the equivalent was previously left to a comment and drifted.
 1. **Enum coverage** — every status in the backend enum union has an entry in `STATUS_FILL_TOKENS`.
    *This is the assertion that would have caught the original defect, where three statuses fell
    through `default` to one violet.*
-2. **Cross-surface agreement** — `STATUS_FILL_TOKENS[s] === GANTT_STATUS_TOKENS[s].fill` for every
-   status. *FR-011 and SC-005 as a machine check. The most valuable of the four: it is what stops a
+2. **Cross-surface agreement** — `STATUS_FILL_TOKENS[s] === GANTT_STATUS_TOKENS[s].fill`,
+   **iterating over `STATUS_FILL_TOKENS`** — seven keys, not the Gantt map's eight. Written the
+   other way it fails on `pending` the day it is written. *FR-011 and SC-005 as a machine check. The most valuable of the four: it is what stops a
    future contributor "fixing" the shared `--destructive` by inventing a hue for `delayed`, which
    would reopen what 023 closed. It makes the deliberate sharing enforceable rather than folkloric.*
 3. **Non-text tier** — each distinct fill ≥ 3:1 against the surface the chart renders on. The panel is
    `bg-muted/20` over `bg-card`, so the composite must be computed, not the base.
-4. **Component drift** — `Reports.jsx` contains the literal joining it to the map, **and does not
-   contain `matchStatusColor`**. *The negative literal is the one that earns its place: it prevents
-   the old switch being quietly reintroduced beside the new map, which is how a fixed function grows
-   a second copy.*
+4. **Component drift** — `Reports.jsx` contains the literal joining it to the map, **and contains no
+   raw palette literal** of the form `bg-<palette>-<weight>`. *Asserting "does not contain
+   `matchStatusColor`" was the first draft and is too weak: it is a source-text grep inside a colour
+   gate, so it fires on a comment mentioning the name and passes if the switch is renamed
+   `statusColor`. The palette-literal assertion is the property actually wanted, it also covers R10's
+   risk tiles at `:502-509` and `:650-658`, and it would have caught the original defect.*
 
 ## Values
 

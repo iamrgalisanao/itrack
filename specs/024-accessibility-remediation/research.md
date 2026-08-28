@@ -425,10 +425,158 @@ for `forced-color-adjust: none` — it opts the element out of the user's settin
   Legitimate scope line — but the ACR must say **Partially Supports** on 1.4.11 after this ships, not
   Supports.
 
+## R1a — Where the button goes (settled at verification)
+
+**Decision**: today's bar `<div>` (`WorkProgram.jsx:2662`) becomes a **non-focusable positioned
+wrapper** carrying `group` and the inline `left`/`width`/`top`. A `<button className="h-full w-full">`
+inside it carries the visual classes, `getGanttBarStyles`, and the click handler. **The detail card
+becomes a sibling of that button, still inside the wrapper.**
+
+**Why this and not conversion in place**: the card at `:2733` is a **descendant** of the div R1
+converts — I read it as a sibling and was wrong; `:2663` is an attribute line of the div opened at
+`:2662`, so the card sits at the child indent. Converting in place nests a multi-`div` field grid
+inside a `<button>`, outside the content model.
+
+Strictly that is a validator violation rather than an AT defect — the name comes from `aria-label`,
+and `aria-hidden` on a non-focusable descendant is permitted. It is rejected anyway because **R1's
+entire premise is that this file has no canonical pattern, which is why it regresses.** The pattern
+everyone copies should not be the one a validator flags.
+
+**CSS consequences — the part that otherwise gets discovered at implementation:**
+
+- Reveal becomes `group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`.
+  **Not `group-focus-within`** — `focus-within` fires on mouse focus too, re-creating exactly the
+  "card pinned open behind the modal it just launched" bug R3 identifies. State the `:has()` browser
+  floor in the diff.
+- The wrapper takes **no `tabIndex` and no `onClick`**; both move to the button, or the element ships
+  two activation paths.
+- Progress fill, percentage label and milestone diamond move inside the button as `<span>`s.
+- The `absolute bottom-full` to `top-full` flip for row 0 applies to the card in its new position,
+  logic unchanged.
+
+## R3a — Dismissible: FR-003 is closed, not open
+
+**Decision**: implement it. One `dismissedRowId` on the timeline pane.
+
+**Why the earlier reasoning was wrong**: I argued that because the card is `aria-hidden` decoration,
+1.4.13 no longer binds. It does — **1.4.13's dismissible clause governs *visible* content**, and is
+excused only where the content does not obscure other content. This card is `absolute bottom-full`
+over the timeline.
+
+Specifics, so it cannot grow a second state:
+
+- Escape on the focused bar sets `dismissedRowId = row.id` and stops propagation of the handled key.
+- **It clears on focus change.** A session-sticky dismissal silently removes the affordance for the
+  rest of the session — a worse outcome than the one 1.4.13 asks you to fix.
+- The reveal class becomes conditional on `dismissedRowId !== row.id`: one ternary inside the map,
+  **zero hooks inside it**.
+
+## R11a — FR-015 narrowed, with a counted ratchet
+
+**Decision**: move `--input` only. Do **not** migrate the 81 native controls drawn with
+`border-border`.
+
+**The number, because a scope cut without one becomes folklore**: 127 native controls — **41**
+`border-input`, **81** `border-border`, 5 unclassified. Concentrated in `SupportOps.jsx` (17),
+`TaskDetailModal.jsx` (14), `Schedule.jsx` (12), `Reports.jsx` (10).
+
+*(My first count said 37/81 and the attempt before that said 2/2/123. The 2/2/123 run was broken: the
+regex `[^>]*?>` terminates on the `>` inside an arrow function in a JSX attribute. Recorded because a
+count that looks precise and is wrong is worse than no count, and this feature's spec now quotes these
+figures.)*
+
+**Why not migrate**: `border-border` on a native control is *sometimes* an oversight and sometimes a
+deliberate hairline on a muted toolbar strip. That is 81 judgments, not one rename — a feature, not a
+task inside another feature. It would also destroy the one property required of Story 4: that a
+contrast regression be attributable to a single token move.
+
+**Conditions, all landing in 024**: the spec states the residue with its counts; the ACR says
+**Partially Supports** on 1.4.11 with **two** named residues (these 81 controls and R13's progress
+overlay); and 024 ships a **counted ratchet** — an assertion that the number of native controls
+carrying `border-border` does not increase. This repo already reasons in counts ("112 opacity
+modifiers", "122 outline-none", "223 border-border sites"); a ratchet is its native idiom, costs one
+grep, and is what stops the residue growing while 025 is queued. **025 owns the migration and is filed
+now, not "later".**
+
+## R14 — FR-017: hide on emptiness, never on role
+
+**Decision**: hide the Schedule assignee filter when it has no options, not when the viewer is a
+Client.
+
+**Rationale**: emptiness is the observable the requirement is about; it fails closed through the
+auth-resolution window instead of reproducing the exact shape R4 condemns; it self-corrects in both
+directions if the Client field policy changes, with no second place to update; and it does not add a
+fourth role branch to a file that already has one.
+
+**Two implementation facts that decide whether it works at all:**
+
+- `assignees` at `Schedule.jsx:372` is `['all', ...new Set(...)]`, so the test is
+  **`assignees.length <= 1`**, never `=== 0`. Written as `=== 0` the check never fires and the feature
+  ships looking done.
+- When the control is hidden, **force `assigneeFilter` back to `'all'`**, or the predicate at `:344`
+  keeps filtering by a value the user can no longer see or clear. That is the half that gets missed.
+
+The same rule generalises to the project filter above it. Noted; **not** pulled into 024.
+
+## R15 — What SC-004 actually measures
+
+**Decision**: the measured object is the **treatment** (fill + glyph + label), not the fill.
+
+A naive pairwise fill measurement fails by construction the moment R5's step 0 lands, because
+`blocked` equals `delayed` and `backlog` equals `not_started` *on purpose*. Two assertions:
+
+1. Every pair **sharing** a fill has distinct glyph entries.
+2. Every pair with **distinct** fills clears a stated ΔE00 under Brettel–Viénot–Mollon simulation.
+
+Plus a manual protanopia/deuteranopia row in the matrix — which the plan previously lacked entirely,
+so SC-004's "verified by measurement rather than inspection" had no mechanism at all.
+
+## R16 — Accepted reductions (FR-018 / SC-009)
+
+FR-018 says nothing that meets a threshold may regress. **This feature deliberately reduces two
+distinctions**, and naming them is the honest form of that requirement:
+
+| Reduction | Compensating channel |
+|---|---|
+| Retokenising `STATUS_SEGMENT_CLASSES` collapses two reds (ΔE00 **7.64 in normal vision**) onto one `--destructive` | R5's glyph plus legend; and the pair was never distinguishable under dichromacy, so the loss is in normal vision only |
+| `for_review` moves purple to amber while `STATUS_BADGE_CLASSES` beside it (`MyWorkPanel.jsx:120`, `TaskboardView.jsx:294`) stays purple | **Unmitigated.** Either the badge map comes along or the inconsistency is recorded — decided at task generation, not left silent |
+
+SC-009 is scoped to what a gate can hold — the `--input`/`--border` separation fixture — **plus** a
+stated before/after visual pass of the three consumer surfaces. The gates cannot see the rest, by
+`verify-contrast.py`'s own header admission.
+
+## R17 — GroupSegmentBar's real blast radius
+
+The component has **five call sites over four vocabularies**: `taskStatus.js` (MyWorkPanel,
+TaskboardView), `LIST_STATUS_SEGMENT_CLASSES` (`WorkProgram.jsx:126`), BugTracker's local map (`:38`),
+Retrospectives' sentiment, plus priority segments.
+
+Two gaps the plan missed: **`buildSegments` (`groupSummary.js:27`) returns `{key, count, pct,
+className}` with no ink and no glyph source**, and `groupSummary.js` was not in the file list at all;
+and step 0 retokenises only `taskStatus.js`, so BugTracker's and the List view's raw-palette maps would
+render glyphs on fills the contrast gate still cannot see.
+
+**Decision**: `buildSegments` gains an optional glyph/ink source keyed like `className`, **defaulting
+to no glyph** so non-status callers (sentiment, priority) are untouched. **In scope**: `taskStatus.js`
+consumers and `LIST_STATUS_SEGMENT_CLASSES`. **Out**: BugTracker's local map, Retrospectives' sentiment,
+priority — filed with the 025 residue.
+
+## R18 — The segment bar's equal-width distortion stays out, with one condition
+
+**Ruling**: out of 024. FR-013 names the project status chart specifically, so pulling the segment bar
+in is scope expansion past a stated requirement; it changes what the bar *means* rather than how it is
+encoded; and per R17 the shared component already carries more blast radius than the plan accounted
+for — compounding a semantics change on it makes any visual regression un-bisectable.
+
+**The condition**: do not ship the glyph without mitigating the harm this plan itself identifies.
+**R5's legend must print the per-status count**, so the equal-width distortion stops being the only
+quantity channel. That is R8's own rule — *a distorted length is acceptable when the number is printed
+beside it* — applied to the other component, and it costs nothing. The proportional-width fix is filed
+as a backlog row citing that rule.
+
+---
+
 ## Open question carried into tasks.md
 
-**Does the segment bar's equal-width distortion (R13) belong in this feature or the next?** It is
-FR-013's defect class in a component this feature is already editing, and the glyph work makes it more
-visible. Against including it: it is a change to what the bar *means*, not to how it is encoded, and
-User Story 2 is scoped to distinguishability. Recommend recording it as a backlog row and deciding at
-task generation rather than silently absorbing it.
+One remains: whether `STATUS_BADGE_CLASSES` is retokenised alongside the segment classes, or the
+`for_review` purple/amber inconsistency is recorded (R16). Decide at task generation.

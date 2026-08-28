@@ -42,11 +42,19 @@ null and therefore **renders** the field before auth resolves.
 Seven entries, token **names** not values. Held by four assertions in `verify-contrast.py`:
 
 1. enum coverage — every backend status has an entry (`pending` excluded: not in this endpoint's domain)
-2. cross-surface agreement — `STATUS_FILL_TOKENS[s] === GANTT_STATUS_TOKENS[s].fill`
+2. cross-surface agreement — `STATUS_FILL_TOKENS[s] === GANTT_STATUS_TOKENS[s].fill`, iterating
+   over `STATUS_FILL_TOKENS` (seven keys; the Gantt map has eight)
 3. 3:1 against the composited panel surface (`bg-muted/20` over `bg-card`)
 4. component drift — `Reports.jsx` joins to the map **and no longer contains `matchStatusColor`**
 
-Assertion 2 is what makes the deliberately-shared fills enforceable rather than folkloric.
+5. **treatment distinctness** (SC-004, R15) — every pair sharing a fill has distinct glyph entries;
+   every pair with distinct fills clears a stated ΔE00 under Brettel–Viénot–Mollon simulation. The
+   measured object is the *treatment*, never the fill: a pairwise fill check fails by construction
+   once the sanctioned pairs land.
+
+Assertion 2 is what makes the deliberately-shared fills enforceable rather than folkloric:
+`GANTT_STATUS_TOKENS` is the **register of which pairs may share**, which is what lets the amended
+SC-005 call the sharing sanctioned rather than coincidental.
 
 ## Contract 4 — What the gates may and may not be cited for
 

@@ -16,9 +16,17 @@ React **19.2.6**, Vite **8.0.12**, Tailwind **4.3.1** (`frontend/package.json`).
 zero `.ts`/`.tsx` files under `frontend/src`, so `typescript-react-patterns` applies prospectively
 only and nothing in this feature introduces TS.
 
-**Backend surface**: none. This feature ships no PHP. The one backend defect it uncovered
-(`responsible`/`support` reaching Clients at three planning levels) was severed into **PR #26** and
-merged separately, because a live disclosure must not wait on an accessibility feature.
+**Backend surface**: none. This feature ships no PHP.
+
+**Dependency — PR #26, merged 2026-08-28 as `b61a484`.** The 508 specialist, routed at planning,
+found `responsible`/`support` reaching Clients through raw Eloquent serialisation. It was severed
+because a live disclosure must not wait on an accessibility feature. It closed **eight** endpoints —
+three at first, then five more found when the PR's own review observed it had closed the three
+someone had thought of. **Any task rendering contributor data is blocked on that commit being in the
+branch's history**; this branch has merged `origin/main` at that commit.
+
+*Recorded as a dated dependency rather than an assertion because an earlier draft of this plan stated
+it as already-shipped in five places while the PR was open and its suite was red.*
 
 **Testing reality that shapes every decision below**: the frontend has **no test runner**. CI runs
 `npm run build` and `npm run lint` only (`.github/workflows/ci.yml`). The automated surface available
@@ -107,6 +115,22 @@ exceed.
 | VI — Real auth only | Satisfied — the role predicate consumes `useEffectiveUser()`, the preview-aware path, not the legacy mock. |
 | VII — Coding-standard skills | Applied above, converted to feature-specific constraints. |
 | VIII — Definition of Done | Gate defined in quickstart.md, including `laravel-owasp-security` on FR-007's surface (a re-rendering of already-authorized data) and `code-slop` on the diff. |
+
+### Accepted reductions under FR-018 / SC-009
+
+FR-018 forbids regressing anything that currently meets a threshold. **This feature deliberately
+reduces two distinctions**, and the honest form of that requirement is to name them rather than let
+a gate that cannot see them imply otherwise (research.md R16):
+
+1. Retokenising the segment classes collapses two reds — ΔE00 **7.64 in normal vision** — onto one
+   `--destructive`. Compensated by the glyph and legend, and the pair was never distinguishable under
+   dichromacy, so the loss is in normal vision only.
+2. `for_review` moves purple to amber while the badge map beside it stays purple. **Unmitigated**;
+   either the badge map comes along or the inconsistency is recorded. Decided at task generation.
+
+SC-009's mechanism is the `--input`/`--border` separation fixture **plus** a stated before/after
+visual pass of the three consumer surfaces. The gates cannot see the rest, by `verify-contrast.py`'s
+own header admission — so claiming SC-009 on gate output alone would be false.
 | Frontend Design & Review Governance | `frontend-design` + `impeccable` (Operate) applied; departures recorded in research.md. |
 | Specialist Agent Routing | Two specialists dispatched at planning; one deliberate exception recorded with reason. |
 
@@ -129,11 +153,37 @@ frontend/src/
     Admin.jsx               Story 5 — "Mock Auth Mode" copy
   components/
     GroupSummaryBar.jsx     Story 2 — glyph + legend + outline separator
+  lib/
+    groupSummary.js         buildSegments gains an optional glyph/ink source
   index.css                 Story 4 — --input; forced-colors rule for critical path
 scripts/
   verify-contrast.py        + --input 3:1 rows, + chart token assertions
   verify-cascade.py         canary repointed (REQUIRED), + border-input, + HCM segment
 ```
+
+## Delivery — three PRs, in this order
+
+The artifacts are one coherent plan; the *delivery* is not one merge unit.
+
+1. **Story 4 alone** (`--input`, both gate changes, the ratchet). It shares nothing with the rest, has
+   the widest regression surface, and SC-009 is only bisectable if the token move is its own commit.
+   It is also the only story with no dependency on PR #26.
+2. **Stories 2 + 3 together, never apart.** R9's trap — two workstreams converging on "every status
+   needs a distinct fill", which would fix the segment bar and break the chart — is created precisely
+   by splitting them.
+3. **Story 1 + Story 5.**
+
+`GroupSegmentBar` has **five call sites across four vocabularies** (research.md R17). **In scope**:
+the `taskStatus.js` consumers and `LIST_STATUS_SEGMENT_CLASSES`. **Out of scope**: BugTracker's local
+map, Retrospectives' sentiment, and priority segments — filed with the 025 residue. `buildSegments`
+defaults to no glyph so non-status callers are untouched.
+
+## CI
+
+`node --test` is **not currently run by any job**, so as first planned the only automated protection
+for FR-007/SC-003 ran on a laptop. This feature adds it as a step in the existing `frontend-build`
+job. That is a CI change; **DevOps Automator was not routed** for a single `run:` step in an existing
+job with no new infrastructure — recorded as an exception, not omitted.
 
 ## Complexity Tracking
 
