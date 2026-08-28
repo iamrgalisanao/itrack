@@ -95,3 +95,50 @@ jobs:
       # than skipping silently if it ever disappears.
       - name: Verify status-token contrast (WCAG AA)
         run: python3 scripts/verify-contrast.py
+
+  cascade:
+    name: Design tokens (cascade)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Its own job, for the same reasons design-tokens is: a different verdict
+      # deserves a different red X, and this needs a built stylesheet where that
+      # one needs only source text.
+      #
+      # Unlike design-tokens this DOES need a browser, and that cost was weighed
+      # rather than assumed. The defect class it guards -- valid CSS that loses
+      # the cascade, or a utility that never emits -- has shipped four times
+      # (PRs #17, #20, #22) and is invisible to every text-based check we have.
+      # A local-only gate protecting a four-time recurrence is a gate in name.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # The suite reads the built stylesheet, not the source: the whole point is
+      # to measure what the browser resolves, and that only exists after a build.
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: |
+          python3 -m pip install --quiet playwright
+          python3 -m playwright install --with-deps chromium
+
+      # CASCADE_REQUIRED=1 turns a missing engine into a failure instead of a
+      # skip. Without it, reordering or breaking the install step above would
+      # leave this job GREEN while running no assertions at all -- which is
+      # precisely the failure mode the suite's own canary exists to catch, one
+      # level up. Green must mean measured.
+      - name: Verify cascade resolution
+        env:
+          CASCADE_REQUIRED: '1'
+        run: python3 scripts/verify-cascade.py
