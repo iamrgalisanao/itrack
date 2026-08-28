@@ -162,6 +162,18 @@ class DetailedActivity extends Model
      *
      * Prefer this over an inline where(): it is greppable, so a reviewer can
      * see its absence.
+     *
+     * This scope is permissive for an unknown role -- `when($user->isClient())`
+     * is false, so nothing is constrained -- and that is deliberately NOT fixed,
+     * unlike its instance twin `isVisibleTo()` above. The difference is
+     * structural: a scope is a query COMPOSITION, always chained onto
+     * `Project::accessibleTo()`, which ends `whereRaw('1 = 0')`
+     * (`Project.php:118`) for a role it does not recognise. The permissiveness
+     * is unreachable. `isVisibleTo()` had no such guarantee -- it is a
+     * standalone boolean whose safety would have been borrowed from whatever
+     * call preceded it -- which is why that one became a positive allowlist and
+     * this one is a comment. Fixing this would close something that cannot
+     * happen while implying the scope was unsafe.
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
