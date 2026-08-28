@@ -136,16 +136,36 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 - [ ] T028 [US3] Add `STATUS_FILL_TOKENS` to `frontend/src/lib/taskStatus.js` — **seven entries**, token names not values. Do **not** rename or generalise `ganttPalette.js`: `verify-contrast.py` anchors its parse to the literal export `GANTT_STATUS_TOKENS` and two tamper proofs were built on that anchor
 - [ ] T029 [US3] Exclude `pending`. It is synthesised by `getRollupStatus` for parent rows and never reaches `/api/reports`, whose `status_breakdown` is `countBy('status')` over leaf rows — including it would encode a false claim about the endpoint
-- [ ] T030 [US3] Replace the vertical `grid-cols-3 sm:grid-cols-6` chart at `frontend/src/pages/Reports.jsx:667` with a horizontal aligned-bar list: one row per status, label | track+bar | count. The current grid wraps at **four** statuses on mobile, and because the container is `h-16 items-end` a wrapped row does not extend the box — both rows compress and the baseline sits under only the bottom one
+- [ ] T030 [US3] Replace the vertical `grid-cols-3 sm:grid-cols-6` chart at `frontend/src/pages/Reports.jsx:667` with a horizontal aligned-bar list: one row per status, label | track+bar | count. The current grid wraps at **four** statuses on mobile, and because the container is `h-16 items-end` a wrapped row does not extend the box — both rows compress and the baseline sits under only the bottom one.
+
+  **Build the rows with `grid-cols-[6rem_1fr_3rem]`, not flex — FR-021/SC-012.** `index.css`'s print block sets `.flex { display: block !important; width: 100% !important; padding: 0 !important }`, so a flex row **stacks vertically when printed**, on a page whose primary action is the Print / Save as PDF button at `:283`. Grid is also the honest expression of "bars sharing one length scale" and is immune to that reset
 - [ ] T031 [US3] Compute `total` **once outside the map** and bar length as share of project total; print the total in the panel header (`Task Breakdown · 412 tasks`). `maxVal` is currently recomputed inside the map callback, and per-card max normalisation makes a 40/30/30 split render identically to a 90/5/5
 - [ ] T032 [US3] Render all seven rows always, driven by `STATUS_ORDER` and indexed `breakdown[status] ?? 0` — not `Object.entries`. This also makes the chart immune to `countBy`'s empty-collection serialisation
-- [ ] T033 [US3] Zero gets an empty track and a printed `0`; non-zero gets `max(0.25rem, share)`. Zero and one must be **categorically different renderings**, not two points on a length continuum
+- [ ] T033 [US3] **THREE mark types, not two — FR-019/SC-011, amended 2026-08-29.** Zero renders an empty track and a printed `0`; a count **below the scale's resolution** renders a *pip* — a fixed small mark that is visibly **not** a bar; anything above renders a proportional bar.
+
+  The original `max(0.25rem, share)` clamp trades one indistinguishability for another. Every count below the clamp's threshold renders at identical length, so a reader cannot tell 1 from 7 — while the mark still *looks* proportional and therefore still makes a quantitative claim it cannot support. The current chart shows how bad this gets: it is **max-scaled**, `height: (count / max) × 100%` in a 64px box, so a count of 1 against a largest count of 900 is **0.07px**.
+
+  The pip extends the rule already adopted for zero rather than inventing a precedent — and it turns the replacement for the deleted T041 into a real assertion (*"a sub-resolution row renders the pip and no bar"*) rather than one certifying that CSS `max()` works.
+
+- [ ] T033a [US3] Set `print-color-adjust: exact` on the track and fill — FR-021/SC-012. `print-color-adjust` appears **nowhere** in `index.css` today, so browsers drop background fills from the printed copy and the chart prints as empty tracks
 - [ ] T034 [US3] Print counts in a right-aligned `tabular-nums` column and **delete the hover tooltip**. `scale-0` is a transform and does not remove the node from the accessibility tree, so "N tasks" is currently live text on every bar — FR-004's defect class on a second surface
 - [ ] T035 [US3] Delete `matchStatusColor` at `Reports.jsx:732-749` entirely. Its `todo`/`done` branches are dead against the backend enum and `not_started`/`completed`/`delayed` all fall through `default` to one violet
 - [ ] T036 [US3] Replace the `project.status_breakdown &&` truthiness guard at `:664` with `total > 0` and render an explicit "No tasks yet" panel. An empty collection JSON-encodes as `[]`, which is truthy, so a zero-task project currently renders a bare bordered rail
-- [ ] T037 [US3] Retokenise the three risk tiles (`:502-509` page-level, `:650-658` per-card) to stop encoding by hue: `--destructive` when count > 0, `--muted-foreground` when 0. Two of the three are **not statuses at all** — overdue and dependency-risk are derived metrics borrowing the status palette's hues. This is deliberate scope beyond FR-011's letter, recorded rather than ridden in implicitly
+- [ ] T037 [US3] Retokenise the risk tiles to stop encoding by hue: `--destructive` when count > 0, `--muted-foreground` when 0. Two of the three are **not statuses at all** — overdue and dependency-risk are derived metrics borrowing the status palette's hues. This is deliberate scope beyond FR-011's letter, recorded rather than ridden in implicitly.
+
+  **Line-number correction:** the cited `:502-509` is the **Blocked tile alone**. The three page-level tiles span roughly `:485-527`. Following the original range lands only one of them.
+
+- [ ] T037a [US3] **Remove the Blocked count from the risk tiles — FR-020/SC-013, amended 2026-08-29.** It is printed twice on the same page in two visual languages: once as a tile and, ~16px away, once as a chart row computed from a second code path (`ReportController.php:127` vs `:130`).
+
+  The chart is a **partition** — mutually exclusive, summing to a denominator. The tiles are **overlapping predicates**: a task can be overdue *and* blocked *and* counted in a status row. Nothing on the panel says so, so a reader seeing "Overdue: 47" beside a chart whose largest bar is 30 will try to place 47 on that scale. `Blocked` is the only one of the three tiles that is *also* a status, so removing it makes the tiles purely derived and the chart purely partition — the vocabularies stop overlapping rather than needing reconciliation.
+
+- [ ] T037b [US3] Retitle the tile group to name what it is (e.g. "Risk Flags") and state that a task may appear in more than one. One line, and it is what stops the partition/predicate confusion the amendment describes
 
 ### Gates
+
+- [ ] T038a [US3] **Assert no status reaches its treatment through a default branch — FR-022, amended 2026-08-29.** This is a **distinct regression class** from B1's palette-literal ratchet and needs its own assertion.
+
+  B1 shipped the literal half and recorded the boundary rather than implying coverage: **a token utility is not a palette literal, and the live bug is a token utility.** `matchStatusColor`'s `default: return 'bg-primary/70'` is what collapses `not_started`, `completed` and `delayed` into one violet today, and it would pass a palette-literal ban unchanged. T035 deletes that function; this assertion is what stops the shape returning. Anchor it to structure (no `default:` in a status→treatment map, and every `STATUS_ORDER` key present as an explicit key), not to the function name — a name grep fires on a comment and passes if the function is renamed
 
 - [ ] T038 [US3] Add the five `STATUS_FILL_TOKENS` contracts to `scripts/verify-contrast.py` per `contracts/ui-contracts.md`. **Five, not four** — the fifth is treatment distinctness and is SC-004's only mechanism; building "the four" drops it
 - [x] T039 [US2] **DONE in B1 — and the contract it names was the wrong one.** ΔE00 threshold **stated: 11.0**, and the assertion is not what this task described.
