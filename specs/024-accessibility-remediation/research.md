@@ -368,7 +368,27 @@ against `--secondary`/`--muted` at 2.71.
 every incidental hairline — table rules, card edges, all 223 `border-border` sites. That is SC-009
 failing at maximum blast radius. Verified: `border-border` resolves `--color-border` → `--border`,
 unchanged; and **`--input` has no non-border consumer anywhere** in `frontend/src` (no `bg-input`,
-`text-input`, `ring-input`, `divide-input`, `outline-input`). Blast radius is exactly the 45
+`text-input`, `ring-input`, `divide-input`, `outline-input`). **This closure claim is now
+asserted, not hand-verified** — `scripts/count-control-borders.py` fails if any utility other than
+plain `border-input` consumes `--input`, or if the site count moves off 45. A hand-checked closure
+claim living in a research document is the artifact class this feature exists to stop trusting.
+
+**Correction — "all form-control boundaries" was wrong.** Four of the 45 are not form controls, and
+they are what a visual pass has to look at:
+
+| Site | What it is | Usages |
+|---|---|---|
+| `ui/button.jsx:13` | the `outline` Button variant | **56** — the largest visual change in this PR |
+| `ui/select.jsx:14` | `SelectTrigger` | 29 |
+| `MyWorkPanel.jsx:483` | an "Add task" chip (a `<button>`) | 1 |
+| `WorkProgram.jsx:3133` | a **read-only `<p>`** showing the sub-activity name | 1 |
+
+The last one deserves a note, because the first review of it overstated the risk. It is not a
+caption acquiring a field's weight: it already carried a `<Label>`, a border and `bg-muted/30`, so
+it was *deliberately* styled as a read-only field. The open question for T017 is narrower — whether
+at 3.61:1, sitting beside real inputs in the same modal, it now reads as **editable**. It keeps
+`bg-muted/30` where a live input has `bg-background`, so the likely answer is no. It is a judgment,
+which is why it is on T017's list and not fixed here. Blast radius is the 45
 `border-input` sites, all form-control boundaries.
 
 **The consequence I had not accounted for, and it is in CI.** `verify-cascade.py`'s **assertion 0**
@@ -479,9 +499,22 @@ Specifics, so it cannot grow a second state:
 **Decision**: move `--input` only. Do **not** migrate the 81 native controls drawn with
 `border-border`.
 
-**The number, because a scope cut without one becomes folklore**: 127 native controls — **41**
-`border-input`, **81** `border-border`, 5 unclassified. Concentrated in `SupportOps.jsx` (17),
-`TaskDetailModal.jsx` (14), `Schedule.jsx` (12), `Reports.jsx` (10).
+**The number, because a scope cut without one becomes folklore**: 126 literal native control
+tags in `.jsx` source — **41** `border-input`, **81** `border-border`, 4 unclassifiable.
+Concentrated in `SupportOps.jsx` (17), `TaskDetailModal.jsx` (14), `Schedule.jsx` (12),
+`Reports.jsx` (10).
+
+**This is a source-tag count, not a census of the controls a user sees, and it must not be quoted
+as one.** The scanner reads literal `<input|select|textarea>` tags only. The app renders many more
+controls through the shadcn primitives — `<Input>` (40 usages), `<SelectTrigger>` (29),
+`<Textarea>` (3) — every one of which already draws from `border-input` and is invisible to it.
+Counting rendered controls, this feature fixes roughly **113 against a residue of 81**, not 41
+against 86. An earlier draft of this file, of `SC-008`, and of the `index.css` comment all stated
+the latter, understating real conformance about threefold. Pessimistic, but still a false
+quantitative claim — and it is the number that goes into an ACR.
+
+*(The total was also recorded as 127 with 5 unclassified. One of those was a `<select>` written in
+prose inside a JSX comment in `Retrospectives.jsx`; the scanner now masks comments. 126/41/81/4.)*
 
 *(My first count said 37/81 and the attempt before that said 2/2/123. The 2/2/123 run was broken: the
 regex `[^>]*?>` terminates on the `>` inside an arrow function in a JSX attribute. Recorded because a

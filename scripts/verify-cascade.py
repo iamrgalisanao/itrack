@@ -31,7 +31,7 @@ Assertion 0 fails loudly rather than passing quietly when that happens.
 Run:  python scripts/verify-cascade.py        (needs: pip install playwright
                                                && playwright install chromium)
 """
-import io, os, re, sys, glob, shutil, tempfile, pathlib
+import io, os, re, sys, glob, shutil, tempfile, pathlib, atexit
 
 # A missing engine must not read as a pass. This is assertion 0's failure mode
 # moved up a level: the canary catches a stylesheet that did not load, and
@@ -60,6 +60,12 @@ if not DIST:
 # an after: that is exactly how a "before" measurement became a copy of the
 # "after" and reported a real fix as a no-op.
 tmp = tempfile.mkdtemp(prefix='itrack-cascade-')
+# Registered immediately, because most of the exits below are `sys.exit(1)` from
+# a failed precondition and the lone rmtree at the bottom only ran on the
+# success path. Every failing run leaked an itrack-cascade-* directory holding a
+# copy of the stylesheet -- and on a machine with several, the next reader has
+# no way to tell which run left which.
+atexit.register(shutil.rmtree, tmp, True)
 shutil.copy(DIST[-1], os.path.join(tmp, 'app.css'))
 
 css_text = io.open(DIST[-1], encoding='utf-8').read()
@@ -77,13 +83,32 @@ if not root:
 # check asked for one by name.
 tokens = {
     name: ('#' + ''.join(c * 2 for c in val[1:]) if len(val) == 4 else val).lower()
-    for name, val in re.findall(r'--([\w-]+):\s*(#[0-9a-fA-F]{3,6})', root.group(1))
+    for name, val in re.findall(r'--([\w-]+):\s*(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3}))(?![0-9a-fA-F])', root.group(1))
 }
 for required in ('input', 'border', 'primary', 'background'):
     if required not in tokens:
         print('FAIL: --%s is missing from :root in the built CSS. Nothing below '
               'could be measured meaningfully.' % required)
         sys.exit(1)
+
+# The .dark overrides, so the dark value of a token can be asserted at render
+# time rather than assumed to follow the light one. --input takes a DIFFERENT
+# value per theme (#86868e / #737a88), so a light-only assertion leaves half the
+# claim unmeasured -- which is what assertion 1b did when it was written.
+dark_block = re.search(r'\.dark\{(.*?)\}', css_text, re.S)
+if not dark_block:
+    print('FAIL: the built CSS contains no .dark block. Every dark-theme '
+          'assertion below would silently measure the light value.')
+    sys.exit(1)
+dark_tokens = dict(tokens)
+dark_tokens.update({
+    name: ('#' + ''.join(c * 2 for c in val[1:]) if len(val) == 4 else val).lower()
+    for name, val in re.findall(r'--([\w-]+):\s*(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3}))(?![0-9a-fA-F])', dark_block.group(1))
+})
+if dark_tokens['input'] == tokens['input']:
+    print('FAIL: --input is the same in :root and .dark. 024 gives it a distinct '
+          'dark value; if they match, the dark override was dropped.')
+    sys.exit(1)
 
 def expand(h):
     h = h.lstrip('#')
@@ -97,6 +122,15 @@ CASES = [
     ('focusable','<button id="focusable" class="outline-none focus-visible:ring-2">x</button>'),
     ('popbg',    '<div id="popbg" class="bg-popover">x</div>'),
     ('appbg',    '<div id="appbg" class="bg-background">x</div>'),
+    # The three NON-CONTROL shapes that also draw from --input. research.md R11a
+    # claimed the blast radius was "exactly the 45 border-input sites, all form
+    # -control boundaries"; the second half is false, and these are the
+    # counterexamples. They are asserted because a token move that silently
+    # stopped applying to them would leave a Button outline (56 usages) at the
+    # old 1.27:1 while every control gate stayed green.
+    ('btnoutline', '<div id="btnoutline" class="border border-input bg-background">x</div>'),
+    ('trigger',    '<div id="trigger" class="border border-input bg-transparent">x</div>'),
+    ('readout',    '<div id="readout" class="border border-input bg-muted/30">x</div>'),
 ]
 html = ('<!doctype html><html><head><link rel="stylesheet" href="app.css"></head>'
         '<body>' + ''.join(h for _, h in CASES) + '</body></html>')
@@ -176,12 +210,30 @@ with sync_playwright() as pw:
     # identical before this feature; if they are equal after it, either the
     # token did not move or something is resolving both to the same value, and
     # the 41 control boundaries are still at 1.27:1.
+    # Of the two lines below, only the SECOND can fail on a token revert, and
+    # the distinction matters in a file with a history of assertions that were
+    # blind in their advertised direction. The first compares the rendered value
+    # to the declared value, BOTH read from the same built stylesheet -- revert
+    # --input and the two move together, so it stays green. It is an
+    # emission/cascade assertion: it catches the utility going inert. The second
+    # is the value assertion: it catches the revert.
+    #
+    # Neither proves ADEQUACY. `--input: #e5e4e8` -- one unit from --border --
+    # passes both. The 3:1 line is held in verify-contrast.py's NON_TEXT_TIER,
+    # which runs in a DIFFERENT CI job, so a green run here is not on its own
+    # evidence that the boundary is visible.
     inp, bor = read('canary', 'borderTopColor'), read('bare', 'borderTopColor')
     check('border-input resolves to --input', inp, expand(tokens['input']),
           'the input token did not move, or a cascade regression is reverting it')
     check('border-input differs from --border', 'differ' if inp != bor else 'identical (%s)' % inp,
           'differ',
           'the two tokens are equal again -- the 41 control boundaries are back at 1.27:1')
+
+    # 1c -- the non-control consumers moved too. See the CASES note above.
+    for fixture in ('btnoutline', 'trigger', 'readout'):
+        check('%s draws from --input' % fixture, read(fixture, 'borderTopColor'),
+              expand(tokens['input']),
+              'a non-control consumer of --input stopped resolving to it')
 
     # 2 -- and the shim still does its job for elements that set no colour.
     print('assertion 2 -- a bare `border` still gets --border (the shim still works)')
@@ -203,10 +255,26 @@ with sync_playwright() as pw:
     dark = browser.new_page(color_scheme='dark')
     dark.goto(url); dark.wait_for_load_state('networkidle')
     dark.evaluate("() => document.documentElement.classList.add('dark')")
-    pbg, abg = (dark.evaluate('(i) => getComputedStyle(document.getElementById(i)).backgroundColor', i)
-                for i in ('popbg', 'appbg'))
+    dread = lambda i, p: dark.evaluate(
+        '([i,p]) => getComputedStyle(document.getElementById(i))[p]', [i, p])
+    pbg, abg = (dread(i, 'backgroundColor') for i in ('popbg', 'appbg'))
     check('bg-popover != bg-background', 'differ' if pbg != abg else 'identical (%s)' % pbg,
           'differ', 'the floating surface has collapsed onto the page ground')
+
+    # 1b/1c repeated in DARK. --input's dark value (#737a88) had never been
+    # measured at render time -- assertion 1b ran light-only, so half of Story
+    # 4's claim rested on the static gate alone. The dark page already existed
+    # here for assertion 4; it just was not being asked.
+    dinp, dbor = dread('canary', 'borderTopColor'), dread('bare', 'borderTopColor')
+    check('dark: border-input resolves to --input', dinp, expand(dark_tokens['input']),
+          'the dark --input override did not reach the rendered boundary')
+    check('dark: border-input differs from --border',
+          'differ' if dinp != dbor else 'identical (%s)' % dinp, 'differ',
+          'the two tokens are equal again in dark -- boundaries back at 1.36:1')
+    for fixture in ('btnoutline', 'trigger', 'readout'):
+        check('dark: %s draws from --input' % fixture, dread(fixture, 'borderTopColor'),
+              expand(dark_tokens['input']),
+              'a non-control consumer of --input stopped resolving to it in dark')
     dark.close()
 
     # 3 -- guards PR #19. R1 is precisely the kind of change that threatens it:
@@ -233,7 +301,6 @@ with sync_playwright() as pw:
     hc.close()
     browser.close()
 
-shutil.rmtree(tmp, ignore_errors=True)
 
 if fails:
     print('\nCASCADE CONTRACT VIOLATED:')

@@ -74,8 +74,19 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 - [x] T014 [US4] Tamper: revert `--input` to `#e5e4e7`. Assertion T007 must fail naming the token, and the contrast rows must fail at 1.27. Restore
 - [x] T015 [US4] Tamper: break the canary's property read. It must fail with the load-failure message, **not** silently pass — this is the assertion the whole file's credibility rests on
 - [x] T016 [US4] Confirm the 81-control residue is unchanged and `count-control-borders.py` still exits 0 at `RATCHET HOLDS (81 <= 81)`
-- [ ] T017 [US4] **NOT DONE — manual, requires a running app and a human eye.** Visual pass: forms across Login, Admin, Support Ops, Task Detail Modal in both themes. Confirm control edges are visibly stronger and **nothing else moved** — SC-009's mechanism is this pass plus T007, not gate output alone
-- [x] T018 [US4] Check `MyWorkPanel.jsx`'s `border-input` element individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a)
+- [ ] T017 [US4] **NOT DONE — manual, requires a running app and a human eye. MUST CLOSE BEFORE PR B MERGES.** Visual pass in both themes.
+
+  SC-009 hides two claims and only one needs an eye. *"Nothing unintended moved"* is a **closure** property and is now machine-checked: `count-control-borders.py` fails if any utility other than plain `border-input` consumes `--input` or if the site count leaves 45, and `verify-cascade.py` renders all three non-control shapes in both themes. So that half is true by construction.
+
+  What remains is the judgment: **did anything that legitimately shares the boundary become visually heavier than intended?** That is four elements, not four screens:
+
+  - `ui/button.jsx:13` — the `outline` Button variant, **56 usages**, the largest visual change in this PR
+  - `ui/select.jsx:14` — `SelectTrigger`, 29 usages
+  - `MyWorkPanel.jsx:483` — the "Add task" chip (verified numerically in T018; confirm visually)
+  - `WorkProgram.jsx:3133` — a **read-only `<p>`** in the task modal. It was already styled as a read-only field (Label + border + `bg-muted/30`), so the question is not "is it now a field" but **does it now read as an *editable* one**, sitting beside real inputs at the same edge weight. It keeps `bg-muted/30` where a live input has `bg-background`, so the expected answer is no — confirm it
+
+  **The deadline is not decoration.** PR B retokenises the status vocabulary across `GroupSummaryBar`, `taskStatus.js` and `Reports.jsx`. Once B lands, a visual regression reported afterwards cannot be attributed to A or B — which destroys the bisectability the three-PR split exists to create.
+- [x] T018 [US4] Check `MyWorkPanel.jsx:483` (the "Add task" chip) individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a). Worst measured 3.25 against `--muted` on hover — clears 3:1. **The line number matters:** the file has six `border-input` sites (113, 166, 178, 188, 200, 483) and the other five are native controls with their own fill; only 483 has this property
 
 ---
 
@@ -185,7 +196,9 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 - [ ] T077 Run `code-slop` on the diff: no per-row `useState` in the timeline map, no defensive wrapper around values the caller guarantees, and every comment either records a rejected alternative or is deleted
 - [ ] T078 Run `laravel-owasp-security` scoped to FR-007's surface — a new rendering path for role-restricted data, not an endpoint
 - [ ] T079 Write `verification-record.md` with each gate's **actual output**, every manual result, and every Critical/Major with its resolution. **Regenerate figures, never retype them** — three drafts of 023's artifacts carried hand-transcribed ratios and two were wrong
-- [ ] T080 Update the ACR to **Partially Supports** on 1.4.11 with both residues named: the 81 controls (feature 025) and the progress-overlay edge
+- [ ] T080 Update the ACR to **Partially Supports** on 1.4.11 with both residues named: the 81 hand-rolled controls (feature 025) and the progress-overlay edge.
+
+  **Name the edition, and check the denominator before publishing.** "Partially Supports on 1.4.11" is only a valid cell in a **WCAG 2.1/2.2 or INT edition** ACR — a VPAT 2.x *508 edition* carries WCAG 2.0 tables, and 1.4.11 does not exist in WCAG 2.0, so adding a row for it there is a category error. Section 508's legal baseline is WCAG 2.0 AA, under which the 81 residual controls are **not** a non-conformance at all. If any iTrack client is a US state or local government body, ADA Title II binds WCAG 2.1 AA independently and 1.4.11 becomes binding through *that* statute — at which point the Remarks carry legal weight and must state the population correctly: 41 hand-rolled controls **plus 72 shared-primitive usages** fixed, against a residue of 81. Not "41 of 127" 
 
 ---
 

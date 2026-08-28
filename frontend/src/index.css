@@ -11,8 +11,20 @@
 
 :root {
   --border: #e5e4e7;
-  /* The boundary of every form control drawn with this token -- 41 of the 127
-     native controls in the app. Was #e5e4e7, identical to --border, measuring
+  /* The boundary of every form control drawn with this token -- 41 of the 126
+     literal native control tags in .jsx source, PLUS every control rendered
+     through the shadcn primitives (<Input> x40, <SelectTrigger> x29,
+     <Textarea> x3), which draw from this token and which the counter never
+     sees. "41 of 127" was the earlier phrasing and understated real
+     conformance about threefold: it is a source-tag count, not a census of the
+     controls a user sees.
+
+     Four of the 45 border-input sites are NOT form controls and move with it:
+     the `outline` Button variant (button.jsx:13, 56 usages -- the largest
+     visual change), SelectTrigger, MyWorkPanel's "Add task" chip, and a
+     read-only <p> in WorkProgram's task modal. research.md R11a has the table.
+
+     Was #e5e4e7, identical to --border, measuring
      1.27:1 against --background: below the 3:1 that WCAG 1.4.11 requires for
      the visual boundary of a UI component.
 

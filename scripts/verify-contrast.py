@@ -16,9 +16,15 @@
 #    condition and that failure are causally linked. Running it harder makes it
 #    worse. See DESIGN.md's Hue-Loss Rule.
 #
-# 2. IT ONLY KNOWS 4.5:1. There is no 3:1 tier, so all of WCAG 1.4.11 non-text
-#    contrast -- form-control borders, focus rings, bar edges, chart segment
-#    adjacency -- is outside its universe. `--input` sits at 1.27:1 today.
+# 2. ITS 3:1 TIER IS AN ALLOWLIST, NOT A SWEEP. There IS a 3:1 tier now
+#    (NON_TEXT_TIER, below) and `--input` is in it at 3.61 light / 4.15 dark --
+#    this paragraph used to say "there is no 3:1 tier, and --input sits at
+#    1.27:1", which the feature that added the tier left standing. It is the
+#    one place a reader is told what the gate cannot see, so a stale entry here
+#    is worse than none. What remains outside: focus rings, bar edges, and
+#    chart segment adjacency have no rows, and only the (token, surface) pairs
+#    written into that list are measured -- a token added to index.css is
+#    invisible here until someone adds it, and nothing detects the omission.
 #
 # 3. IT READS `--name: #hex` AND ONE JS OBJECT. Every Tailwind utility is
 #    invisible to it: taskStatus.js, groupSummary.js, and Reports.jsx's
@@ -40,8 +46,17 @@ RAW = io.open('frontend/src/index.css', encoding='utf-8').read()
 css = re.sub(r'/\*.*?\*/', '', RAW, flags=re.S)
 
 def block(sel):
+    # Three-digit hex too -- the same bug verify-cascade.py was fixed for in
+    # this feature, still open here. This reads SOURCE css (not minified), so
+    # the trigger is a hand-written `#fff` rather than the minifier, but the
+    # consequence is worse: `surfaces` below silently drops a shortened token
+    # from every min() instead of failing, so a status colour would be checked
+    # against two surfaces while reporting as though checked against three.
     m = re.search(re.escape(sel) + r'\s*\{(.*?)\}', css, re.S)
-    return dict(re.findall(r'--([\w-]+):\s*(#[0-9a-fA-F]{6})', m.group(1)))
+    found = re.findall(r'--([\w-]+):\s*(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3}))(?![0-9a-fA-F])',
+                       m.group(1))
+    return {n: ('#' + ''.join(c * 2 for c in v[1:]) if len(v) == 4 else v).lower()
+            for n, v in found}
 
 def lum(h):
     h = h.lstrip('#'); c = [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)]
@@ -75,7 +90,18 @@ measured = {}
 print('%-6s%-12s %6s %6s %6s   %s' % ('theme', 'state', 'text', 'tint', 'fill', 'verdict'))
 for theme, sel in (('light', ':root'), ('dark', '.dark')):
     t = block(sel)
-    surfaces = [t[k] for k in ('background', 'card', 'muted') if k in t]
+    # `if k in t` silently shrank the surface set: a token the parser could not
+    # read dropped out of every min() below and the status colour was then
+    # measured against two surfaces while reporting as though measured against
+    # three. Fewer surfaces means a HIGHER minimum, so the omission reads as a
+    # better score. Fail instead.
+    absent = [k for k in ('background', 'card', 'muted') if k not in t]
+    if absent:
+        print('FAIL: %s declares no %s -- the surface set is incomplete and every '
+              'ratio below would be measured against too few surfaces.'
+              % (sel, ', '.join('--' + a for a in absent)))
+        sys.exit(1)
+    surfaces = [t[k] for k in ('background', 'card', 'muted')]
     for state in ('destructive', 'success', 'warning', 'info'):
         col, fg = t[state], t[state + '-foreground']
         as_text = min(ratio(col, s) for s in surfaces)
@@ -100,7 +126,18 @@ xfail_drift = []
 print()
 for theme, sel in (('light', ':root'), ('dark', '.dark')):
     t = block(sel)
-    surfaces = [t[k] for k in ('background', 'card', 'muted') if k in t]
+    # `if k in t` silently shrank the surface set: a token the parser could not
+    # read dropped out of every min() below and the status colour was then
+    # measured against two surfaces while reporting as though measured against
+    # three. Fewer surfaces means a HIGHER minimum, so the omission reads as a
+    # better score. Fail instead.
+    absent = [k for k in ('background', 'card', 'muted') if k not in t]
+    if absent:
+        print('FAIL: %s declares no %s -- the surface set is incomplete and every '
+              'ratio below would be measured against too few surfaces.'
+              % (sel, ', '.join('--' + a for a in absent)))
+        sys.exit(1)
+    surfaces = [t[k] for k in ('background', 'card', 'muted')]
     col = t['primary']
     worst = min([ratio(col, s) for s in surfaces]
                 + [ratio(col, blend(col, s, a)) for s in surfaces for a in (0.10, 0.15)])
@@ -419,7 +456,7 @@ if undefined:
 # boundaries of UI *components*, and a non-interactive tooltip is not one -- so
 # no success criterion requires this. It is held anyway because the value is a
 # design-system decision that should not drift silently.
-pop_fail = []
+non_text_fail = []
 # (token, surface, need) triples.
 #
 # This loop hardcoded `t['popover']` as the surface, printed "on --popover", and
@@ -430,10 +467,14 @@ pop_fail = []
 # "add to the existing loop, do not write a second one" was not executable
 # against the loop that existed.
 #
-# --input covers 41 of the app's 127 native form controls. The other 81 draw
-# their boundary from --border, which cannot move; scripts/
-# count-control-borders.py ratchets that residue at 81 so it cannot grow, and
-# feature 025 owns migrating it.
+# --input covers 41 of the 126 literal native control tags in .jsx source, plus
+# every control rendered through the shadcn primitives (<Input> x40,
+# <SelectTrigger> x29, <Textarea> x3), which draw from the same token and which
+# the scanner never sees. The residue is 81 hand-rolled controls drawn from
+# --border, which cannot move; scripts/count-control-borders.py ratchets that at
+# 81 so it cannot grow, and feature 025 owns migrating it. "41 of 127" was the
+# earlier phrasing here and it understated real conformance about threefold --
+# it is a source-tag count, not a census of the controls a user sees.
 NON_TEXT_TIER = [
     ('popover-foreground', 'popover',    4.5),
     ('foreground',         'popover',    4.5),
@@ -442,6 +483,17 @@ NON_TEXT_TIER = [
     ('input',              'background', 3.0),
     ('input',              'card',       3.0),
     ('input',              'popover',    3.0),
+    # The surfaces the value was actually CHOSEN against, and the tightest
+    # margins in the set at 3.25. index.css rejects #949494 because it "FAILS at
+    # 2.71 against --secondary and --muted, which form controls also sit on" --
+    # and those were the three surfaces the tier did not measure. The gate held
+    # the loose constraints (3.49-4.15) and left the binding one open, so a
+    # future nudge to --muted could break 1.4.11 on every form control with the
+    # whole suite green, and the recorded reason for rejecting #949494 would
+    # stop being a checked artifact.
+    ('input',              'secondary',  3.0),
+    ('input',              'muted',      3.0),
+    ('input',              'accent',     3.0),
 ]
 
 print()
@@ -450,20 +502,21 @@ for theme, sel in (('light', ':root'), ('dark', '.dark')):
     for name, surface, need in NON_TEXT_TIER:
         missing = [n for n in (name, surface) if n not in t]
         if missing:
-            pop_fail.append('%s: --%s is not declared' % (theme, missing[0]))
+            non_text_fail.append('%s: --%s is not declared'
+                                 % (theme, ', --'.join(missing)))
             continue
         r = ratio(t[name], t[surface])
         print('%-6s%-20s on --%-11s %6.2f  needs %.1f   %s'
               % (theme, '--' + name, surface, r, need, 'ok' if r >= need else 'FAIL'))
         if r < need:
-            pop_fail.append('%s: --%s on --%s is %.2f, below %.1f'
+            non_text_fail.append('%s: --%s on --%s is %.2f, below %.1f'
                             % (theme, name, surface, r, need))
 
-if pop_fail:
+if non_text_fail:
     ok = False
     print()
     print('A NON-TEXT CONTRAST PAIR IS BELOW ITS THRESHOLD:')
-    for d in pop_fail:
+    for d in non_text_fail:
         print('  ' + d)
 
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')

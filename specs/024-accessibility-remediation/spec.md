@@ -173,10 +173,16 @@ An administrator opens the admin panel and sees the production authorization mec
 - **SC-006**: Every status count in the project status chart can be determined without a pointing device.
 - **SC-007**: A status with a count of one is visibly distinguishable from a status with a count of zero on a chart whose largest count is at least one hundred.
 - **SC-008**: Every form control boundary **drawn with the input token** measures at least 3:1 against
-  its adjacent background in both themes — 41 of 127 native controls — and the number drawn with the
-  general-purpose border token does not rise above 81. The conformance claim for 1.4.11 after this
-  feature is **Partially Supports**, with two named residues: those 81 controls, and the progress
-  overlay edge.
+  its adjacent background in both themes, and the number drawn with the general-purpose border token
+  does not rise above 81. The population: **41 of the 126 literal native control tags in source, plus
+  every control rendered through the shared primitives** (`<Input>` ×40, `<SelectTrigger>` ×29,
+  `<Textarea>` ×3), which draw from the same token. An earlier draft of this criterion said "41 of 127
+  native controls", which counts source tags and omits the primitives — it understated conformance
+  about threefold and is the figure that would have gone into a published ACR. The conformance claim
+  for 1.4.11 after this feature is **Partially Supports**, with two named residues: the 81 hand-rolled
+  controls drawn from the border token, and the progress overlay edge. That claim is only expressible
+  in a **WCAG 2.1/2.2 or INT edition** ACR — a VPAT 508 edition carries WCAG 2.0 tables only, where
+  1.4.11 has no row at all.
 - **SC-009**: No element that met a contrast or distinguishability threshold before this feature
   falls below it after, other than the single reduction named in FR-018 with its compensating
   channel in place. **Verified by the input-token separation fixture in the cascade gate, plus a
