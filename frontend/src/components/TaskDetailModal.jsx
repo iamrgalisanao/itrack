@@ -297,7 +297,7 @@ export default function TaskDetailModal({
         style={{ height: dialogHeight ?? undefined }}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-primary">{eyebrowLabel}</span>
             <DialogTitle className="text-base font-bold text-foreground truncate max-w-lg mt-0.5 leading-none tracking-normal">
@@ -341,7 +341,7 @@ export default function TaskDetailModal({
             Each tab keeps a static transparent border-b-2 for layout
             spacing; the colored indicator below is the only thing that
             moves, sliding to whichever tab is active. */}
-        <div ref={setTabListRef} role="tablist" aria-label="Task detail sections" className="relative flex border-b border-border/60 px-6">
+        <div ref={setTabListRef} role="tablist" aria-label="Task detail sections" className="relative flex border-b border-border px-6">
           <button
             role="tab"
             aria-selected={modalTab === 'details'}
@@ -677,7 +677,7 @@ export default function TaskDetailModal({
                 )}
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
               <button
                 type="button"
                 onClick={handleClose}

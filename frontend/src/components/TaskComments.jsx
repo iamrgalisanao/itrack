@@ -194,7 +194,7 @@ export default function TaskComments({ taskId, userRole, onCountChange, readOnly
       {/* ── Comment Thread ───────────────────────────────────────────────── */}
       <div className="space-y-3 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
         {comments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border/60 rounded-xl text-center bg-muted/10">
+          <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border rounded-xl text-center bg-muted/10">
             <MessageSquare className="h-7 w-7 text-muted-foreground/40 mb-2" />
             <p className="text-xs font-semibold text-muted-foreground">
               {isClient ? 'No client-visible comments yet.' : 'No comments yet. Add the first internal note for this task.'}
@@ -267,13 +267,13 @@ export default function TaskComments({ taskId, userRole, onCountChange, readOnly
 
       {/* ── Comment Input Form (hidden for Clients and in read-only mode) ─── */}
       {readOnly ? (
-        <div className="border-t border-border/60 pt-4">
+        <div className="border-t border-border pt-4">
           <p className="text-xs text-muted-foreground text-center italic">
             This is a read-only reference view — comments cannot be added or removed here.
           </p>
         </div>
       ) : !isClient ? (
-        <form onSubmit={handleSubmit} className="border-t border-border/60 pt-4 space-y-3">
+        <form onSubmit={handleSubmit} className="border-t border-border pt-4 space-y-3">
           {/* Textarea */}
           <div className="space-y-1">
             <textarea
@@ -355,7 +355,7 @@ export default function TaskComments({ taskId, userRole, onCountChange, readOnly
           )}
         </form>
       ) : (
-        <div className="border-t border-border/60 pt-4">
+        <div className="border-t border-border pt-4">
           <p className="text-xs text-muted-foreground text-center italic">
             Clients can view comments but cannot post. Contact your project manager for updates.
           </p>

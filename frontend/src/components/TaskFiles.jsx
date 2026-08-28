@@ -266,7 +266,7 @@ export default function TaskFiles({ taskId, userRole, onCountChange, readOnly = 
       {/* ── File List ──────────────────────────────────────────────────────── */}
       <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
         {files.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border/60 rounded-xl text-center bg-muted/10">
+          <div className="flex flex-col items-center justify-center py-10 border border-dashed border-border rounded-xl text-center bg-muted/10">
             <Paperclip className="h-7 w-7 text-muted-foreground/40 mb-2" />
             <p className="text-xs font-semibold text-muted-foreground">
               {isClient
@@ -354,13 +354,13 @@ export default function TaskFiles({ taskId, userRole, onCountChange, readOnly = 
 
       {/* ── Upload Form (hidden for Clients and in read-only mode) ─────────── */}
       {readOnly ? (
-        <div className="border-t border-border/60 pt-4">
+        <div className="border-t border-border pt-4">
           <p className="text-xs text-muted-foreground text-center italic">
             This is a read-only reference view — files cannot be uploaded or removed here.
           </p>
         </div>
       ) : !isClient ? (
-        <div className="border-t border-border/60 pt-4 space-y-3">
+        <div className="border-t border-border pt-4 space-y-3">
 
           {/* Drag-and-drop zone */}
           <div
@@ -371,7 +371,7 @@ export default function TaskFiles({ taskId, userRole, onCountChange, readOnly = 
             className={`relative border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
               isDragging
                 ? 'border-primary bg-primary/5'
-                : 'border-border/60 hover:border-primary/50 hover:bg-muted/20'
+                : 'border-border hover:border-primary/50 hover:bg-muted/20'
             }`}
           >
             <input
@@ -482,7 +482,7 @@ export default function TaskFiles({ taskId, userRole, onCountChange, readOnly = 
           )}
         </div>
       ) : (
-        <div className="border-t border-border/60 pt-4">
+        <div className="border-t border-border pt-4">
           <p className="text-xs text-muted-foreground text-center italic">
             Clients can view and download files but cannot upload. Contact your project manager to add files.
           </p>

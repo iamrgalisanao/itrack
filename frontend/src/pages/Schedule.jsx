@@ -414,9 +414,9 @@ export default function Schedule() {
 
     return (
       <div className="overflow-x-auto">
-      <div className="border border-border/80 rounded-xl overflow-hidden shadow-sm bg-card min-w-175">
+      <div className="border border-border rounded-xl overflow-hidden shadow-sm bg-card min-w-175">
         {/* Days Header */}
-        <div className="grid grid-cols-7 border-b border-border/60 bg-muted/30">
+        <div className="grid grid-cols-7 border-b border-border bg-muted/30">
           {weekdays.map(d => (
             <div key={d} className="py-2.5 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
               {d}
@@ -425,7 +425,7 @@ export default function Schedule() {
         </div>
 
         {/* Grid Cells */}
-        <div className="grid grid-cols-7 grid-rows-5 divide-x divide-y divide-border/60 border-l border-t border-border/10">
+        <div className="grid grid-cols-7 grid-rows-5 divide-x divide-y divide-border/60 border-l border-t border-border">
           {days.map((day, idx) => {
             if (!day) {
               return <div key={`empty-${idx}`} className="min-h-[110px] bg-muted/5 dark:bg-card/20" />
@@ -539,11 +539,11 @@ export default function Schedule() {
             <div 
               key={dateStr}
               className={`rounded-xl border p-4 flex flex-col min-h-[300px] bg-card ${
-                isToday ? 'border-primary/50 shadow-sm' : 'border-border/60'
+                isToday ? 'border-primary/50 shadow-sm' : 'border-border'
               }`}
             >
               {/* Day Header */}
-              <div className="border-b border-border/40 pb-2 mb-3 flex items-center justify-between">
+              <div className="border-b border-border pb-2 mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase font-bold text-muted-foreground">
                     {day.toLocaleDateString('en-US', { weekday: 'short' })}
@@ -593,7 +593,7 @@ export default function Schedule() {
                           ? 'bg-red-500/10 border-red-500/30 text-red-500 font-bold'
                           : t.status === 'completed'
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 line-through opacity-75'
-                          : 'bg-muted/40 border-border/40 hover:bg-muted/70 text-foreground'
+                          : 'bg-muted/40 border-border hover:bg-muted/70 text-foreground'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-1.5 mb-1 text-[10px] text-muted-foreground font-semibold">
@@ -610,7 +610,7 @@ export default function Schedule() {
                   )
                 })}
                 {dayTasks.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 text-center text-[10px] text-muted-foreground/60 border border-dashed border-border/40 rounded-lg bg-muted/5">
+                  <div className="flex flex-col items-center justify-center py-12 text-center text-[10px] text-muted-foreground/60 border border-dashed border-border rounded-lg bg-muted/5">
                     No deliverables
                   </div>
                 )}
@@ -631,7 +631,7 @@ export default function Schedule() {
 
     if (datedTasks.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[300px] border border-dashed border-border/80 rounded-xl bg-card p-6 text-center text-muted-foreground">
+        <div className="flex flex-col items-center justify-center min-h-[300px] border border-dashed border-border rounded-xl bg-card p-6 text-center text-muted-foreground">
           <List className="h-8 w-8 text-muted-foreground/60 mb-2" />
           <p className="text-sm font-semibold">No dated tasks available for this project</p>
         </div>
@@ -639,7 +639,7 @@ export default function Schedule() {
     }
 
     return (
-      <div className="relative border-l border-border/80 ml-4 pl-6 space-y-6">
+      <div className="relative border-l border-border ml-4 pl-6 space-y-6">
         {datedTasks.map((t) => {
           const taskOverdue = isTaskOverdue(t)
           const isTaskMilestone = isMilestone(t)
@@ -685,7 +685,7 @@ export default function Schedule() {
                     setIsEditModalOpen(true)
                   }
                 }}
-                className={`p-4 rounded-xl border border-border/60 bg-card hover:shadow-md hover:border-border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                className={`p-4 rounded-xl border border-border bg-card hover:shadow-md hover:border-border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                   taskOverdue ? 'border-l-4 border-l-destructive' : ''
                 }`}
               >
@@ -734,7 +734,7 @@ export default function Schedule() {
                 </div>
 
                 {/* Footer details */}
-                <div className="flex items-center gap-4 mt-3 border-t border-border/40 pt-2 text-[10px] text-muted-foreground font-semibold">
+                <div className="flex items-center gap-4 mt-3 border-t border-border pt-2 text-[10px] text-muted-foreground font-semibold">
                   <span className="flex items-center gap-1">
                     <User className="h-3.5 w-3.5" />
                     Assignee: {t.responsible || 'Unassigned'}
@@ -775,7 +775,7 @@ export default function Schedule() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Schedule View</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -794,7 +794,7 @@ export default function Schedule() {
       </div>
 
       {/* Controls: Date period, view switch, project filters */}
-      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-card p-4 rounded-xl border border-border/60 shadow-sm">
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-card p-4 rounded-xl border border-border shadow-sm">
         
         {/* Left: Date Period controls (not needed for timeline view) */}
         {viewMode !== 'timeline' ? (
@@ -932,7 +932,7 @@ export default function Schedule() {
           <span className="text-sm font-medium">Loading schedule events...</span>
         </div>
       ) : filteredTasks.length === 0 ? (
-        <div className="flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-border/80 rounded-xl p-8 bg-card shadow-sm">
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center border-2 border-dashed border-border rounded-xl p-8 bg-card shadow-sm">
           <CalendarIcon className="h-10 w-10 text-muted-foreground/60 mb-3" />
           <h3 className="text-base font-bold text-foreground">No deliverables found</h3>
           <p className="text-sm text-muted-foreground max-w-sm mt-1">
@@ -956,7 +956,7 @@ export default function Schedule() {
             style={{ height: dialogHeight ?? undefined }}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border/60">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-primary">Task Detail</span>
                 <DialogTitle className="text-base font-bold text-foreground truncate max-w-lg mt-0.5 leading-none tracking-normal">
@@ -978,7 +978,7 @@ export default function Schedule() {
             {/* Tabs. Each tab keeps a static transparent border-b-2 for
                 layout spacing; the colored indicator below is the only
                 thing that moves, sliding to whichever tab is active. */}
-            <div ref={setTabListRef} role="tablist" aria-label="Task detail sections" className="relative flex border-b border-border/60 px-6">
+            <div ref={setTabListRef} role="tablist" aria-label="Task detail sections" className="relative flex border-b border-border px-6">
               <button
                 role="tab"
                 aria-selected={modalTab === 'details'}
@@ -1195,7 +1195,7 @@ export default function Schedule() {
               </div>
 
               {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}

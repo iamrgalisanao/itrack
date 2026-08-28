@@ -257,7 +257,7 @@ export default function Reports() {
       )}
 
       {/* Header Panel */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5 no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5 no-print">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-2">
             <BarChart3 className="h-7 w-7 text-primary" /> Project Reports
@@ -289,7 +289,7 @@ export default function Reports() {
       </div>
 
       {/* Print-Only Header */}
-      <div className="hidden print:block border-b border-border/80 pb-4 mb-4">
+      <div className="hidden print:block border-b border-border pb-4 mb-4">
         <h1 className="text-2xl font-bold text-foreground">Project Status Report</h1>
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-2">
           <span>Role Scope: <strong>{userRole}</strong></span>
@@ -299,7 +299,7 @@ export default function Reports() {
       </div>
 
       {/* Scoped Filters Toolbar */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-card p-4 rounded-xl border border-border/60 shadow-sm no-print">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-card p-4 rounded-xl border border-border shadow-sm no-print">
         {/* Project Filter */}
         <div className="flex flex-col gap-1">
           <label htmlFor="report-filter-project" className="text-[10px] uppercase font-bold text-muted-foreground">Project</label>
@@ -530,8 +530,8 @@ export default function Reports() {
 
           {/* Project Health Manager (Only visible when exactly one project is selected, and user is PM/Admin) */}
           {editingHealthProjectId && isPMorAdmin && (
-            <Card className="border-border/80 bg-card shadow-sm no-print">
-              <CardHeader className="py-3 px-5 border-b border-border/40 bg-muted/20">
+            <Card className="border-border bg-card shadow-sm no-print">
+              <CardHeader className="py-3 px-5 border-b border-border bg-muted/20">
                 <CardTitle as="h2" className="text-sm font-bold flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" /> Manage Project Health
                 </CardTitle>
@@ -571,7 +571,7 @@ export default function Reports() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2 border-t border-border/40">
+                  <div className="flex justify-end pt-2 border-t border-border">
                     <button
                       type="submit"
                       disabled={isSavingHealth}
@@ -591,9 +591,9 @@ export default function Reports() {
             {projects.map((project) => {
               const hs = getHealthStyle(project.health)
               return (
-                <Card key={project.id} className="overflow-hidden border border-border/75 shadow-sm bg-card break-inside-avoid">
+                <Card key={project.id} className="overflow-hidden border border-border shadow-sm bg-card break-inside-avoid">
                   {/* Project Summary Header */}
-                  <div className="p-5 border-b border-border/60 bg-muted/15 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                  <div className="p-5 border-b border-border bg-muted/15 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{project.department || 'General'}</span>
@@ -642,7 +642,7 @@ export default function Reports() {
                     {!isClient && (
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {/* Warn Stats */}
-                        <div className="p-3 rounded-lg border border-border/50 bg-muted/20 space-y-2">
+                        <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2">
                           <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Warning Signals</span>
                           <div className="space-y-1.5 text-xs font-medium">
                             <div className="flex items-center justify-between">
@@ -662,9 +662,9 @@ export default function Reports() {
 
                         {/* Status Chart Breakdown */}
                         {project.status_breakdown && (
-                          <div className="p-3 rounded-lg border border-border/50 bg-muted/20 space-y-2 sm:col-span-2">
+                          <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2 sm:col-span-2">
                             <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Task Breakdown</span>
-                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 px-1 pt-1.5 h-16 items-end border-b border-border/60">
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 px-1 pt-1.5 h-16 items-end border-b border-border">
                               {Object.entries(project.status_breakdown).map(([status, count]) => {
                                 const maxVal = Math.max(...Object.values(project.status_breakdown), 1)
                                 const pct = (count / maxVal) * 100
@@ -695,7 +695,7 @@ export default function Reports() {
                     {project.milestones && project.milestones.length > 0 && (
                       <div className="space-y-2.5">
                         <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">Milestone Timeline</span>
-                        <div className="relative border-l border-border/60 ml-2.5 pl-4 space-y-3 pt-1">
+                        <div className="relative border-l border-border ml-2.5 pl-4 space-y-3 pt-1">
                           {project.milestones.map((m) => (
                             <div key={m.id} className="relative flex items-center justify-between text-xs gap-3 group">
                               <span className="absolute -left-[21px] h-2.5 w-2.5 rounded-full bg-purple-500 border border-background shadow-sm" />

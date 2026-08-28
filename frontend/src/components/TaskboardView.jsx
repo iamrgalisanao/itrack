@@ -201,7 +201,7 @@ export default function TaskboardView({ project, modules = [], userRole }) {
             })
           }}
         >
-          <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+          <div className="relative rounded-xl border border-border shadow-sm overflow-hidden">
             <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${group.accent.bar}`} aria-hidden="true" />
             {/* No gap between children, and no container-level horizontal
                 padding at all (not even on one side) — every column here is a
@@ -219,7 +219,7 @@ export default function TaskboardView({ project, modules = [], userRole }) {
                 colgroup's column width. Each spacer/bar below is a sibling of
                 the trigger button, not a child of it, so only the label area
                 toggles the group open/closed. */}
-            <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
+            <div className="relative flex items-center py-3 border-b border-border bg-muted/30">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"

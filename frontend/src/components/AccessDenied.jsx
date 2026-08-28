@@ -15,7 +15,7 @@ export default function AccessDenied({
   showReturnLink = true,
 }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] border border-border/85 rounded-xl p-8 text-center bg-card shadow-sm max-w-lg mx-auto mt-12">
+    <div className="flex flex-col items-center justify-center min-h-[400px] border border-border rounded-xl p-8 text-center bg-card shadow-sm max-w-lg mx-auto mt-12">
       <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-4">
         <ShieldAlert className="h-6 w-6" />
       </div>

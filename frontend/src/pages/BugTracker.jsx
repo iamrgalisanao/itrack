@@ -256,7 +256,7 @@ export default function BugTracker() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
             <BugIcon className="h-5 w-5 text-primary" />
@@ -330,7 +330,7 @@ export default function BugTracker() {
               })
             }}
           >
-            <div className="relative rounded-xl border border-border/60 shadow-sm overflow-hidden">
+            <div className="relative rounded-xl border border-border shadow-sm overflow-hidden">
               <span className={`absolute inset-y-0 left-0 w-1 pointer-events-none ${accent.bar}`} aria-hidden="true" />
               {/* No gap between children, and no container-level horizontal
                   padding at all — every column here is a percentage of this
@@ -347,7 +347,7 @@ export default function BugTracker() {
                   width basis. Each spacer/bar below is a sibling of the
                   trigger button, not a child of it, so only the label area
                   toggles the group. */}
-              <div className="relative flex items-center py-3 border-b border-border/60 bg-muted/30">
+              <div className="relative flex items-center py-3 border-b border-border bg-muted/30">
                 <CollapsibleTrigger asChild>
                   <button
                     type="button"

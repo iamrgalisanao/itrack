@@ -255,7 +255,7 @@ export default function NotificationBell({ userRole }) {
           className="z-50 w-80 rounded-xl border border-border bg-card/75 backdrop-blur-xl shadow-xl overflow-hidden animate-in fade-in-50 slide-in-from-top-1"
         >
           {/* Dropdown Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/60 bg-muted/40">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
             <span className="text-xs font-bold text-foreground">Notifications</span>
             {unreadCount > 0 && (
               <button
