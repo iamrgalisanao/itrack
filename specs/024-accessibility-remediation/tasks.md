@@ -74,7 +74,7 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 - [x] T014 [US4] Tamper: revert `--input` to `#e5e4e7`. Assertion T007 must fail naming the token, and the contrast rows must fail at 1.27. Restore
 - [x] T015 [US4] Tamper: break the canary's property read. It must fail with the load-failure message, **not** silently pass — this is the assertion the whole file's credibility rests on
 - [x] T016 [US4] Confirm the 81-control residue is unchanged and `count-control-borders.py` still exits 0 at `RATCHET HOLDS (81 <= 81)`
-- [ ] T017 [US4] **NOT DONE — manual, requires a running app and a human eye. MUST CLOSE BEFORE PR B MERGES.** Visual pass in both themes.
+- [x] T017 [US4] **DONE — manual visual pass completed 2026-08-28 before PR B merged.** Visual pass in both themes.
 
   SC-009 hides two claims and only one needs an eye. *"Nothing unintended moved"* is a **closure** property and is now machine-checked: `count-control-borders.py` fails if any utility other than plain `border-input` consumes `--input` or if the site count leaves 45, and `verify-cascade.py` renders all three non-control shapes in both themes. So that half is true by construction.
 
@@ -91,9 +91,20 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
   **The deadline is not decoration.** PR B retokenises the status vocabulary across `GroupSummaryBar`, `taskStatus.js` and `Reports.jsx`. Once B lands, a visual regression reported afterwards cannot be attributed to A or B — which destroys the bisectability the three-PR split exists to create.
 
-- [ ] **PR B PRECONDITIONS — both must hold before PR B merges. Neither is a PR A blocker.**
+- **T017 result**: PASS. Verified live at `http://127.0.0.1:5178/` as `admin@itrack.test` in the seeded project, in both light and dark themes, with Laravel on `127.0.0.1:8011` and Vite on `127.0.0.1:5178`.
+
+  - `frontend/src/components/ui/button.jsx:13` (`outline` Button): checked the Work Program toolbar/manage buttons, `Add Activity`, and modal `Cancel`. The stronger `--input` edge reads as an intentional control boundary, not as an unrelated hairline darkening; focus still has a separate ring signal.
+  - `frontend/src/components/ui/select.jsx:14` (`SelectTrigger`): checked the project picker, status filter, and task modal status select. The trigger remains visually balanced against adjacent inputs and outline buttons; the chevron/text/combobox affordance, not the border alone, communicates interactivity.
+  - `frontend/src/components/MyWorkPanel.jsx:483` ("Add task" chip): checked on the Dashboard My Work panel. The border is visible but not heavy; icon + label + hover/focus treatment make it read as an action chip rather than a form field.
+  - `frontend/src/pages/WorkProgram.jsx:3133` (read-only Sub-Activity `<p>`): checked in the edit-task modal beside real inputs. Kept `border-input`: muted text, muted fill, no caret, no trigger icon and non-text cursor distinguish it from editable controls even though the border is now pixel-identical to `--input`.
+
+  Supporting gates run after the visual pass: `python scripts/verify-contrast.py` exited 0 with `CONTRACT HOLDS`; `$env:CASCADE_REQUIRED='1'; python scripts/verify-cascade.py` exited 0 with `CASCADE CONTRACT HOLDS`; `python scripts/count-control-borders.py` exited 0 with `RATCHET HOLDS (residue 81 == 81, neither 4 <= 4)`.
+
+- [x] **PR B PRECONDITIONS — both hold before PR B merges. Neither is a PR A blocker.**
   1. **T017 closed** (above).
-  2. ~~**`Design tokens (cascade)` added to the required-checks list on `main`**~~ — **DONE**, applied 2026-08-28 immediately after PR A merged and verified by reading the protection back. See `docs/repo-settings.md`. So PR B now has **one** open precondition, T017.
+  2. ~~**`Design tokens (cascade)` added to the required-checks list on `main`**~~ — **DONE**, applied 2026-08-28 immediately after PR A merged and verified by reading the protection back. See `docs/repo-settings.md`.
+
+  PR B now has no open preconditions from PR A.
 
   They are paired deliberately. Requiring the cascade job protects *future* merges from reverting `--input`; it does nothing for PR A, whose cascade run is already green. The hole first becomes *exercisable* at PR B, which is the first PR to edit `verify-cascade.py` itself (T041) and the token vocabulary that job measures — a PR modifying a gate while that gate is advisory is the actual failure mode. Coupling PR A to a settings approval would only manufacture pressure to approve it unread, which is how branch protection got enabled as a side effect of an unrelated commit in the first place.
 - [x] T018 [US4] Check `MyWorkPanel.jsx:483` (the "Add task" chip) individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a). Worst measured 3.25 against `--muted` on hover — clears 3:1. **The line number matters:** the file has six `border-input` sites (113, 166, 178, 188, 200, 483) and the other five are native controls with their own fill; only 483 has this property
