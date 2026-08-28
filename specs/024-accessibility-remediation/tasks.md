@@ -1,0 +1,248 @@
+---
+
+description: "Task list for 024 — accessibility remediation of the timeline, status colour and charts"
+---
+
+# Tasks: Accessibility Remediation — Timeline, Status Colour, and Chart Honesty
+
+**Input**: `specs/024-accessibility-remediation/` — plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
+
+**Plan gate**: `PASSED (clean)` — five iterations, 24 findings, no accepted exceptions. Verified before any task below was written.
+
+**Tests**: Included. The spec's SC-003 requires an automated assertion, and three of this project's last four disclosure defects were closed by a test written *before* the fix.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]** — parallelisable: different files, no dependency on an incomplete task
+- **[Story]** — US1..US5 from spec.md
+
+---
+
+## Delivery: three PRs, not one
+
+The plan is one coherent artifact; the delivery is not one merge unit. **Do not collapse these.**
+
+| PR | Contents | Why separate |
+|---|---|---|
+| **A** | Phase 1 + US4 | Shares nothing with the rest, widest regression surface, and SC-009 is only bisectable if the token move is its own commit. No dependency on `b61a484`. |
+| **B** | US2 + US3 | **Never apart.** Splitting them creates research.md R9's trap exactly: two workstreams converge on "every status needs a distinct fill", which fixes the segment bar and breaks the chart's FR-011 agreement with the Gantt. |
+| **C** | US1 + US5 | Gated on PR #26 (`b61a484`) being in history — it is, on this branch. |
+
+---
+
+## Phase 1: Setup — PR A
+
+- [x] T001 Read `research.md` R11a, R15, R16 and `quickstart.md` Gates 2–3 before touching a token; the `--input` values, the ratchet's provenance and the canary's failure mode are all recorded there and each was wrong in an earlier draft
+- [x] T002 Run all four gates on a clean tree and record the output as the "before" baseline: `python scripts/verify-contrast.py`, `npm run build`, `CASCADE_REQUIRED=1 python scripts/verify-cascade.py`, `python scripts/count-control-borders.py`
+- [x] T003 Record the cascade gate's current assertion 0 and assertion 2 readings — both print `rgb(229, 228, 231)` today. That is the empirical evidence the canary and the bare-border check are measuring the same value, i.e. that repointing the canary is required rather than tidy. Paste into the T006 commit message
+
+---
+
+## Phase 2: Foundational — none
+
+No blocking prerequisite spans the three PRs. Each is independently landable in the order above.
+
+---
+
+## Phase 3: US4 — See the edges of form controls (P4) — PR A
+
+**Goal**: every form control drawn with the input token clears 3:1, and the 81-control residue cannot grow.
+
+**Independent test**: measure each control boundary in both themes; confirm no other surface moved.
+
+### Gate work first — the canary must be correct before the token moves under it
+
+- [x] T004 [US4] In `scripts/verify-cascade.py`, make assertion 0's canary **emission-independent**: read `--background` off the root element via `getComputedStyle(document.documentElement).getPropertyValue('--background')` and assert non-empty. Do **not** repoint it at `bg-background` alone — that depends on `@theme` emitting *and* the utility winning, which re-creates PR #17's `bg-popover` defect class one surface over (research.md R11a)
+- [x] T005 [US4] Add `background` to the required-token list at `scripts/verify-cascade.py:74`, or T004 crashes on a missing key
+- [x] T006 [US4] Rewrite assertion 0's comment: its current premise is *"`--input` and `--border` are identical"*, which T008 makes false. State what the canary now proves and why the old form would have reported `ABORT: the stylesheet did not load` on a **cascade** regression
+- [x] T007 [US4] Add a `border-input` fixture to `scripts/verify-cascade.py` asserting computed `borderTopColor` equals the new `--input` **and differs from** `--border`. This is the only thing that proves the 41 sites moved
+
+### The token move
+
+- [x] T008 [US4] In `frontend/src/index.css`, set `--input: #86868e` (`:root`) and `#737a88` (`.dark`) — the existing `--popover-border` values, chosen in 023 for this exact 3:1 job. Comment why `#949494` was rejected: it clears 3.03 against white with no headroom and **fails at 2.71 against `--secondary`/`--muted`**
+- [x] T009 [US4] Comment at the declaration that `--border` must **not** follow: it is applied by `* { border-color }` to every element, so moving it darkens all 223 hairline sites — SC-009 failing at maximum blast radius
+
+### Gate the residue
+
+- [x] T010 [US4] In `scripts/verify-contrast.py`, generalise the 3.0-tier loop at `:423-439` to `(token, surface, need)` triples and move the popover rows onto it. It currently hardcodes `t['popover']` and prints "on --popover", so adding an `--input` row to it as-is measures the wrong surface under a false heading
+- [x] T011 [US4] Add `--input` rows against `--background`, `--card` and `--popover`, both themes. Expect 3.61/3.61/3.61 light, 4.15/3.89/3.49 dark
+- [x] T012 [US4] Wire `python scripts/count-control-borders.py` into `quickstart.md` Gate 2 as its own command. The ratchet already exists and holds at 81; this makes it a documented gate rather than a script nobody runs
+- [x] T013 [P] [US4] Add a `count-control-borders` step to `.github/workflows/ci.yml` in the `design-tokens` job — stdlib-only, no browser, same shape as the existing contrast step
+
+### Verification
+
+- [x] T014 [US4] Tamper: revert `--input` to `#e5e4e7`. Assertion T007 must fail naming the token, and the contrast rows must fail at 1.27. Restore
+- [x] T015 [US4] Tamper: break the canary's property read. It must fail with the load-failure message, **not** silently pass — this is the assertion the whole file's credibility rests on
+- [x] T016 [US4] Confirm the 81-control residue is unchanged and `count-control-borders.py` still exits 0 at `RATCHET HOLDS (81 <= 81)`
+- [ ] T017 [US4] **NOT DONE — manual, requires a running app and a human eye. MUST CLOSE BEFORE PR B MERGES.** Visual pass in both themes.
+
+  SC-009 hides two claims and only one needs an eye. *"Nothing unintended moved"* is a **closure** property and is now machine-checked: `count-control-borders.py` fails if any utility other than plain `border-input` consumes `--input` or if the site count leaves 45, and `verify-cascade.py` renders all three non-control shapes in both themes. So that half is true by construction.
+
+  What remains is the judgment: **did anything that legitimately shares the boundary become visually heavier than intended?** That is four elements, not four screens:
+
+  - `ui/button.jsx:13` — the `outline` Button variant, **56 usages**, the largest visual change in this PR
+  - `ui/select.jsx:14` — `SelectTrigger`, 29 usages
+  - `MyWorkPanel.jsx:483` — the "Add task" chip (verified numerically in T018; confirm visually)
+  - `WorkProgram.jsx:3133` — a **read-only `<p>`** in the task modal. It was already styled as a read-only field (Label + border + `bg-muted/30`), so the question is not "is it now a field" but **does it now read as an *editable* one**, sitting beside real inputs at the same edge weight. **Decide whether to drop `border-input` here.**
+
+    The measurements, so this is decided on evidence rather than on either prediction that was recorded before them. `bg-muted/30` over `--card` resolves to `#fcfbf9` light / `#1d1e25` dark. Against a live input's `--background` fill that is **1.03:1 light, 1.08:1 dark**; against the modal's own `--card`, **1.01:1** in dark. The fill is not a differentiator at those ratios. Both borders are now pixel-identical at `--input`.
+
+    So this feature *strengthened* the signal the two elements share and left the one that separates them untouched. Before, both carried a 1.27:1 hairline — two weak signals, neither claiming "editable"; now both carry the same 3.61:1 edge. An earlier draft of this bullet predicted "the expected answer is no", which the arithmetic above does not support and which would have primed whoever ran the pass to confirm it. **No expected answer is recorded here on purpose.**
+
+  **The deadline is not decoration.** PR B retokenises the status vocabulary across `GroupSummaryBar`, `taskStatus.js` and `Reports.jsx`. Once B lands, a visual regression reported afterwards cannot be attributed to A or B — which destroys the bisectability the three-PR split exists to create.
+
+- [ ] **PR B PRECONDITIONS — both must hold before PR B merges. Neither is a PR A blocker.**
+  1. **T017 closed** (above).
+  2. **`Design tokens (cascade)` added to the required-checks list on `main`** — see `docs/repo-settings.md`, pending user approval.
+
+  They are paired deliberately. Requiring the cascade job protects *future* merges from reverting `--input`; it does nothing for PR A, whose cascade run is already green. The hole first becomes *exercisable* at PR B, which is the first PR to edit `verify-cascade.py` itself (T041) and the token vocabulary that job measures — a PR modifying a gate while that gate is advisory is the actual failure mode. Coupling PR A to a settings approval would only manufacture pressure to approve it unread, which is how branch protection got enabled as a side effect of an unrelated commit in the first place.
+- [x] T018 [US4] Check `MyWorkPanel.jsx:483` (the "Add task" chip) individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a). Worst measured 3.25 against `--muted` on hover — clears 3:1. **The line number matters:** the file has six `border-input` sites (113, 166, 178, 188, 200, 483) and the other five are native controls with their own fill; only 483 has this property
+
+---
+
+## Phase 4: US2 + US3 — Status colour and chart honesty (P2, P3) — PR B
+
+**Goal**: no status conveyed by colour alone; the chart tells the truth about quantity.
+
+**Independent test**: view the summary bar and chart under dichromacy simulation; read every count without a pointing device.
+
+### Tokenise first — this is a prerequisite, not cleanup
+
+- [ ] T019 [US2] Retokenise `STATUS_SEGMENT_CLASSES` in `frontend/src/lib/taskStatus.js` onto the `GANTT_STATUS_TOKENS` vocabulary. **Until this lands, SC-004 has no gate at all**: the current fills are raw Tailwind palette in oklch, and `verify-contrast.py` parses `#[0-9a-fA-F]{6}` only, so it cannot see a single one of them
+- [ ] T020 [US2] Retokenise `STATUS_BADGE_CLASSES` in the same file, in this task and not later. The segment and badge render one row apart in the same view (`MyWorkPanel.jsx:565`/`:120`, `TaskboardView.jsx:245`/`:294`) — that is the same-page adjacency FR-011 governs. Left undone the change is **net-negative**: it trades "segment disagrees with the Gantt" for "segment disagrees with the badge beside it"
+- [ ] T021 [US2] Express the badge as token utilities (`border-warning/40 bg-warning/10 text-warning`), never literals, or `verify-contrast.py`'s existing `on_tint` assertion — which already measures exactly that construction at α 0.10/0.15 — cannot see it
+- [ ] T022 [US2] Retokenise `LIST_STATUS_SEGMENT_CLASSES` at `frontend/src/pages/WorkProgram.jsx:126`. **Out of scope and must stay raw**: BugTracker's local map at `:38`, Retrospectives' sentiment, priority segments (research.md R17)
+
+### The non-colour channel
+
+- [ ] T023 [US2] Extend `buildSegments` in `frontend/src/lib/groupSummary.js` with an optional glyph/ink source keyed like `className`, **defaulting to no glyph** so sentiment and priority callers are untouched. It currently returns `{key, count, pct, className}` with no ink and no glyph source
+- [ ] T024 [US2] Render a 1–2 character abbreviation centred in each segment of `frontend/src/components/GroupSummaryBar.jsx`, in the segment's `ink` token — `ganttPalette.js` already pairs fill/ink at a measured 4.5:1 for exactly this
+- [ ] T025 [US2] Suppress the glyph below a measured px width, mirroring the gate at `WorkProgram.jsx:2681`. Verify against the narrowest **real** column, and confirm `overflow-hidden` on the container is not clipping silently — that is the failure that looks fine in a wide reviewer browser
+- [ ] T026 [US2] Add `outline-1 -outline-offset-1` as the adjacency separator, **not `border`**: a border adds layout width inside the flex row and shifts the percentage widths the component's own header comment spends 20 lines protecting
+- [ ] T027 [US2] Add a text legend beneath the bar **printing the per-status count**. The count is a condition of shipping the glyph, not a nicety: `buildSegments` gives every present status an equal share regardless of count, so without printed numbers the glyph makes a misleading width *more* legible (research.md R18)
+
+### The chart — rotate it
+
+- [ ] T028 [US3] Add `STATUS_FILL_TOKENS` to `frontend/src/lib/taskStatus.js` — **seven entries**, token names not values. Do **not** rename or generalise `ganttPalette.js`: `verify-contrast.py` anchors its parse to the literal export `GANTT_STATUS_TOKENS` and two tamper proofs were built on that anchor
+- [ ] T029 [US3] Exclude `pending`. It is synthesised by `getRollupStatus` for parent rows and never reaches `/api/reports`, whose `status_breakdown` is `countBy('status')` over leaf rows — including it would encode a false claim about the endpoint
+- [ ] T030 [US3] Replace the vertical `grid-cols-3 sm:grid-cols-6` chart at `frontend/src/pages/Reports.jsx:667` with a horizontal aligned-bar list: one row per status, label | track+bar | count. The current grid wraps at **four** statuses on mobile, and because the container is `h-16 items-end` a wrapped row does not extend the box — both rows compress and the baseline sits under only the bottom one
+- [ ] T031 [US3] Compute `total` **once outside the map** and bar length as share of project total; print the total in the panel header (`Task Breakdown · 412 tasks`). `maxVal` is currently recomputed inside the map callback, and per-card max normalisation makes a 40/30/30 split render identically to a 90/5/5
+- [ ] T032 [US3] Render all seven rows always, driven by `STATUS_ORDER` and indexed `breakdown[status] ?? 0` — not `Object.entries`. This also makes the chart immune to `countBy`'s empty-collection serialisation
+- [ ] T033 [US3] Zero gets an empty track and a printed `0`; non-zero gets `max(0.25rem, share)`. Zero and one must be **categorically different renderings**, not two points on a length continuum
+- [ ] T034 [US3] Print counts in a right-aligned `tabular-nums` column and **delete the hover tooltip**. `scale-0` is a transform and does not remove the node from the accessibility tree, so "N tasks" is currently live text on every bar — FR-004's defect class on a second surface
+- [ ] T035 [US3] Delete `matchStatusColor` at `Reports.jsx:732-749` entirely. Its `todo`/`done` branches are dead against the backend enum and `not_started`/`completed`/`delayed` all fall through `default` to one violet
+- [ ] T036 [US3] Replace the `project.status_breakdown &&` truthiness guard at `:664` with `total > 0` and render an explicit "No tasks yet" panel. An empty collection JSON-encodes as `[]`, which is truthy, so a zero-task project currently renders a bare bordered rail
+- [ ] T037 [US3] Retokenise the three risk tiles (`:502-509` page-level, `:650-658` per-card) to stop encoding by hue: `--destructive` when count > 0, `--muted-foreground` when 0. Two of the three are **not statuses at all** — overdue and dependency-risk are derived metrics borrowing the status palette's hues. This is deliberate scope beyond FR-011's letter, recorded rather than ridden in implicitly
+
+### Gates
+
+- [ ] T038 [US3] Add the five `STATUS_FILL_TOKENS` contracts to `scripts/verify-contrast.py` per `contracts/ui-contracts.md`. **Five, not four** — the fifth is treatment distinctness and is SC-004's only mechanism; building "the four" drops it
+- [ ] T039 [US2] Implement contract 5 as: every pair *sharing* a fill has distinct glyph entries, every pair with *distinct* fills clears a stated ΔE00 under Brettel–Viénot–Mollon. A naive pairwise **fill** check fails by construction once the sanctioned pairs land
+- [ ] T040 [US3] Implement contract 4 as a no-raw-palette-literal assertion over `Reports.jsx`, not a grep for `matchStatusColor` — a name grep fires on a comment and passes if the function is renamed
+- [ ] T041 [US3] Add two `verify-cascade.py` cases: a sub-1% bar asserting computed width ≥ 4px, and a zero-count row asserting width `0px`. Note the file's own warning that adding a focusable node moves assertion 3's measurement — update it deliberately if so
+- [ ] T042 [US2] Tamper: give `delayed` its own hue. Contract 2 must fail. This is the assertion that stops a future contributor "fixing" the sanctioned sharing and reopening what 023 closed
+- [ ] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
+- [ ] T044 [US3] Manual: a 20-project report, not one card. R6 accepts +76px per card; across 20 stacked cards that is +1500px of scroll and the cost was weighed against a single card
+- [ ] T045 [US3] Manual: a count of 1 beside a count of 100+ (SC-007), and zero/single-status projects
+
+---
+
+## Phase 5: US1 + US5 — Keyboard timeline and honest labels (P1, P5) — PR C
+
+**Goal**: the timeline is operable without a mouse and announced once per row; no interface text misdescribes the system.
+
+**Independent test**: complete the full timeline workflow by keyboard, then by screen reader in **both** focus and browse mode.
+
+### The failing test comes first — this ordering is the point
+
+- [ ] T046 [US1] Create `frontend/src/lib/ganttA11y.test.js` **before the formatter exists**, seeding `responsible: 'SENTINEL-CONTRIBUTOR'` and asserting the Client-role string does not contain it, for `'Client'`, `null`, `undefined`, `''` and an unknown role — and that an internal role **does** receive it. Both directions: a formatter withholding from everyone satisfies the first assertion and breaks the product
+- [ ] T047 [US1] Confirm it fails for the right reason (module absent), not a passing no-op. Snapshot-testing a rendered span would pass when the field is missing *for the wrong reason* — the fixture simply had no `responsible`. That is the trap that made #14's `reports` row vacuous
+- [ ] T048 [P] [US1] Add a `node --test` step to `.github/workflows/ci.yml` **as its own job**. Pasting the documented command into `frontend-build` resolves to `frontend/frontend/src/…` because that job sets a working directory; and a confidentiality-test failure and a compile error are different verdicts, which is the reasoning already written into `ci.yml`
+
+### The pure module
+
+- [ ] T049 [US1] Extract `getGanttStatusLabel` from `WorkProgram.jsx:644` into `frontend/src/lib/ganttA11y.js`. It is a component-scoped arrow, so a pure module can neither import it nor duplicate it without minting a fifth status vocabulary. The **Gantt** set is authoritative for the announcement, not `taskStatus.js`'s competing `completed → "Done"`
+- [ ] T050 [US1] Implement `canSeeContributor(role)` as a **positive allowlist** over the four non-Client roles. The current `role === 'Client'` fails **open** — `useEffectiveUser()` returns null before auth resolves, so `isClient === false` and the contributor renders
+- [ ] T051 [US1] Implement `buildGanttBarLabel(row)`: code, name truncated at ~80 chars on a word boundary, status via T049, dates via `formatDate`. **Never** append "button" (the role supplies it) and **never** append "Click timeline bar to edit"
+- [ ] T052 [US1] Implement `buildGanttBarDescription(row, { includeContributor })` — level, planned-vs-actual, duration, progress. It takes the **decision**, never the role
+- [ ] T053 [US1] Confirm T046 now passes, and re-run the sentinel tamper: force `includeContributor` true for a Client and watch it fail by name
+
+### The timeline
+
+- [ ] T054 [US1] Convert `WorkProgram.jsx:2662` to a **non-focusable wrapper** carrying `group` and the inline `left`/`width`/`top`; put a `<button className="h-full w-full">` inside it with the visual classes, `getGanttBarStyles` and the click handler; make the card a **sibling of the button**, still inside the wrapper. The card at `:2733` is a *descendant* of that div today, so converting in place nests a field grid inside a button
+- [ ] T055 [US1] Move progress fill, percentage label and milestone diamond inside the button as `<span>`s. The wrapper takes **no `tabIndex` and no `onClick`** — both on the button, or the element ships two activation paths
+- [ ] T056 [US1] Focus style `focus-visible:outline-2 focus-visible:outline-offset-2`. **Not `ring-2`** — Tailwind v4 ring is box-shadow, lost over a busy grid and erased by forced-colors. Do **not** add `outline-none`; the file already carries 122
+- [ ] T057 [US1] Reveal the card with `group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`. **Not `group-focus-visible`** — after T054 the `group` is the non-focusable wrapper and that selector can never match. **Not `group-focus-within`** — it fires on mouse focus and pins the card open behind the modal it just launched
+- [ ] T058 [US1] Mark the card `aria-hidden="true"`, and cite the in-file comment at `:2730` in the diff: it forbids exactly this, and is right about `aria-hidden` **alone** — T059 is what makes it safe
+- [ ] T059 [US1] Render `buildGanttBarDescription` into an `sr-only` span at the end of the **left-pane** row (after the Edit button, ~`:2538`) with a stable id, and point the bar's `aria-describedby` at it. Left pane, not right: browse mode reads all N left rows then all N bars, so a right-pane description lands N rows away from its summary
+- [ ] T060 [US1] Delete the "Click timeline bar to edit" string at `:2781` — do not rephrase it (FR-005)
+- [ ] T061 [US1] Implement `dismissedRowId` as **one** state on the timeline pane: Escape sets it and stops propagation, focus change clears it, and the reveal class is one ternary inside the map. Never one hook per row. Session-sticky dismissal is worse than the defect 1.4.13 asks you to fix
+- [ ] T062 [US1] Flip the card from `bottom-full` to `top-full` for row 0 — it currently renders over the sticky header
+- [ ] T063 [US1] Give the chevron button at `:2456` an `aria-label` and `aria-expanded`. It is icon-only and announces as "button" — **4.1.2 and 1.3.1, both level A, inside the 508 legal floor**, unlike most of this feature
+- [ ] T064 [US1] Wrap the timeline in `<section aria-label="Project timeline">`. Three tab stops per row is ~150 before a user escapes a 50-row timeline — 2.4.1 in practice
+- [ ] T065 [US1] Consume `canSeeContributor` at the three **visible** sites (`:2441`, `:2476`, `:2774`), not only in the formatter. Using it in one and leaving `!isClient` in the other recreates precisely the divergence FR-007's single-definition clause forbids
+- [ ] T066 [US1] Add the forced-colors rule giving critical-path bars `outline-style: dashed`. `getGanttBarStyles` sets colours **inline**, which HCM overrides wholesale, so today every bar reads as critical-path — and a solid focus outline makes that worse
+- [ ] T067 [US1] Verify `scroll-margin-top` on the button so tabbing to an off-screen bar is not obscured by the sticky `h-20` header (2.4.11)
+
+### US5
+
+- [ ] T068 [P] [US5] Rewrite the "Mock Auth Mode" copy at `frontend/src/pages/Admin.jsx:1455` to describe the production mechanism (issue #12)
+- [ ] T069 [P] [US5] Grep JSX string literals for `mock`, `prototype`, `scaffold`. SC-010 says "no interface text"; T068 fixes one known site, and the sweep is the difference between fixing an instance and satisfying the criterion
+- [ ] T070 [US5] Hide the Schedule assignee filter on **emptiness, never role**: the test is `assignees.length <= 1` (the array is seeded with `'all'`, so `=== 0` never fires and the feature ships looking done), and force `assigneeFilter` back to `'all'` when hidden or the predicate at `:344` keeps filtering by an invisible value
+
+### Verification
+
+- [ ] T071 [US1] Keyboard-only pass of the full flow: locate a task, read its schedule, open the editor (SC-001)
+- [ ] T072 [US1] **NVDA + Firefox in both focus and browse mode**; JAWS + Chrome; VoiceOver + Safari — the last is the one that exposes a cross-pane `aria-describedby` problem if there is one
+- [ ] T073 [US1] **Real** Windows High Contrast, not Chromium emulation: emulation does not faithfully reproduce the inline-style override on the Gantt bars, which is the mechanism T066 addresses
+- [ ] T074 [US1] Confirm each task is announced **once** — no duplicate card content inline (FR-004, SC-002)
+
+---
+
+## Phase 6: Polish
+
+- [ ] T075 Run `/impeccable audit frontend/src/pages/WorkProgram.jsx` and `/impeccable critique frontend/src/components/GroupSummaryBar.jsx`; classify findings Critical/Major/Minor/Suggestion
+- [ ] T076 Resolve every Critical and Major, or document acceptance in plan.md (Constitution Completion Gate)
+- [ ] T077 Run `code-slop` on the diff: no per-row `useState` in the timeline map, no defensive wrapper around values the caller guarantees, and every comment either records a rejected alternative or is deleted
+- [ ] T078 Run `laravel-owasp-security` scoped to FR-007's surface — a new rendering path for role-restricted data, not an endpoint
+- [ ] T079 Write `verification-record.md` with each gate's **actual output**, every manual result, and every Critical/Major with its resolution. **Regenerate figures, never retype them** — three drafts of 023's artifacts carried hand-transcribed ratios and two were wrong
+> **PR B and PR C will legitimately trip the ratchet, and that is correct.**
+> `scripts/count-control-borders.py` now holds the residue at **equality** (81), not as a ceiling,
+> and the `border-input` site count at equality too (45). T030 replaces the Reports chart and T037
+> retokenises the risk tiles, so both numbers will move — and the gate will fail until
+> `BASELINE_BORDER` / `BASELINE_INPUT_SITES` are updated **in the same commit that moved them**.
+> That is the designed behaviour: a one-sided ceiling let the baseline drift away from the floor,
+> which is the defect this replaced. **Do not "fix" a red ratchet by loosening it back to `>`.**
+
+- [ ] T080 Update the ACR to **Partially Supports** on 1.4.11 with both residues named: the 81 hand-rolled controls (feature 025) and the progress-overlay edge.
+
+  **Name the edition, and check the denominator before publishing.** "Partially Supports on 1.4.11" is only a valid cell in a **WCAG 2.1/2.2 or INT edition** ACR — a VPAT 2.x *508 edition* carries WCAG 2.0 tables, and 1.4.11 does not exist in WCAG 2.0, so adding a row for it there is a category error. Section 508's legal baseline is WCAG 2.0 AA, under which the 81 residual controls are **not** a non-conformance at all. If any iTrack client is a US state or local government body, ADA Title II binds WCAG 2.1 AA independently and 1.4.11 becomes binding through *that* statute — at which point the Remarks carry legal weight and must state the population correctly: 41 hand-rolled controls **plus 72 shared-primitive usages** fixed, against a residue of 81. Not "41 of 127" 
+
+---
+
+## Dependencies
+
+```
+Phase 1 (T001-T003)
+   └─> PR A: US4 (T004-T018)          gates before token, token, ratchet, verify
+   └─> PR B: US2+US3 (T019-T045)      tokenise -> channel -> chart -> gates
+   └─> PR C: US1+US5 (T046-T074)      failing test -> module -> timeline -> verify
+                └─> Phase 6 (T075-T080)
+```
+
+**Within PR B**: T019–T022 block everything else — until the classes are tokenised, SC-004 has no gate.
+**Within PR C**: T046–T047 block T049–T053. The test must exist and fail first.
+
+## Parallel opportunities
+
+- T013, T048, T068, T069 are `[P]` — separate files, no shared dependency
+- T019–T022 are sequential (same file), T023–T027 then follow
+- T028–T037 (chart) and T023–T027 (segment bar) are different files and can run concurrently **within PR B** — but must ship together
+
+## MVP
+
+**PR A (US4)** is the smallest shippable increment: one token, two gate changes, a ratchet. It delivers measurable non-text contrast on 41 controls and cannot regress the other 81.
+
+## Format validation
+
+All 80 tasks carry a checkbox, sequential ID, story label where required, and an exact file path. Setup and Polish phases carry no story label by design.

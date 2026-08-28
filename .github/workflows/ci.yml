@@ -96,6 +96,12 @@ jobs:
       - name: Verify status-token contrast (WCAG AA)
         run: python3 scripts/verify-contrast.py
 
+      # Stdlib-only, no browser, same shape as the step above. It ratchets the
+      # 81 native form controls still drawn with --border, so feature 025's
+      # residue can shrink but never grow while it waits.
+      - name: Ratchet the form-control border residue
+        run: python3 scripts/count-control-borders.py
+
   cascade:
     name: Design tokens (cascade)
     runs-on: ubuntu-latest
