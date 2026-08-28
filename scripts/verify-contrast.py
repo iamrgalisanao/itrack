@@ -804,10 +804,14 @@ else:
 # US2 owns fixing that; the count here will RISE to 7 when it does, and the
 # ratchet will demand the baseline move in that commit -- which is the correct
 # conversation to force.
+# All three reached ZERO in the commit that retokenised them, and the two-sided
+# ratchet is what forced the update to happen there rather than drifting. From
+# here the ceiling is absolute: any raw palette literal re-entering a status
+# vocabulary is a regression, with no baseline left to hide behind.
 PALETTE_LITERAL_BASELINE = {
-    ('frontend/src/lib/taskStatus.js', 'STATUS_SEGMENT_CLASSES'): 7,
-    ('frontend/src/lib/taskStatus.js', 'STATUS_BADGE_CLASSES'): 28,
-    ('frontend/src/pages/WorkProgram.jsx', 'LIST_STATUS_SEGMENT_CLASSES'): 4,
+    ('frontend/src/lib/taskStatus.js', 'STATUS_SEGMENT_CLASSES'): 0,
+    ('frontend/src/lib/taskStatus.js', 'STATUS_BADGE_CLASSES'): 0,
+    ('frontend/src/pages/WorkProgram.jsx', 'LIST_STATUS_SEGMENT_CLASSES'): 0,
 }
 _palette_rx = re.compile(
     r'\b(?:bg|text|border|ring|fill|stroke|from|to|via|divide|outline)-'
@@ -843,6 +847,73 @@ for (_path, _const), _limit in sorted(PALETTE_LITERAL_BASELINE.items()):
               % _n)
         print('    the same commit, or the ceiling stops guarding the new floor.')
 
+
+
+# ------------------------------------------------------- the glyph channel
+#
+# UNCONDITIONAL UNIQUENESS ACROSS ALL SEVEN -- not merely within fill-sharing
+# pairs, which is what the plan specified and which would have left the real
+# collisions unchecked.
+#
+# The planned check compared glyphs only for statuses SHARING a fill. But the
+# labels are Backlog, Not Started, In Progress, For Review, Blocked, Delayed,
+# Done -- and any natural 1-2 character scheme collides Backlog/Blocked and
+# Delayed/Done. Neither pair shares a fill, so neither would ever have been
+# compared. Delayed vs Done is a dE00 7.07 pair in dark deuteranopia: give them
+# the same glyph and the compensating channel is degenerate exactly where the
+# colour channel already failed, with the gate reporting HOLDS.
+GLYPH_MAX_CHARS = 2
+
+_ts = io.open('frontend/src/lib/taskStatus.js', encoding='utf-8').read()
+_order_m = re.search(r"STATUS_ORDER\s*=\s*\[(.*?)\]", _ts, re.S)
+_glyph_m = re.search(r"STATUS_GLYPHS\s*=\s*\{(.*?)\n\}", _ts, re.S)
+
+print()
+print('the non-colour channel -- glyph uniqueness across every status')
+if not _order_m or not _glyph_m:
+    ok = False
+    print('  FAIL: STATUS_ORDER or STATUS_GLYPHS is not parseable in '
+          'taskStatus.js -- this assertion measured nothing.')
+else:
+    _order = re.findall(r"'([\w-]+)'", _order_m.group(1))
+    _glyphs = dict(re.findall(r"(\w+):\s*'([^']*)'", _glyph_m.group(1)))
+
+    if len(_order) != 7:
+        ok = False
+        print('  FAIL: read %d statuses from STATUS_ORDER, expected 7.' % len(_order))
+
+    _missing = [k for k in _order if k not in _glyphs]
+    if _missing:
+        ok = False
+        print('  FAIL: no glyph for %s. A status with no non-colour channel is a '
+              'status conveyed by colour alone.' % ', '.join(_missing))
+
+    _extra = [k for k in _glyphs if k not in _order]
+    if _extra:
+        ok = False
+        print('  FAIL: STATUS_GLYPHS has %s, absent from STATUS_ORDER. The maps '
+              'have drifted.' % ', '.join(_extra))
+
+    _seen = {}
+    for _k in _order:
+        _g = _glyphs.get(_k)
+        if _g is None:
+            continue
+        if not _g or len(_g) > GLYPH_MAX_CHARS:
+            ok = False
+            print('  FAIL: %s has glyph %r -- must be 1 to %d characters.'
+                  % (_k, _g, GLYPH_MAX_CHARS))
+        if _g in _seen:
+            ok = False
+            print('  FAIL: %s and %s share the glyph %r. Colour cannot separate '
+                  'them either -- see the dichromacy set above.'
+                  % (_seen[_g], _k, _g))
+        _seen[_g] = _k
+
+    if len(_seen) == len(_order):
+        print('  %d statuses, %d distinct glyphs: %s'
+              % (len(_order), len(_seen),
+                 ' '.join('%s=%s' % (_k, _glyphs[_k]) for _k in _order)))
 
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)
