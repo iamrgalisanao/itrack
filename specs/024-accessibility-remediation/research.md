@@ -107,16 +107,17 @@ contributor → status → dates → edit → level, planned-vs-actual, duration
 unit. The bar then references it cross-pane by id — `aria-describedby` across subtrees is universally
 supported, unlike `aria-owns`, and restructures nothing.
 
-**Does the card open on focus?** Yes — FR-003. `group-focus-visible:opacity-100`, **not**
-`group-focus`, or a mouse click pins the card open behind the modal it just launched. `pointer-events-none`
-stays: 1.4.13's hoverable clause binds content that is the *sole* carrier, and once (b) exists the
-card is not.
+**Does the card open on focus?** Yes — FR-003. **Superseded in part by R1a**: this originally
+specified `group-focus-visible:opacity-100`, which after R1a can never match, because the `group` is
+the non-focusable wrapper. The selector is `group-has-[:focus-visible]`; the *reason* below stands
+unchanged — plain `group-focus`, and equally `group-focus-within`, fire on mouse focus and pin the
+card open behind the modal it just launched. `pointer-events-none` stays: 1.4.13's hoverable clause
+binds content that is the *sole* carrier, and once (b) exists the card is not.
 
-**Open decision carried to tasks.md**: Scenario 4 (Escape dismisses) has nothing to dismiss in a
-CSS-only `group-focus-visible` card, and since the card is `aria-hidden` decoration 1.4.13 arguably
-no longer binds it. Implementing it literally costs **one** `dismissedRowId` state on the pane —
-never one per row inside the map. Decide before implementing; it is the difference between zero
-hooks and fifty.
+**Settled in R3a — no longer an open decision.** This section originally argued that Scenario 4 had
+nothing to dismiss and that 1.4.13 stopped binding once the card was `aria-hidden`. That reasoning is
+wrong: the dismissible clause governs *visible* content. FR-003 is implemented, with **one**
+`dismissedRowId` on the pane — never one per row inside the map. See R3a for the specifics.
 
 **Also**: the card is `absolute bottom-full`, so on row 0 it renders over the sticky header — flip to
 `top-full` for the first rows.
@@ -578,7 +579,8 @@ as a backlog row citing that rule.
 
 ---
 
-## Open question carried into tasks.md
+## Open questions carried into tasks.md
 
-One remains: whether `STATUS_BADGE_CLASSES` is retokenised alongside the segment classes, or the
-`for_review` purple/amber inconsistency is recorded (R16). Decide at task generation.
+**None.** Both were settled at verification: the disclosure's dismissal behaviour in R3a, and the
+badge map in plan.md's accepted-reductions section — `STATUS_BADGE_CLASSES` is retokenised alongside
+the segment classes, in the same story.

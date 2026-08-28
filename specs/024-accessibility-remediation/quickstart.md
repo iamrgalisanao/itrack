@@ -47,7 +47,9 @@ python scripts/count-control-borders.py      # expect exit 0, "RATCHET HOLDS (81
   the multiline variant returns **499**; a plain `border-border` count returns **228**. The scanner
   tracks brace depth and returns **81**. Story 4 is the first PR, so it would otherwise install a gate
   on a baseline nobody could recompute — the same lesson R11a records, one level down.
-- The four `STATUS_FILL_TOKENS` contracts from [data-model.md](./data-model.md#the-contracts).
+- The **five** `STATUS_FILL_TOKENS` contracts from [data-model.md](./data-model.md#the-contracts).
+  *(Five, not four: the fifth is treatment distinctness, and it is SC-004's only mechanism —
+  building "the four" from this line drops it and SC-004 loses its gate again.)*
 
 **Scope discipline**: this is the 023 review's proposed "assertion 9" *narrowed to what 024 changes*.
 Do **not** build all of it (focus rings, bar fills, overlay edges). 021–023 shipped by running this

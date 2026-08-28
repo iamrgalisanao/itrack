@@ -213,5 +213,40 @@ the spec's own edge case. The three-part split is the smallest thing that actual
 
 ## Software Architect Verification
 
-*Pending — dispatched after Phase 1 artifacts complete. This section is what `/speckit-tasks` and
-`/speckit-implement` read as their precondition; neither may run while it says Pending.*
+**Status: PASSED (clean).** Five iterations — three verification traces and two ruling exchanges.
+**24 findings** (16 + 8), plus 4 residual lines in a final confirmation pass. No accepted exceptions:
+every finding was resolved rather than documented-and-waived.
+
+Gates run by the architect on `4832778`, so neither party asserts a result it did not produce:
+`verify-contrast.py` → exit 0; `npm run build` → exit 0; `CASCADE_REQUIRED=1 verify-cascade.py` →
+all five assertions ok. `count-control-borders.py` → 41 / 81 / 5, reproduced independently.
+
+### The five findings that would have changed shipped behaviour
+
+Recorded because the value of this gate is in these five, not in the count:
+
+1. **The plan asserted PR #26 was a merged prerequisite in five places while it was open and its
+   suite was red.** Had 024 landed first, the frontend predicate would once again have been the only
+   gate on contributor data — the exact condition research.md R4 identifies as the original defect.
+2. **`group-focus-visible` on a non-focusable wrapper.** After R1a the `group` is the wrapper, so the
+   selector can never match. Building what the artifacts said would have produced a card that never
+   opens on keyboard focus — FR-003 failing silently with a diff that looks correct. It was corrected
+   in `data-model.md` and left standing in `research.md`, which is the section that *designs* the
+   disclosure; both are now fixed.
+3. **FR-015 said "every form control"** against 81 controls that structurally could not meet it
+   without moving a token that draws every hairline in the application.
+4. **SC-005 asserted the negation of the plan's own CI contract** — no two statuses may share a
+   representation, versus a gate pinning `blocked` and `delayed` to one fill on purpose.
+5. **The FR-015 ratchet was specified as "one grep"**, and three plausible greps return 0, 228 and
+   499. It now ships as `scripts/count-control-borders.py`, whose header carries all three failures
+   including the `[^>]*?>` case that terminates on the `>` inside an arrow function.
+
+### What the gate cost, and what it caught
+
+Three of those five (1, 3, 4) are *specification* defects rather than plan defects — requirements
+asserting things the design contradicted. Two spec amendments (FR-015/SC-008, SC-005) and one more
+found in the second round (FR-018/SC-009) were sanctioned by the architect rather than made
+unilaterally, and each carries its amendment rationale inline. That is the mechanism working as
+intended: a MUST is not something the planner may quietly reinterpret.
+
+`/speckit-tasks` and `/speckit-implement` are unblocked.
