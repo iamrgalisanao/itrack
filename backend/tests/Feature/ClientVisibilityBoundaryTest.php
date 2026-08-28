@@ -58,9 +58,15 @@ class ClientVisibilityBoundaryTest extends TestCase
     private function makeChain(): array
     {
         $project = Project::factory()->create(['department' => 'IT']);
-        $module = Module::factory()->create(['project_id' => $project->id]);
-        $activity = Activity::factory()->create(['module_id' => $module->id]);
-        $subActivity = SubActivity::factory()->create(['activity_id' => $activity->id]);
+        $module = Module::factory()->create([
+            'project_id' => $project->id, 'responsible' => self::FIELD_SENTINEL,
+        ]);
+        $activity = Activity::factory()->create([
+            'module_id' => $module->id, 'responsible' => self::FIELD_SENTINEL,
+        ]);
+        $subActivity = SubActivity::factory()->create([
+            'activity_id' => $activity->id, 'responsible' => self::FIELD_SENTINEL,
+        ]);
 
         return compact('project', 'module', 'activity', 'subActivity');
     }
@@ -263,6 +269,60 @@ class ClientVisibilityBoundaryTest extends TestCase
         // Specifically the milestone comparison, not merely the key's presence.
         $this->assertSame(0, $task['duration_months']);
         $this->assertSame(0, $task['duration_days']);
+    }
+
+    /**
+     * The three levels ABOVE a task have the same field boundary, and until now
+     * had none. `Module`, `Activity` and `SubActivity` were serialised with
+     * `attributesToArray()`, so `responsible` and `support` -- internal staff
+     * names -- reached Clients on three endpoints.
+     *
+     * The row-axis sentinel could not see it and neither could the field-axis
+     * one, because both sat only on `DetailedActivity`. The frontend hides the
+     * column for Clients (`WorkProgram.jsx:2469`), which is what made this look
+     * like defence-in-depth rather than the only gate.
+     *
+     * Asserted in both directions: withheld from a Client, and still delivered
+     * to an internal role. A filter that strips the field from everyone passes
+     * the first assertion and breaks the product.
+     */
+    public function test_parent_levels_withhold_internal_fields_from_clients_only(): void
+    {
+        ['chain' => $chain, 'client' => $client] = $this->seedBoundary();
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $chain['project']);
+
+        $url = "/api/projects/{$chain['project']->id}/modules";
+
+        $module = fn ($user) => data_get(
+            $this->actingAs($user, 'sanctum')->getJson($url)->json(), '0'
+        );
+
+        $forClient = $module($client);
+        $this->assertNotNull($forClient, 'Client lost the module tree entirely');
+        foreach (['responsible', 'support', 'output', 'sort_order'] as $field) {
+            $this->assertArrayNotHasKey($field, $forClient, "Module.{$field} reached a Client");
+        }
+        $this->assertArrayNotHasKey('responsible', $forClient['activities'][0]);
+        $this->assertArrayNotHasKey('responsible', $forClient['activities'][0]['sub_activities'][0]);
+
+        // Still present for an internal role, and still the real value. Assert
+        // the key first: without that, a filter stripping the field from
+        // everyone fails with "Undefined array key" instead of naming what
+        // broke, and a PHP error reads differently from a test failure in CI.
+        $forMember = $module($member);
+        foreach ([
+            'module'       => $forMember,
+            'activity'     => $forMember['activities'][0],
+            'sub-activity' => $forMember['activities'][0]['sub_activities'][0],
+        ] as $level => $node) {
+            $this->assertArrayHasKey(
+                'responsible', $node,
+                "{$level}.responsible was withheld from an internal role -- the filter is not "
+                . 'conditional on the audience'
+            );
+            $this->assertSame(self::FIELD_SENTINEL, $node['responsible'], $level);
+        }
     }
 
     public function test_internal_roles_still_see_the_internal_task(): void

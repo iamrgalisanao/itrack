@@ -9,6 +9,7 @@ use App\Services\AuditLogger;
 use App\Support\AccessContext;
 use Illuminate\Http\Request;
 use App\Http\Resources\DetailedActivityResource;
+use App\Http\Resources\SubActivityResource;
 
 class SubActivityController extends Controller
 {
@@ -42,7 +43,7 @@ class SubActivityController extends Controller
             ->get();
 
         return $subActivities->map(fn ($subActivity) => [
-            ...$subActivity->toArray(),
+            ...SubActivityResource::make($subActivity)->resolve($request),
             'detailed_activities' => DetailedActivityResource::collection(
                 $subActivity->detailedActivities
             )->resolve($request),
@@ -106,7 +107,7 @@ class SubActivityController extends Controller
         $subActivity->load(['detailedActivities' => fn ($q) => $q->visibleTo($user)]);
 
         return [
-            ...$subActivity->toArray(),
+            ...SubActivityResource::make($subActivity)->resolve($request),
             'detailed_activities' => DetailedActivityResource::collection(
                 $subActivity->detailedActivities
             )->resolve($request),
