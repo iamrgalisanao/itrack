@@ -145,7 +145,7 @@ mechanisms, in the order they were added:
 
 **Good.** A new authenticated GET route now forces a reviewable decision about Client reachability at
 the moment it is written. The boundary test's blind spots are documented in the guard rather than
-discovered — `REACHABLE_BUT_NOT_YET_PROVEN` names the rows whose sentinel cannot reach them, which is
+discovered — `REACHABLE_NOT_YET_PROVEN` names the rows whose sentinel cannot reach them, which is
 the honest form of a coverage claim and the thing that would have caught #14's vacuous `reports` row.
 
 **Costs.** The exemption lists must be maintained, and a wrong exemption is a silent hole — the guard
