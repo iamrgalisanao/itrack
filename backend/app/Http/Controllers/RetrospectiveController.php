@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\RetroEntryAttachmentResource;
 use App\Http\Resources\RetroEntryCommentResource;
 use App\Http\Resources\RetroEntryResource;
@@ -84,7 +85,7 @@ class RetrospectiveController extends Controller
 
     public function indexSessions(Request $request)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canView($user)) {
             return $this->deny($request, 'retro_session.list', 'retro_session');
@@ -110,7 +111,7 @@ class RetrospectiveController extends Controller
 
     public function storeSession(Request $request)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->canWrite()) {
             return $this->deny($request, 'retro_session.create', 'retro_session');
@@ -138,7 +139,7 @@ class RetrospectiveController extends Controller
 
     public function updateSession(Request $request, RetroSession $retroSession)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         // 014-retro-table-view Phase 8/FR-016, research.md D8: identical
         // gate to storeSession() — renaming is session-level metadata
@@ -164,7 +165,7 @@ class RetrospectiveController extends Controller
 
     public function showSession(Request $request, RetroSession $retroSession)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canView($user)) {
             return $this->deny($request, 'retro_session.show', 'retro_session', $retroSession->id);
@@ -196,7 +197,7 @@ class RetrospectiveController extends Controller
 
     public function storeEntry(Request $request, RetroSession $retroSession)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->canWrite()) {
             return $this->deny($request, 'retro_entry.create', 'retro_session', $retroSession->id);
@@ -227,7 +228,7 @@ class RetrospectiveController extends Controller
 
     public function indexComments(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canView($user)) {
             return $this->deny($request, 'retro_entry_comment.list', 'retro_entry', $retroEntry->id);
@@ -246,7 +247,7 @@ class RetrospectiveController extends Controller
 
     public function storeComment(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         // FR-003: not restricted to the entry's author — any canWrite()
         // user with project access may post.
@@ -276,7 +277,7 @@ class RetrospectiveController extends Controller
 
     public function indexAttachments(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canView($user)) {
             return $this->deny($request, 'retro_entry_attachment.list', 'retro_entry', $retroEntry->id);
@@ -295,7 +296,7 @@ class RetrospectiveController extends Controller
 
     public function storeAttachment(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->canWrite()) {
             return $this->deny($request, 'retro_entry_attachment.create', 'retro_entry', $retroEntry->id);
@@ -343,7 +344,7 @@ class RetrospectiveController extends Controller
 
     public function downloadAttachment(Request $request, RetroEntryAttachment $retroEntryAttachment)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         // OWASP A01 (plan.md Coding-Standard Constraints): re-checked on
         // every request, never inferred from the URL alone.
@@ -367,7 +368,7 @@ class RetrospectiveController extends Controller
 
     public function destroyAttachment(Request $request, RetroEntryAttachment $retroEntryAttachment)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
         $projectId = $retroEntryAttachment->entry->session->project_id;
 
         if (!$user->canWrite() || !$this->hasProjectAccess($user, $projectId)) {
@@ -396,7 +397,7 @@ class RetrospectiveController extends Controller
 
     public function toggleVote(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->canWrite()) {
             return $this->deny($request, 'retro_entry.vote', 'retro_entry', $retroEntry->id);
@@ -426,7 +427,7 @@ class RetrospectiveController extends Controller
 
     public function updateEntry(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
         $projectId = $retroEntry->session->project_id;
 
         // FR-007/contracts.md: project-access re-check applies to every
@@ -489,7 +490,7 @@ class RetrospectiveController extends Controller
 
     public function destroyEntry(Request $request, RetroEntry $retroEntry)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
         $projectId = $retroEntry->session->project_id;
 
         // Same project-access re-check as updateEntry() — a former author who

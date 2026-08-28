@@ -209,7 +209,7 @@ the #14 sign-off implied it had.
 
 | Item | Status | Notes |
 |---|---|---|
-| **Row-scoping vs field-scoping has no stated rule.** iTrack has two Client-scoping mechanisms — row-level (`visibility`, `accessibleTo`, `scopeVisibleTo`) and field-level (resource branches) — and nothing says when each applies. `BugResource` uses only the first; `DetailedActivityResource` uses both; **neither is wrong on its face, and that is the problem** — there is nothing to check a new resource against | **OPEN — write the ADR** | The highest-value row here: it prevents a *class*, where PRs #14, #15 and #24 each closed an instance. Surfaced by a false positive — `BugResource` was flagged for returning `priority` to Clients, but `BugTracker.jsx:402/:421` render that column ungated while gating `Status`, so withholding it would have broken the Client bug list. The finding was wrong; the absence of a rule that would have settled it in one step is real. Scope: an ADR plus a decision on `status`/`sprint_label`, not a spec |
+| **Row-scoping vs field-scoping** | **CLOSED — [ADR 0001](adr/0001-client-scoping-row-and-field.md)** | The ADR was widened at the architect's direction: the row/field rule alone **would not have prevented any of the four field-axis instances**, because all five endpoints found in #26's review never reached a Resource at all. The common cause is that serialisation shape is decided per controller method, so a method returning a model opts out of both axes. Constitution Principle II is not underspecified — it was unenforced. Teeth: `ClientReachableRouteCoverageTest` |
 | **Dialog panel has neither a ground nor an edge in dark mode.** `bg-background/82` over a `bg-black/70` scrim composites to `#131419` on `#070709`: **panel 1.09:1, edge 1.53:1** against a 3:1 bar. Light is fine (6.34 / 6.68) | **OPEN — Major**, pre-existing | Same failure #24 fixed for menus, on the other floating surface. Deliberately *not* folded into #24: `backdrop-blur-xl` is a real perceptual cue no contrast ratio captures — a blurred backdrop is distinguishable at equal luminance, which was **not** true of the flat dropdown case — and a modal traps focus, so it is not something a user must find. Fix is `--popover` + `border-popover-border`, or an explicit decision that blur carries the boundary |
 | **The design hook flags `index.css` literals on diffs that never touch it** | OPEN — tooling, low | It fired on a `.jsx`-only PR. A scoping bug that should only report files in the diff. Low priority now that the print literals are registered in `DESIGN.md`'s frontmatter, but it consumed a whole PR before that — a tooling defect generating product work is product work |
 
@@ -222,6 +222,61 @@ the #14 sign-off implied it had.
 | **025 — migrate the 81 native controls drawn with `border-border` onto the input token.** Of 127 native controls, 41 use `border-input` (fixed by 024) and **81 use `border-border`**, which cannot move without changing every hairline in the app | **OPEN — filed now, not "later"** | 81 judgments, not one rename: on a muted toolbar strip a hairline is sometimes deliberate. 024 ships a **counted ratchet** asserting the number does not exceed 81, so the residue cannot grow meanwhile. Until 025 lands, the 1.4.11 conformance claim is **Partially Supports** with two residues — these controls and the progress-overlay edge |
 | **The segment bar's widths are not quantitative.** `buildSegments` gives every present status an equal share while `title` reports the true count — 200 tasks with 1 blocked renders blocked as half the bar | OPEN | The **inverse** of the chart defect 024 fixes: the chart hides small counts, this inflates them. Kept out of 024 deliberately — it changes what the bar *means*, not how it is encoded. **Mitigated in 024**: the new legend prints the per-status count, so the distorted length stops being the only quantity channel. That is 024's own rule — a distorted length is acceptable when the number is printed beside it |
 | Retokenise BugTracker's local segment map, Retrospectives' sentiment map, and the priority segments | OPEN | Three further vocabularies on the same shared component. Out of 024's scope; they would render glyphs on fills the contrast gate still cannot parse |
+
+## Found while remediating
+
+| Item | Status | Notes |
+|---|---|---|
+| **`.env.example` ships `APP_DEBUG=true` and `docs/deployment-vps.md` never says to turn it off.** A copied env file makes every 403 and 500 return a full stack trace — file paths, framework internals, and the call chain | **OPEN** | Verified: a Client's 403 on `/api/reports/export-csv` returns **19,257 bytes**, of which the denial message is one line and the rest is a trace. Harmless in the test environment, which is where it was observed; an OWASP A05 misconfiguration if the example is ever copied to a server. Config, not code — the fix is a line in the deploy guide and a check on the running box |
+| **Two boundary-test rows were vacuous on the field axis**: `/api/detailed-activities/{id}/comments` and `/attachments` returned `[]` because the sentinel task had none seeded | **CLOSED** — PR #30 | They pass today by having nothing to disclose, which is the same shape as #14's `reports` row. Making them real requires seeding a comment and an attachment on a **hidden** task — which is also exactly the surface of audit findings C2 and M1. Recorded in `ClientReachableRouteCoverageTest::REACHABLE_NOT_YET_PROVEN` so the claim is visible rather than assumed. That constant is a **debt list and should shrink to zero**; it is deliberately separate from `REACHABLE_SCOPED_TO_SELF`, whose entries are permanently safe for a structural reason and are not debt |
+| Ten further Client-reachable GET routes probed for the `responsible`/`support` field leak **on the task tree** | **CLEAN for that axis — and narrower than it first read** | Eight returned 200 with the sentinel absent; `taskboard/tasks` and `reports/export-csv` return 403. PR #26's scope was complete **for the task-tree field axis**. It was NOT complete for "internal staff identity reaching a Client", which is how the sentence first read and how anyone would read it: `/api/team-members` was serving the whole staff directory and was never in the probe set. Narrowed deliberately — an unqualified version of this row would have been the fifth instance of a check that looked correct and measured something adjacent |
+
+---
+
+## Found by the controller-layer sweep
+
+Commissioned after the sixth Client-disclosure defect was found by a person reading a controller two
+others had already read. 30 files, ~6,300 lines, every route cross-checked against `routes/api.php`.
+
+**No new Client disclosure defect** — the six closed leaks appear to have exhausted that seam. What it
+found instead was one axis nobody had named and one forbidden shape.
+
+| Item | Status | Notes |
+|---|---|---|
+| **Preview-as-Client answered permissively on 11 routes** — a controller `user()` helper returning `$request->user()` makes every role gate beneath it evaluate the real Admin | **CLOSED** — [ADR 0001 Decision 1b](adr/0001-client-scoping-row-and-field.md), `PreviewFidelityTest` | Not a disclosure defect; the Admin is entitled to the data. Worse in a specific way: preview is the only tool for answering "what does this client see", and it answered in the **permissive** direction. Three of the six closed defects would have been visible in a faithful preview |
+| `NotificationController:148` — `!$user->isClient()` **granting** on the negation, so a null role skipped the `client_visible` check | **CLOSED** — positive allowlist | Verified before the fix: a null-role user received a notification linked to a hidden task. Bounded blast radius, forbidden shape |
+| **Authz M3 is wider than recorded**: `health_updated_by` (written as `$user->name`, an internal staff name) and `health_updated_at` also ride on raw `Project` models, not just `health_note` | OPEN — widened | `health_updated_by` is `responsible`-shaped by ADR Decision 1's own test. Recorded now so `ProjectResource` is not written with the field included |
+| `AuditLogResource` **exists and is referenced nowhere** in `app/` or `tests/` | OPEN | The fix for `AuditLogController:72`'s raw models is already written and unused. Admin-only, so no disclosure |
+| Write responses on the three planning levels return every column (`ModuleController:128,185`, `ActivityController:84,146`, `SubActivityController:94,158`) | OPEN | PR #26 fixed the read side of exactly these controllers. Admin/PM-gated, so Principle II rather than disclosure |
+| Dead private methods: `CommentController:20` `isInternalUser`, `ProjectController:31` `accessibleDepartments` | OPEN — nit | One occurrence each, their own definition |
+
+**Two labels collide.** The accessibility audit and the identity audit each produced an "M3". The
+accessibility M3 is the `--input` contrast row above; the authz M3 is `ProjectResource`. Neither
+renamed, because both are cited by that label in artifacts already merged — recorded here so the next
+reader is not misled by a cross-reference.
+
+---
+
+## Filed by the C2/M1 review — out of that PR's box, deliberately
+
+| Item | Status | Notes |
+|---|---|---|
+| **`DetailedActivity::scopeVisibleTo` has the same null-role permissiveness** that `isVisibleTo` was fixed for | OPEN | Safe today for a structural reason the instance method did not have: a query scope is always chained onto `Project::accessibleTo()`, which ends `whereRaw('1 = 0')` for an unknown role, so its permissiveness is unreachable. But that safety is an emergent property of every call site rather than of the scope. Filed beside its twin so both are reasoned about together |
+| **`CommentController:20` `isInternalUser()` is dead code — and the fourth independent copy of the internal-role list** | OPEN | Alongside `NotificationController::isInternalRole`, `RetrospectiveController::canView`, `HasRole::canWrite` — now five with `DetailedActivity::isVisibleTo`. ADR Decision 3.3 says in terms that "three copies of a rule is how the row boundary came to be forgotten in seven places". This is that pattern on the role axis. A single `HasRole::isInternalRole()` is the fix |
+
+**`ReportController:78` is filed with the inference-channel items, not as its own row.**
+It eager-loads `detailedActivities.predecessors` unfiltered on the Client report path, where the
+sibling relation one line above is constrained with `->visibleTo($user)`. Traced twice
+independently and **not a leak**: `predecessors` is referenced once, at `:184`, collapsing to a
+boolean via `contains(isOverdue)`, and `milestonesForProject` emits only
+`id/name/status/plan_end_date/progress` off the already-filtered set.
+
+What it *is* is a **one-bit inference channel over hidden tasks** — which is the same class as the
+existence oracle in M1 and the 403 message oracle in M2. Those want one decision made once, about
+what a Client may infer, rather than three separate patches. Grouped here for that reason. It is also
+one added field from being #14 again, whose reports leak was itself an eager load.
+
+**A note the reviewer asked to be written down before someone simplifies the fixture.** All three C2/M1 rows fail on `FIELD_SENTINEL`, never on `SENTINEL` — derived resources do not carry the task's *name*, so the row sentinel is inert on them. Their entire detection power comes from `FIELD_SENTINEL` being planted in three places at once: the comment `body`, the attachment `original_name`, **and the file's contents on the fake disk**. Dropping any one silently re-vacuates the row it covers.
 
 ---
 

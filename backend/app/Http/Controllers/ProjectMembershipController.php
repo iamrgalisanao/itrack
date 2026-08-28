@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\ProjectMembershipResource;
 use App\Models\Project;
 use App\Models\ProjectMembership;
@@ -18,7 +19,7 @@ class ProjectMembershipController extends Controller
 
     public function index(Request $request, Project $project)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canManageMemberships($user, $project)) {
             AuditLogger::denied($request, 'project_membership.list', 'project', $project->id);
@@ -184,7 +185,7 @@ class ProjectMembershipController extends Controller
         callable $attributes,
         ?array $allowedFrom = null
     ) {
-        $user = $request->user();
+        $user = AccessContext::user($request);
         $project = $membership->project;
 
         if (!$project || (int) $project->client_organization_id !== (int) $membership->client_organization_id) {

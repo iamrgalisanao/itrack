@@ -31,7 +31,15 @@ class AttachmentTest extends TestCase
         $activity = $module->activities()->create(['name' => 'Test Activity']);
         $subActivity = $activity->subActivities()->create(['name' => 'Test Sub Activity']);
         $this->project = $project;
-        $this->detailedActivity = $subActivity->detailedActivities()->create(['name' => 'Test Task']);
+        // `client_visible => true` is load-bearing: the column defaults to
+        // false, so without it this fixture builds a HIDDEN task and the two
+        // Client tests below assert the C2/M1 defect as expected behaviour.
+        // Their intent -- a Client reaching a client-visible attachment -- is
+        // unchanged; only the precondition it always assumed is now supplied.
+        $this->detailedActivity = $subActivity->detailedActivities()->create([
+            'name' => 'Test Task',
+            'client_visible' => true,
+        ]);
     }
 
     /**

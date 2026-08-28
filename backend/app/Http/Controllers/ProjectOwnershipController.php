@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\ProjectOwnershipResource;
 use App\Models\ProjectOwnership;
 use App\Models\User;
@@ -235,8 +236,23 @@ class ProjectOwnershipController extends Controller
             ->setStatusCode(200);
     }
 
+    /**
+     * Preview-aware, deliberately.
+     *
+     * This returned `$request->user()`, so an Admin previewing as a Client
+     * passed every role gate below as the Admin -- preview answering "what does
+     * this client see" in the PERMISSIVE direction, which is the one direction
+     * that makes it worse than useless. Eleven routes diverged; this was one.
+     *
+     * Safe for writes without a second helper: `BlockWritesDuringPreview`
+     * rejects every non-GET while a preview session is attached, so no write
+     * ever runs with a preview target in scope and `AccessContext::user()`
+     * returns `$request->user()` identically there. Audit identity is unaffected
+     * either way -- `AuditLogger::record` reads `$request->user()` off the
+     * request itself (AuditLogger.php:47), never this helper.
+     */
     private function user(Request $request): User
     {
-        return $request->user();
+        return AccessContext::user($request);
     }
 }

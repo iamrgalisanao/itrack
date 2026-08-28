@@ -107,6 +107,49 @@ class DetailedActivity extends Model
     }
 
     /**
+     * The instance counterpart to `scopeVisibleTo()`.
+     *
+     * `scopeVisibleTo()` owns the QUERY axis -- which task rows a user may
+     * receive. This owns the INSTANCE axis -- whether one already-loaded task
+     * is visible to them. The ADR names four hand-spelt instance checks
+     * (DetailedActivityController, AttachmentController, CommentController,
+     * NotificationController) that the scope structurally could not reach;
+     * this is what they become.
+     *
+     * It exists because derived resources -- comments, attachments -- were
+     * checking their OWN visibility and the project's, and nothing was asking
+     * the parent task. A client-visible comment on a hidden task passed every
+     * gate: the project was accessible, the comment was client_visible. Only
+     * the parent said no, and nobody asked it. Same for an attachment, whose
+     * download streamed the file itself.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        if ($user->isClient()) {
+            return (bool) $this->client_visible;
+        }
+
+        // A positive allowlist, NOT `!$user->isClient()`.
+        //
+        // The negation returns true for a null or unrecognised role -- measured,
+        // not assumed -- and this is a standalone boolean a caller can use as
+        // its only gate. `scopeVisibleTo` below gets away with the same
+        // permissiveness for a structural reason this method does not have: it
+        // is a query composition, always chained onto `Project::accessibleTo()`,
+        // which ends `whereRaw('1 = 0')` for an unknown role. Its permissiveness
+        // is unreachable. This method's safety would be *borrowed* from whatever
+        // `isAccessibleTo()` call happens to precede it -- and the docblock
+        // above explicitly invites four more call sites.
+        //
+        // It is also the exact shape `NotificationController:147` documents as
+        // forbidden, three commits ago, in a comment naming `!$user->isClient()`.
+        return $user->isAdmin()
+            || $user->isProjectManager()
+            || $user->isDepartmentHead()
+            || $user->isTeamMember();
+    }
+
+    /**
      * Constrain to what `$user` may see *within* a project they can already
      * reach. `Project::accessibleTo()` answers "which projects"; this answers
      * "which tasks inside them", which nothing owned before.
@@ -119,6 +162,18 @@ class DetailedActivity extends Model
      *
      * Prefer this over an inline where(): it is greppable, so a reviewer can
      * see its absence.
+     *
+     * This scope is permissive for an unknown role -- `when($user->isClient())`
+     * is false, so nothing is constrained -- and that is deliberately NOT fixed,
+     * unlike its instance twin `isVisibleTo()` above. The difference is
+     * structural: a scope is a query COMPOSITION, always chained onto
+     * `Project::accessibleTo()`, which ends `whereRaw('1 = 0')`
+     * (`Project.php:118`) for a role it does not recognise. The permissiveness
+     * is unreachable. `isVisibleTo()` had no such guarantee -- it is a
+     * standalone boolean whose safety would have been borrowed from whatever
+     * call preceded it -- which is why that one became a positive allowlist and
+     * this one is a comment. Fixing this would close something that cannot
+     * happen while implying the scope was unsafe.
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {

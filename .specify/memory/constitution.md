@@ -631,3 +631,19 @@ change its approach or document the exception and why it's necessary in that
 feature's plan.md, not silently ignore it.
 
 **Version**: 1.5.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-08-27
+
+
+### Architecture Decision Records
+
+`docs/adr/` holds the decisions that outlived the change that produced them — the ones a reviewer
+needs in order to tell a gap from a choice. Read the relevant ADR before working a surface it
+governs, and add one when a decision would otherwise survive only in a commit message.
+
+- **ADR 0001 — Client scoping: which axis, and what enforces it.** Row scoping decides what a Client
+  can see; field scoping decides what they can see *about* it. Required reading before adding a
+  controller method that returns data to a Client, or an authenticated GET route of any kind:
+  `ClientReachableRouteCoverageTest` will require the route to be classified, and that test's own
+  history shows the classification is where the mistake gets made.
+
+An ADR nobody is routed to is exactly the folklore an ADR exists to replace, which is why this
+section names them rather than pointing at a directory.
