@@ -7,6 +7,8 @@ use App\Models\Module;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Support\AccessContext;
+use App\Http\Resources\ActivityResource;
+use App\Http\Resources\SubActivityResource;
 use Illuminate\Http\Request;
 
 class ActivityController extends Controller
@@ -29,7 +31,13 @@ class ActivityController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $module->activities()->with('subActivities')->get();
+        return $module->activities()->with('subActivities')->get()
+            ->map(fn ($activity) => [
+                ...ActivityResource::make($activity)->resolve($request),
+                'sub_activities' => SubActivityResource::collection(
+                    $activity->subActivities
+                )->resolve($request),
+            ]);
     }
 
     // ─── POST /api/modules/{module}/activities ──────────────────────────────
@@ -84,7 +92,14 @@ class ActivityController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $activity->load('subActivities');
+        $activity->load('subActivities');
+
+        return [
+            ...ActivityResource::make($activity)->resolve($request),
+            'sub_activities' => SubActivityResource::collection(
+                $activity->subActivities
+            )->resolve($request),
+        ];
     }
 
     // ─── PATCH /api/activities/{activity} ───────────────────────────────────

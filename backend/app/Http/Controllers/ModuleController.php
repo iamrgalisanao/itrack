@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ActivityResource;
 use App\Http\Resources\DetailedActivityResource;
+use App\Http\Resources\ModuleResource;
+use App\Http\Resources\SubActivityResource;
 use App\Models\Module;
 use App\Models\Project;
 use App\Models\User;
@@ -62,12 +65,18 @@ class ModuleController extends Controller
         // suppress, and survives only as long as nobody reorders the spread.
         // attributesToArray() never builds it. These models declare no
         // $appends, so the own-attribute output is identical.
+        // Every level goes through a Resource now, not just the task level.
+        // attributesToArray() emitted the parent rows' own columns unfiltered,
+        // so `responsible` and `support` -- internal staff names -- reached
+        // Clients for modules, activities and sub-activities. Only
+        // detailed_activities was ever gated, because the boundary test's
+        // sentinel only ever sat on DetailedActivity.
         return $modules->map(fn ($module) => [
-            ...$module->attributesToArray(),
+            ...ModuleResource::make($module)->resolve($request),
             'activities' => $module->activities->map(fn ($activity) => [
-                ...$activity->attributesToArray(),
+                ...ActivityResource::make($activity)->resolve($request),
                 'sub_activities' => $activity->subActivities->map(fn ($subActivity) => [
-                    ...$subActivity->attributesToArray(),
+                    ...SubActivityResource::make($subActivity)->resolve($request),
                     'detailed_activities' => DetailedActivityResource::collection(
                         $subActivity->detailedActivities
                     )->resolve($request),
@@ -125,7 +134,12 @@ class ModuleController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $module->load('activities');
+        $module->load('activities');
+
+        return [
+            ...ModuleResource::make($module)->resolve($request),
+            'activities' => ActivityResource::collection($module->activities)->resolve($request),
+        ];
     }
 
     // ─── PATCH /api/modules/{module} ─────────────────────────────────────────
