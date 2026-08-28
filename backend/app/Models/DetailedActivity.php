@@ -107,20 +107,6 @@ class DetailedActivity extends Model
     }
 
     /**
-     * Constrain to what `$user` may see *within* a project they can already
-     * reach. `Project::accessibleTo()` answers "which projects"; this answers
-     * "which tasks inside them", which nothing owned before.
-     *
-     * It exists because `client_visible` was a `where()` every author had to
-     * remember, in five query shapes across nine controllers, and it was
-     * forgotten in at least seven places -- the dashboard heatmap (a raw join),
-     * the Reports tree (an eager load), the sub-activity endpoints (a relation)
-     * -- each found by a separate audit rather than by review.
-     *
-     * Prefer this over an inline where(): it is greppable, so a reviewer can
-     * see its absence.
-     */
-    /**
      * The instance counterpart to `scopeVisibleTo()`.
      *
      * `scopeVisibleTo()` owns the QUERY axis -- which task rows a user may
@@ -139,9 +125,44 @@ class DetailedActivity extends Model
      */
     public function isVisibleTo(User $user): bool
     {
-        return !$user->isClient() || (bool) $this->client_visible;
+        if ($user->isClient()) {
+            return (bool) $this->client_visible;
+        }
+
+        // A positive allowlist, NOT `!$user->isClient()`.
+        //
+        // The negation returns true for a null or unrecognised role -- measured,
+        // not assumed -- and this is a standalone boolean a caller can use as
+        // its only gate. `scopeVisibleTo` below gets away with the same
+        // permissiveness for a structural reason this method does not have: it
+        // is a query composition, always chained onto `Project::accessibleTo()`,
+        // which ends `whereRaw('1 = 0')` for an unknown role. Its permissiveness
+        // is unreachable. This method's safety would be *borrowed* from whatever
+        // `isAccessibleTo()` call happens to precede it -- and the docblock
+        // above explicitly invites four more call sites.
+        //
+        // It is also the exact shape `NotificationController:147` documents as
+        // forbidden, three commits ago, in a comment naming `!$user->isClient()`.
+        return $user->isAdmin()
+            || $user->isProjectManager()
+            || $user->isDepartmentHead()
+            || $user->isTeamMember();
     }
 
+    /**
+     * Constrain to what `$user` may see *within* a project they can already
+     * reach. `Project::accessibleTo()` answers "which projects"; this answers
+     * "which tasks inside them", which nothing owned before.
+     *
+     * It exists because `client_visible` was a `where()` every author had to
+     * remember, in five query shapes across nine controllers, and it was
+     * forgotten in at least seven places -- the dashboard heatmap (a raw join),
+     * the Reports tree (an eager load), the sub-activity endpoints (a relation)
+     * -- each found by a separate audit rather than by review.
+     *
+     * Prefer this over an inline where(): it is greppable, so a reviewer can
+     * see its absence.
+     */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         return $query->when(

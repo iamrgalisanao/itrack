@@ -240,17 +240,24 @@ class ClientVisibilityBoundaryTest extends TestCase
             '%subActivity%' => $chain['subActivity']->id,
         ]);
 
-        $response = $this->actingAs($client, 'sanctum')->get($url);
+        // `get()` only for the streamed download; `getJson()` for the rest.
+        //
+        // Applying `get()` to every row drops the `Accept: application/json`
+        // header the SPA always sends, and a future row whose controller uses
+        // `abort(403)` rather than `response()->json(...)` would then render an
+        // HTML error page -- the status branch early-returns and the row goes
+        // quietly vacuous. That is precisely the failure mode this file exists
+        // to catch, so it must not be introduced by the file itself.
+        $isDownload = str_contains($url, '/download');
+        $response = $isDownload
+            ? $this->actingAs($client, 'sanctum')->get($url)
+            : $this->actingAs($client, 'sanctum')->getJson($url);
 
-        // Streamed downloads need their body pulled deliberately -- a
-        // StreamedResponse has written nothing at assertion time, and reading
-        // it the ordinary way throws rather than returning empty. The first
-        // draft of the download row ERRORED on exactly that, and a summary
-        // parser counting only `failed` reported it as passing.
-        // `getStatusCode()`, not `status()`. TestResponse forwards unknown
-        // methods to the base response, and a StreamedResponse has no
-        // `status()` -- so the download row ERRORED rather than failing, and a
-        // summary that counted only `failed` reported it as green. Twice.
+        // `getStatusCode()`, not `status()`, and the body pulled deliberately:
+        // TestResponse forwards unknown methods to the base response, and a
+        // StreamedResponse has neither `status()` nor a body written at
+        // assertion time. The download row ERRORED rather than failing, and a
+        // summary counting only `failed` reported it green. Twice.
         $status = $response->getStatusCode();
         $body = $response->baseResponse instanceof \Symfony\Component\HttpFoundation\StreamedResponse
             ? $response->streamedContent()
@@ -514,6 +521,44 @@ class ClientVisibilityBoundaryTest extends TestCase
             ->get("/api/attachments/{$attachment->id}/download");
         $this->assertSame(200, $download->getStatusCode(), 'internal role lost the download');
         $this->assertStringContainsString(self::FIELD_SENTINEL, $download->streamedContent());
+    }
+
+    /**
+     * `isVisibleTo` must DENY an unknown or absent role, not grant.
+     *
+     * The first version was `!$user->isClient() || $this->client_visible`, which
+     * returns true for a null role and for a role the system does not
+     * recognise. There was no live vulnerability -- `isAccessibleTo()` gates
+     * first at all three call sites -- but the safety was BORROWED, and the
+     * method's own docblock invites four more callers who would not inherit it.
+     *
+     * Standing assertion rather than a one-off probe, because "it is safe
+     * because of what happens to call it" is the shape that stops being true
+     * without anyone editing the method.
+     */
+    public function test_task_visibility_denies_an_unknown_role(): void
+    {
+        ['internal' => $internal, 'visible' => $visible] = $this->seedBoundary();
+
+        foreach (['Auditor', '', null] as $role) {
+            $user = User::factory()->create(['role' => $role, 'is_active' => true]);
+
+            $this->assertFalse(
+                $internal->isVisibleTo($user),
+                sprintf('a hidden task was visible to role %s', var_export($role, true))
+            );
+            $this->assertFalse(
+                $visible->isVisibleTo($user),
+                sprintf('a task was visible to role %s -- an unrecognised role must fail closed '
+                    . 'regardless of client_visible', var_export($role, true))
+            );
+        }
+
+        // And the four real internal roles still see both.
+        foreach (['Admin', 'Project Manager', 'Department Head', 'Team Member'] as $role) {
+            $user = User::factory()->create(['role' => $role, 'is_active' => true]);
+            $this->assertTrue($internal->isVisibleTo($user), $role);
+        }
     }
 
     public function test_internal_roles_still_see_the_internal_task(): void

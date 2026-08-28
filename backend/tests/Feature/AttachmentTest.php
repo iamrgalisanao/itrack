@@ -31,19 +31,11 @@ class AttachmentTest extends TestCase
         $activity = $module->activities()->create(['name' => 'Test Activity']);
         $subActivity = $activity->subActivities()->create(['name' => 'Test Sub Activity']);
         $this->project = $project;
-        // `client_visible => true` is REQUIRED, and its absence was hiding a
-        // defect rather than testing one.
-        //
-        // The column defaults to false, so this fixture built a HIDDEN task --
-        // and two tests below then asserted a Client could list its attachments
-        // and download one. That is exactly the C2/M1 disclosure: a
-        // client-visible attachment on a hidden task, reachable because nothing
-        // asked the parent. The tests were encoding the bug as expected
-        // behaviour, the same way ReportTest did before PR #14.
-        //
-        // Their intent -- "a Client with project access can reach a
-        // client-visible attachment" -- is preserved; the task now actually is
-        // client-visible, which is what that intent always assumed.
+        // `client_visible => true` is load-bearing: the column defaults to
+        // false, so without it this fixture builds a HIDDEN task and the two
+        // Client tests below assert the C2/M1 defect as expected behaviour.
+        // Their intent -- a Client reaching a client-visible attachment -- is
+        // unchanged; only the precondition it always assumed is now supplied.
         $this->detailedActivity = $subActivity->detailedActivities()->create([
             'name' => 'Test Task',
             'client_visible' => true,
