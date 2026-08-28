@@ -136,6 +136,15 @@ This feature ships no PHP, so this is a regression check only. It is listed beca
 `ClientVisibilityBoundaryTest` now covers the three planning levels (PR #26) and this feature's
 frontend role predicate is the client-side half of that same boundary.
 
+## Reading test output — a discipline, not a step
+
+**Count `errors` alongside `failed`.** Three fixtures in the run-up to this feature were vacuous, and
+**twice a row that ERRORED was read as green** because the summary parser counted only `failed`. An
+accessibility suite has the identical shape: an assertion against an element that never rendered
+passes quietly, and a query that throws is not a failure unless something looks for it.
+
+Nothing here is exempt from that. A green row is not evidence until it has been watched to go red.
+
 ## Manual matrix — what no gate replaces
 
 These are **tasks**, not assumptions. Record the result of each.

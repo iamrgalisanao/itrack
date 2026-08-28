@@ -32,9 +32,9 @@ The plan is one coherent artifact; the delivery is not one merge unit. **Do not 
 
 ## Phase 1: Setup — PR A
 
-- [ ] T001 Read `research.md` R11a, R15, R16 and `quickstart.md` Gates 2–3 before touching a token; the `--input` values, the ratchet's provenance and the canary's failure mode are all recorded there and each was wrong in an earlier draft
-- [ ] T002 Run all four gates on a clean tree and record the output as the "before" baseline: `python scripts/verify-contrast.py`, `npm run build`, `CASCADE_REQUIRED=1 python scripts/verify-cascade.py`, `python scripts/count-control-borders.py`
-- [ ] T003 Record the cascade gate's current assertion 0 and assertion 2 readings — both print `rgb(229, 228, 231)` today. That is the empirical evidence the canary and the bare-border check are measuring the same value, i.e. that repointing the canary is required rather than tidy. Paste into the T006 commit message
+- [x] T001 Read `research.md` R11a, R15, R16 and `quickstart.md` Gates 2–3 before touching a token; the `--input` values, the ratchet's provenance and the canary's failure mode are all recorded there and each was wrong in an earlier draft
+- [x] T002 Run all four gates on a clean tree and record the output as the "before" baseline: `python scripts/verify-contrast.py`, `npm run build`, `CASCADE_REQUIRED=1 python scripts/verify-cascade.py`, `python scripts/count-control-borders.py`
+- [x] T003 Record the cascade gate's current assertion 0 and assertion 2 readings — both print `rgb(229, 228, 231)` today. That is the empirical evidence the canary and the bare-border check are measuring the same value, i.e. that repointing the canary is required rather than tidy. Paste into the T006 commit message
 
 ---
 
@@ -52,30 +52,30 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 ### Gate work first — the canary must be correct before the token moves under it
 
-- [ ] T004 [US4] In `scripts/verify-cascade.py`, make assertion 0's canary **emission-independent**: read `--background` off the root element via `getComputedStyle(document.documentElement).getPropertyValue('--background')` and assert non-empty. Do **not** repoint it at `bg-background` alone — that depends on `@theme` emitting *and* the utility winning, which re-creates PR #17's `bg-popover` defect class one surface over (research.md R11a)
-- [ ] T005 [US4] Add `background` to the required-token list at `scripts/verify-cascade.py:74`, or T004 crashes on a missing key
-- [ ] T006 [US4] Rewrite assertion 0's comment: its current premise is *"`--input` and `--border` are identical"*, which T008 makes false. State what the canary now proves and why the old form would have reported `ABORT: the stylesheet did not load` on a **cascade** regression
-- [ ] T007 [US4] Add a `border-input` fixture to `scripts/verify-cascade.py` asserting computed `borderTopColor` equals the new `--input` **and differs from** `--border`. This is the only thing that proves the 41 sites moved
+- [x] T004 [US4] In `scripts/verify-cascade.py`, make assertion 0's canary **emission-independent**: read `--background` off the root element via `getComputedStyle(document.documentElement).getPropertyValue('--background')` and assert non-empty. Do **not** repoint it at `bg-background` alone — that depends on `@theme` emitting *and* the utility winning, which re-creates PR #17's `bg-popover` defect class one surface over (research.md R11a)
+- [x] T005 [US4] Add `background` to the required-token list at `scripts/verify-cascade.py:74`, or T004 crashes on a missing key
+- [x] T006 [US4] Rewrite assertion 0's comment: its current premise is *"`--input` and `--border` are identical"*, which T008 makes false. State what the canary now proves and why the old form would have reported `ABORT: the stylesheet did not load` on a **cascade** regression
+- [x] T007 [US4] Add a `border-input` fixture to `scripts/verify-cascade.py` asserting computed `borderTopColor` equals the new `--input` **and differs from** `--border`. This is the only thing that proves the 41 sites moved
 
 ### The token move
 
-- [ ] T008 [US4] In `frontend/src/index.css`, set `--input: #86868e` (`:root`) and `#737a88` (`.dark`) — the existing `--popover-border` values, chosen in 023 for this exact 3:1 job. Comment why `#949494` was rejected: it clears 3.03 against white with no headroom and **fails at 2.71 against `--secondary`/`--muted`**
-- [ ] T009 [US4] Comment at the declaration that `--border` must **not** follow: it is applied by `* { border-color }` to every element, so moving it darkens all 223 hairline sites — SC-009 failing at maximum blast radius
+- [x] T008 [US4] In `frontend/src/index.css`, set `--input: #86868e` (`:root`) and `#737a88` (`.dark`) — the existing `--popover-border` values, chosen in 023 for this exact 3:1 job. Comment why `#949494` was rejected: it clears 3.03 against white with no headroom and **fails at 2.71 against `--secondary`/`--muted`**
+- [x] T009 [US4] Comment at the declaration that `--border` must **not** follow: it is applied by `* { border-color }` to every element, so moving it darkens all 223 hairline sites — SC-009 failing at maximum blast radius
 
 ### Gate the residue
 
-- [ ] T010 [US4] In `scripts/verify-contrast.py`, generalise the 3.0-tier loop at `:423-439` to `(token, surface, need)` triples and move the popover rows onto it. It currently hardcodes `t['popover']` and prints "on --popover", so adding an `--input` row to it as-is measures the wrong surface under a false heading
-- [ ] T011 [US4] Add `--input` rows against `--background`, `--card` and `--popover`, both themes. Expect 3.61/3.61/3.61 light, 4.15/3.89/3.49 dark
-- [ ] T012 [US4] Wire `python scripts/count-control-borders.py` into `quickstart.md` Gate 2 as its own command. The ratchet already exists and holds at 81; this makes it a documented gate rather than a script nobody runs
-- [ ] T013 [P] [US4] Add a `count-control-borders` step to `.github/workflows/ci.yml` in the `design-tokens` job — stdlib-only, no browser, same shape as the existing contrast step
+- [x] T010 [US4] In `scripts/verify-contrast.py`, generalise the 3.0-tier loop at `:423-439` to `(token, surface, need)` triples and move the popover rows onto it. It currently hardcodes `t['popover']` and prints "on --popover", so adding an `--input` row to it as-is measures the wrong surface under a false heading
+- [x] T011 [US4] Add `--input` rows against `--background`, `--card` and `--popover`, both themes. Expect 3.61/3.61/3.61 light, 4.15/3.89/3.49 dark
+- [x] T012 [US4] Wire `python scripts/count-control-borders.py` into `quickstart.md` Gate 2 as its own command. The ratchet already exists and holds at 81; this makes it a documented gate rather than a script nobody runs
+- [x] T013 [P] [US4] Add a `count-control-borders` step to `.github/workflows/ci.yml` in the `design-tokens` job — stdlib-only, no browser, same shape as the existing contrast step
 
 ### Verification
 
-- [ ] T014 [US4] Tamper: revert `--input` to `#e5e4e7`. Assertion T007 must fail naming the token, and the contrast rows must fail at 1.27. Restore
-- [ ] T015 [US4] Tamper: break the canary's property read. It must fail with the load-failure message, **not** silently pass — this is the assertion the whole file's credibility rests on
-- [ ] T016 [US4] Confirm the 81-control residue is unchanged and `count-control-borders.py` still exits 0 at `RATCHET HOLDS (81 <= 81)`
-- [ ] T017 [US4] Visual pass: forms across Login, Admin, Support Ops, Task Detail Modal in both themes. Confirm control edges are visibly stronger and **nothing else moved** — SC-009's mechanism is this pass plus T007, not gate output alone
-- [ ] T018 [US4] Check `MyWorkPanel.jsx`'s `border-input` element individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a)
+- [x] T014 [US4] Tamper: revert `--input` to `#e5e4e7`. Assertion T007 must fail naming the token, and the contrast rows must fail at 1.27. Restore
+- [x] T015 [US4] Tamper: break the canary's property read. It must fail with the load-failure message, **not** silently pass — this is the assertion the whole file's credibility rests on
+- [x] T016 [US4] Confirm the 81-control residue is unchanged and `count-control-borders.py` still exits 0 at `RATCHET HOLDS (81 <= 81)`
+- [ ] T017 [US4] **NOT DONE — manual, requires a running app and a human eye.** Visual pass: forms across Login, Admin, Support Ops, Task Detail Modal in both themes. Confirm control edges are visibly stronger and **nothing else moved** — SC-009's mechanism is this pass plus T007, not gate output alone
+- [x] T018 [US4] Check `MyWorkPanel.jsx`'s `border-input` element individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a)
 
 ---
 

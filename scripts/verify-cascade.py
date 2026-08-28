@@ -70,8 +70,16 @@ if not root:
           'up instead. Rebuild, and remove anything you dropped in that directory.'
           % DIST[-1])
     sys.exit(1)
-tokens = dict(re.findall(r'--([\w-]+):\s*(#[0-9a-fA-F]{6})', root.group(1)))
-for required in ('input', 'border', 'primary'):
+# Three-digit hex too. The minifier shortens #ffffff to #fff, so a
+# six-digit-only pattern silently skipped every token that happened to have a
+# short form -- `--background` and `--card` among them. It did not fail; it
+# just never saw them, which is why this went unnoticed until a required-token
+# check asked for one by name.
+tokens = {
+    name: ('#' + ''.join(c * 2 for c in val[1:]) if len(val) == 4 else val).lower()
+    for name, val in re.findall(r'--([\w-]+):\s*(#[0-9a-fA-F]{3,6})', root.group(1))
+}
+for required in ('input', 'border', 'primary', 'background'):
     if required not in tokens:
         print('FAIL: --%s is missing from :root in the built CSS. Nothing below '
               'could be measured meaningfully.' % required)
@@ -111,17 +119,41 @@ with sync_playwright() as pw:
     read = lambda i, p: page.evaluate(
         '([i,p]) => getComputedStyle(document.getElementById(i))[p]', [i, p])
 
-    # 0 -- CANARY. --input and --border are identical, and the `*` rule applies
-    # to everything, so this must resolve whether or not the utility wins. If it
-    # does not, the stylesheet did not load and every result below is garbage.
+    # 0 -- CANARY. Did the stylesheet load at all?
+    #
+    # This read `border-input` and compared it to `--input`, on the stated
+    # premise that "--input and --border are identical, so this must resolve
+    # whether or not the utility wins". THIS FEATURE MAKES THAT PREMISE FALSE:
+    # --input moves to #86868e and --border stays put. Left alone, the canary
+    # would silently stop being a load check and become a duplicate of
+    # assertion 1 -- and worse, if the `* { border-color }` rule ever left
+    # @layer base (the regression that shipped four times), an inert utility
+    # would resolve to --border and this would ABORT with "the stylesheet did
+    # not load" on a CASCADE regression, sending the next engineer to debug a
+    # build failure that does not exist.
+    #
+    # So it reads the custom property directly off the root element. That is
+    # EMISSION-INDEPENDENT: it does not depend on `@theme` emitting a utility,
+    # nor on that utility winning the cascade. Repointing it at `bg-background`
+    # was the first plan and would have re-created PR #17's `bg-popover` defect
+    # class one surface over -- conflating "did not load" with "did not win".
+    # `bg-background` is now a SEPARATE emission assertion below.
     print('assertion 0 -- canary (did the stylesheet load at all?)')
-    canary = read('canary', 'borderTopColor')
-    if canary != expand(tokens['input']):
-        print('  canary = %s, expected %s' % (canary, expand(tokens['input'])))
-        print('\nABORT: the stylesheet did not load. Every other result would be a '
-              'false green.\n')
+    declared = page.evaluate(
+        "() => getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--background').trim()")
+    if not declared:
+        print('  --background read off :root as %r' % declared)
+        print('\nABORT: the stylesheet did not load -- :root declares no '
+              '--background. Every other result below would be a false green.\n')
         sys.exit(1)
-    print('  %-46s %-22s ok' % ('border-input resolves to --input', canary))
+    print('  %-46s %-22s ok' % ('--background is declared on :root', declared))
+
+    # 0b -- and, separately, that a utility built from it actually emits. This
+    # is a different claim from 0, and conflating the two is the mistake above.
+    check('bg-background emits a colour', read('appbg', 'backgroundColor'),
+          expand(tokens['background']),
+          'the token is declared but @theme emits no utility for it')
 
     # 1 -- R1's actual claim: a colour utility now beats the `*` rule.
     print('assertion 1 -- a border colour utility wins (PR #17, #20 defect class)')
@@ -137,6 +169,19 @@ with sync_playwright() as pw:
     check('border-destructive/60 is translucent, not flat', mixed,
           lambda v: v not in (expand(tokens['border']), expand(tokens['destructive'])),
           'the opacity modifier is inert again -- see PR #20')
+
+    # 1b -- the input token moved, and --border did not follow.
+    #
+    # This is the whole of Story 4's claim. `--input` and `--border` were byte
+    # identical before this feature; if they are equal after it, either the
+    # token did not move or something is resolving both to the same value, and
+    # the 41 control boundaries are still at 1.27:1.
+    inp, bor = read('canary', 'borderTopColor'), read('bare', 'borderTopColor')
+    check('border-input resolves to --input', inp, expand(tokens['input']),
+          'the input token did not move, or a cascade regression is reverting it')
+    check('border-input differs from --border', 'differ' if inp != bor else 'identical (%s)' % inp,
+          'differ',
+          'the two tokens are equal again -- the 41 control boundaries are back at 1.27:1')
 
     # 2 -- and the shim still does its job for elements that set no colour.
     print('assertion 2 -- a bare `border` still gets --border (the shim still works)')

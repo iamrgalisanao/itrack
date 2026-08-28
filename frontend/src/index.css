@@ -11,7 +11,23 @@
 
 :root {
   --border: #e5e4e7;
-  --input: #e5e4e7;
+  /* The boundary of every form control drawn with this token -- 41 of the 127
+     native controls in the app. Was #e5e4e7, identical to --border, measuring
+     1.27:1 against --background: below the 3:1 that WCAG 1.4.11 requires for
+     the visual boundary of a UI component.
+
+     These are --popover-border's values, chosen in 023 for exactly this 3:1 job
+     and already asserted at that tier by verify-contrast.py. Zero new colour
+     decisions. #949494 was rejected: it is the lightest neutral clearing 3.0
+     against white (3.03, no headroom) and FAILS at 2.71 against --secondary and
+     --muted, which form controls also sit on.
+
+     --border must NOT follow. It is applied by `* { border-color }` to every
+     element in the document, so moving it darkens all 223 hairline sites -- the
+     no-regression criterion failing at maximum blast radius. The 81 native
+     controls still drawn with --border are feature 025; scripts/
+     count-control-borders.py ratchets that number so it cannot grow. */
+  --input: #86868e;
   /* --ring/--primary darkened ~2% lightness from the original #aa3bff — same
      hue/saturation, crosses WCAG AA (4.5:1) for white text at 4.66:1 where
      the original sat at 4.39:1. Visually indistinguishable. */
@@ -100,7 +116,7 @@
 
 .dark {
   --border: #2e303a;
-  --input: #2e303a;
+  --input: #737a88;
   --ring: #c084fc;
   --background: #16171d;
   --foreground: #f3f4f6;

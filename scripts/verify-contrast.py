@@ -420,28 +420,49 @@ if undefined:
 # no success criterion requires this. It is held anyway because the value is a
 # design-system decision that should not drift silently.
 pop_fail = []
+# (token, surface, need) triples.
+#
+# This loop hardcoded `t['popover']` as the surface, printed "on --popover", and
+# filed every failure under "THE POPOVER SURFACE IS NOT LEGIBLE". Adding an
+# --input row to it as it stood would have measured --input against --popover
+# ONLY, under a false heading, with no way to express --background or --card.
+# Generalised first, then extended -- in that order, because the instruction
+# "add to the existing loop, do not write a second one" was not executable
+# against the loop that existed.
+#
+# --input covers 41 of the app's 127 native form controls. The other 81 draw
+# their boundary from --border, which cannot move; scripts/
+# count-control-borders.py ratchets that residue at 81 so it cannot grow, and
+# feature 025 owns migrating it.
+NON_TEXT_TIER = [
+    ('popover-foreground', 'popover',    4.5),
+    ('foreground',         'popover',    4.5),
+    ('muted-foreground',   'popover',    4.5),
+    ('popover-border',     'popover',    3.0),
+    ('input',              'background', 3.0),
+    ('input',              'card',       3.0),
+    ('input',              'popover',    3.0),
+]
+
 print()
 for theme, sel in (('light', ':root'), ('dark', '.dark')):
     t = block(sel)
-    if 'popover' not in t:
-        pop_fail.append('%s: --popover is not declared' % theme)
-        continue
-    for name, need in (('popover-foreground', 4.5), ('foreground', 4.5),
-                       ('muted-foreground', 4.5), ('popover-border', 3.0)):
-        if name not in t:
-            pop_fail.append('%s: --%s is not declared' % (theme, name))
+    for name, surface, need in NON_TEXT_TIER:
+        missing = [n for n in (name, surface) if n not in t]
+        if missing:
+            pop_fail.append('%s: --%s is not declared' % (theme, missing[0]))
             continue
-        r = ratio(t[name], t['popover'])
-        print('%-6s%-20s on --popover %6.2f  needs %.1f   %s'
-              % (theme, '--' + name, r, need, 'ok' if r >= need else 'FAIL'))
+        r = ratio(t[name], t[surface])
+        print('%-6s%-20s on --%-11s %6.2f  needs %.1f   %s'
+              % (theme, '--' + name, surface, r, need, 'ok' if r >= need else 'FAIL'))
         if r < need:
-            pop_fail.append('%s: --%s on --popover is %.2f, below %.1f'
-                            % (theme, name, r, need))
+            pop_fail.append('%s: --%s on --%s is %.2f, below %.1f'
+                            % (theme, name, surface, r, need))
 
 if pop_fail:
     ok = False
     print()
-    print('THE POPOVER SURFACE IS NOT LEGIBLE:')
+    print('A NON-TEXT CONTRAST PAIR IS BELOW ITS THRESHOLD:')
     for d in pop_fail:
         print('  ' + d)
 
