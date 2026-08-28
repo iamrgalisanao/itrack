@@ -80,6 +80,26 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # frontend/src/lib/supportTemplates.test.js has existed since Support Ops
+      # shipped, and until now NOTHING RAN IT -- no `test` script in
+      # package.json, no CI step. A test suite that is never executed is the
+      # purest form of the defect this feature keeps finding: it reports
+      # nothing, so it never reports a failure.
+      #
+      # Added in 024's B1 because PR B3 needs somewhere to put the chart's
+      # arithmetic test (T041a). The gate has to exist before the test that
+      # depends on it, for the same reason the canary was fixed before the
+      # token moved under it.
+      #
+      # Deliberately a STEP inside `Frontend (build)` rather than a new job:
+      # that job is already in the required-checks list, so these tests block a
+      # merge from the moment they land. A new job would have been advisory
+      # until someone remembered to require it -- which is the hole 024 just
+      # spent a PR closing for the cascade gate. Reusing a required job costs
+      # one npm install and needs no settings change.
+      - name: Unit tests
+        run: npm test
+
   design-tokens:
     name: Design tokens (contrast)
     runs-on: ubuntu-latest

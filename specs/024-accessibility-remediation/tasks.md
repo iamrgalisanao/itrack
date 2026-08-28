@@ -148,9 +148,39 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 ### Gates
 
 - [ ] T038 [US3] Add the five `STATUS_FILL_TOKENS` contracts to `scripts/verify-contrast.py` per `contracts/ui-contracts.md`. **Five, not four** — the fifth is treatment distinctness and is SC-004's only mechanism; building "the four" drops it
-- [ ] T039 [US2] Implement contract 5 as: every pair *sharing* a fill has distinct glyph entries, every pair with *distinct* fills clears a stated ΔE00 under Brettel–Viénot–Mollon. A naive pairwise **fill** check fails by construction once the sanctioned pairs land
-- [ ] T040 [US3] Implement contract 4 as a no-raw-palette-literal assertion over `Reports.jsx`, not a grep for `matchStatusColor` — a name grep fires on a comment and passes if the function is renamed
-- [ ] T041 [US3] Add two `verify-cascade.py` cases: a sub-1% bar asserting computed width ≥ 4px, and a zero-count row asserting width `0px`. Note the file's own warning that adding a focusable node moves assertion 3's measurement — update it deliberately if so
+- [x] T039 [US2] **DONE in B1 — and the contract it names was the wrong one.** ΔE00 threshold **stated: 11.0**, and the assertion is not what this task described.
+
+  Every artifact said the fills must clear "a stated ΔE00" and none of them stated the number, which leaves the implementer to measure first and then pick a threshold the measurement clears. So it is fixed in the gate, before any fill is chosen.
+
+  **The palette does not clear 11.0 and cannot be made to.** Measured (Viénot–Brettel–Mollon 1999 + CIEDE2000) over the current fills, 6 of 40 theme/deficiency/pair combinations fall below it — and *every one* lies inside the red/amber/green triad. `muted-foreground` and `info` separate cleanly in all four conditions.
+
+  | theme | deficiency | pair | ΔE00 |
+  |---|---|---|---|
+  | light | deutan | `for_review` vs `blocked`/`delayed` | **3.98** |
+  | light | protan | `for_review` vs `blocked`/`delayed` | 4.85 |
+  | light | protan | `completed` vs `for_review` | 7.28 |
+  | light | protan | `blocked`/`delayed` vs `completed` | 8.18 |
+  | dark | deutan | `blocked`/`delayed` vs `completed` | 7.07 |
+  | dark | protan | `completed` vs `for_review` | 9.37 |
+
+  The worst pair **abuts** in the summary bar. Tuning tokens does not fix it: driving every token to clear a similar ratio against the same shared surfaces pushes them toward equal luminance relative to one another, which is the mechanism `verify-contrast.py`'s own header describes — running the 4.5:1 gate harder makes dichromatic collapse worse.
+
+  So the shipped contract is **not** "fills clear 11". It is: **every pair below 11 must be separated by a channel that is not colour** — WCAG 1.4.1 as an arithmetic precondition rather than an intention. That makes US2's glyph load-bearing by construction. The set is frozen at exact equality, so a pair crossing the line in *either* direction must be recorded
+- [x] T040 [US3] **DONE in B1, scoped differently, and with a hole named rather than papered over.**
+
+  As written this asserted over `Reports.jsx` only. Two problems: the identical defect class lives in `taskStatus.js` (which **US2 rewrites**) and `WorkProgram.jsx`'s `LIST_STATUS_SEGMENT_CLASSES`, neither of which was covered; and a flat ban would be **red on day one**, since ten raw literals survive Phase 4 in `Reports.jsx` that no task touches — at which point the implementer expands scope or weakens the regex, and weakening it removes the risk-tile coverage the contract claims.
+
+  Shipped as a **ratchet over the named maps** (`STATUS_SEGMENT_CLASSES` 7, `STATUS_BADGE_CLASSES` 28, `LIST_STATUS_SEGMENT_CLASSES` 4), two-sided, so the count cannot grow and a reduction must be recorded. Scoped to maps, not files, because `WorkProgram.jsx` carries 18 literals of which only 4 are status vocabulary.
+
+  **The hole, stated plainly: a token utility is not a palette literal, and the live bug is a token utility.** `Reports.jsx`'s `matchStatusColor` ends `default: return 'bg-primary/70'`, which is what collapses `not_started`, `completed` and `delayed` into one violet *today*. A palette-literal ban would not have caught the defect it was written to prevent. That half belongs to the fail-open-default work, not to this ratchet
+- [ ] ~~T041~~ **DELETED — it could not have been built, and would have gone green.**
+
+  `verify-cascade.py` never loads the app. It copies the built stylesheet into a temp dir and constructs its **own fixture HTML** from a hand-written `CASES` list; it never executes React. The chart's bar length is a JS-computed inline style, so it is *structurally unreachable* by this gate.
+
+  The only way to satisfy T041 as written is to hand-write a fixture whose width the author also writes — `<div style="width: max(0.25rem, 0.2%)">` computes to 4px because the CSS spec says so, in a document containing no application code. It would be green, it would be correct, and it would say nothing whatsoever about `Reports.jsx`. That is not a *risk* of vacuity; it is vacuity by construction, and it is the same shape as the reports row whose fixture made the sentinel structurally ineligible.
+
+- [ ] T041a [US3] Extract the chart's arithmetic to a pure `barWidth(count, total)` (and `buildStatusChartRows(breakdown)`) in `frontend/src/lib/reportChart.js`, and test it with `node --test`. Assert: `barWidth(1, 900)` clamps to the floor; `barWidth(0, 900)` is `0px`; the denominator is the **sum of all response values**, not of the seven known keys; rows sum to the printed header total; a status key absent from `STATUS_ORDER` surfaces rather than vanishing. This is testable because it is arithmetic — the same reasoning already applied to `ganttA11y.js` in Story 1 and not applied here
+- [ ] T041b [US3] Assert in `verify-contrast.py` that `Reports.jsx` imports `barWidth` from that module and contains no inline width arithmetic, so the function under test is the one that ships
 - [ ] T042 [US2] Tamper: give `delayed` its own hue. Contract 2 must fail. This is the assertion that stops a future contributor "fixing" the sanctioned sharing and reopening what 023 closed
 - [ ] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
 - [ ] T044 [US3] Manual: a 20-project report, not one card. R6 accepts +76px per card; across 20 stacked cards that is +1500px of scroll and the cost was weighed against a single card
@@ -168,7 +198,13 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 - [ ] T046 [US1] Create `frontend/src/lib/ganttA11y.test.js` **before the formatter exists**, seeding `responsible: 'SENTINEL-CONTRIBUTOR'` and asserting the Client-role string does not contain it, for `'Client'`, `null`, `undefined`, `''` and an unknown role — and that an internal role **does** receive it. Both directions: a formatter withholding from everyone satisfies the first assertion and breaks the product
 - [ ] T047 [US1] Confirm it fails for the right reason (module absent), not a passing no-op. Snapshot-testing a rendered span would pass when the field is missing *for the wrong reason* — the fixture simply had no `responsible`. That is the trap that made #14's `reports` row vacuous
-- [ ] T048 [P] [US1] Add a `node --test` step to `.github/workflows/ci.yml` **as its own job**. Pasting the documented command into `frontend-build` resolves to `frontend/frontend/src/…` because that job sets a working directory; and a confidentiality-test failure and a compile error are different verdicts, which is the reasoning already written into `ci.yml`
+- [x] T048 [P] [US1] **DONE in B1, pulled forward, and as a STEP rather than its own job — deliberately against this task's instruction.**
+
+  The path hazard this task names is real for the *documented repo-root command*, but not for an npm script: `npm test` runs with `frontend/` as its cwd, and `node --test "src/**/*.test.js"` resolves correctly there. Verified, 55 tests passing.
+
+  The verdict-separation argument loses to a stronger one. A **new job is advisory** until someone adds it to the required-checks list — which is exactly the hole 024 spent PR #33 closing for the cascade gate. A step inside `Frontend (build)`, already required, blocks a merge the moment it lands and needs no settings change. Splitting it later is cheap; shipping an advisory test gate is not.
+
+  Also closed a standing defect: `frontend/src/lib/supportTemplates.test.js` has existed since Support Ops shipped and **nothing ever ran it** — no `test` script, no CI step. 55 assertions reporting nothing, which is the purest form of the defect this feature keeps finding
 
 ### The pure module
 
