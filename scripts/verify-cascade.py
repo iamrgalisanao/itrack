@@ -33,10 +33,22 @@ Run:  python scripts/verify-cascade.py        (needs: pip install playwright
 """
 import io, os, re, sys, glob, shutil, tempfile, pathlib
 
+# A missing engine must not read as a pass. This is assertion 0's failure mode
+# moved up a level: the canary catches a stylesheet that did not load, and
+# without this nothing catches a browser that never launched. Locally a dev
+# without Chromium is skipped rather than blocked; in CI, where CASCADE_REQUIRED
+# is set, a reordered install step must turn the job RED. The suite's whole
+# premise is that green means measured.
+REQUIRED = os.environ.get('CASCADE_REQUIRED') == '1'
 try:
     from playwright.sync_api import sync_playwright
 except ImportError:
-    print('SKIP: playwright not installed (pip install playwright && playwright install chromium)')
+    if REQUIRED:
+        print('FAIL: CASCADE_REQUIRED=1 but playwright is not importable. CI must never '
+              'report this suite green without running it.')
+        sys.exit(1)
+    print('SKIP: playwright not installed (pip install playwright && playwright install '
+          'chromium). Set CASCADE_REQUIRED=1 to make this an error.')
     sys.exit(0)
 
 DIST = sorted(glob.glob('frontend/dist/assets/*.css'), key=os.path.getmtime)
@@ -72,6 +84,7 @@ def expand(h):
 CASES = [
     ('canary',   '<div id="canary" class="border border-input">x</div>'),
     ('primary',  '<div id="primary" class="border border-primary">x</div>'),
+    ('mixed',    '<div id="mixed" class="border border-destructive/60">x</div>'),
     ('bare',     '<div id="bare" class="border">x</div>'),
     ('focusable','<button id="focusable" class="outline-none focus-visible:ring-2">x</button>'),
     ('popbg',    '<div id="popbg" class="bg-popover">x</div>'),
@@ -116,6 +129,15 @@ with sync_playwright() as pw:
           expand(tokens['primary']),
           'the * rule is still outranking border-* utilities')
 
+    # The opacity path is a different code path -- it emits color-mix() rather
+    # than a flat value -- and 31 of the 60 sites R1 changes use it. /60 is the
+    # one that crosses 3:1, so this asserts something semantic and not just
+    # "a value arrived".
+    mixed = read('mixed', 'borderTopColor')
+    check('border-destructive/60 is translucent, not flat', mixed,
+          lambda v: v not in (expand(tokens['border']), expand(tokens['destructive'])),
+          'the opacity modifier is inert again -- see PR #20')
+
     # 2 -- and the shim still does its job for elements that set no colour.
     print('assertion 2 -- a bare `border` still gets --border (the shim still works)')
     check('bare border computes to --border', read('bare', 'borderTopColor'),
@@ -149,6 +171,15 @@ with sync_playwright() as pw:
     hc = browser.new_page(forced_colors='active')
     hc.goto(url); hc.wait_for_load_state('networkidle')
     hc.keyboard.press('Tab')
+    # Assert what Tab actually landed on. Today the button is the only focusable
+    # element so this passes trivially -- but adding one focusable node above it
+    # would silently move the measurement to a different element, and the check
+    # would keep passing while testing nothing.
+    landed = hc.evaluate('() => document.activeElement && document.activeElement.id')
+    if landed != 'focusable':
+        print('  Tab landed on %r, not the button -- the fixture gained a focusable '
+              'element and this assertion is measuring the wrong node.' % landed)
+        fails.append('assertion 3 measured %r instead of #focusable' % landed)
     style = hc.evaluate("""() => { const c = getComputedStyle(
         document.getElementById('focusable')); return c.outlineStyle; }""")
     check('focus-visible outline-style is not none', style,
