@@ -93,7 +93,7 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 - [ ] **PR B PRECONDITIONS — both must hold before PR B merges. Neither is a PR A blocker.**
   1. **T017 closed** (above).
-  2. **`Design tokens (cascade)` added to the required-checks list on `main`** — see `docs/repo-settings.md`, pending user approval.
+  2. ~~**`Design tokens (cascade)` added to the required-checks list on `main`**~~ — **DONE**, applied 2026-08-28 immediately after PR A merged and verified by reading the protection back. See `docs/repo-settings.md`. So PR B now has **one** open precondition, T017.
 
   They are paired deliberately. Requiring the cascade job protects *future* merges from reverting `--input`; it does nothing for PR A, whose cascade run is already green. The hole first becomes *exercisable* at PR B, which is the first PR to edit `verify-cascade.py` itself (T041) and the token vocabulary that job measures — a PR modifying a gate while that gate is advisory is the actual failure mode. Coupling PR A to a settings approval would only manufacture pressure to approve it unread, which is how branch protection got enabled as a side effect of an unrelated commit in the first place.
 - [x] T018 [US4] Check `MyWorkPanel.jsx:483` (the "Add task" chip) individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a). Worst measured 3.25 against `--muted` on hover — clears 3:1. **The line number matters:** the file has six `border-input` sites (113, 166, 178, 188, 200, 483) and the other five are native controls with their own fill; only 483 has this property
