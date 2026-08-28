@@ -6,6 +6,23 @@ const TooltipProvider = TooltipPrimitive.Provider
 const Tooltip = TooltipPrimitive.Root
 const TooltipTrigger = TooltipPrimitive.Trigger
 
+// `outline-1`, not `border`. Two reasons applied when this was written and only
+// one of them still does -- which is exactly why it is written down.
+//
+// The cascade reason is GONE: the unlayered `* { border-color }` that used to
+// suppress every colour border utility now lives in @layer base, so a plain
+// `border-popover-border` would work here today. dropdown-menu.jsx and
+// select.jsx use precisely that.
+//
+// The forced-colors reason REMAINS, and it is the load-bearing one. A tooltip
+// floats over arbitrary content, so its boundary is the only thing separating
+// it from whatever is behind. `ring` is pure box-shadow and forced-colors mode
+// forces `box-shadow: none`; an outline survives, with the UA repainting
+// outline-color as a system colour. A border would survive too -- but outline
+// does not participate in layout, which matters for a node positioned by Radix.
+//
+// So do NOT "unify" this to a border for consistency with the two menus above.
+// They are anchored panels; this is not.
 const TooltipContent = React.forwardRef(({ className, sideOffset = 4, ...props }, ref) => (
   <TooltipPrimitive.Content
     ref={ref}

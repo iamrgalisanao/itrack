@@ -2709,13 +2709,9 @@ export default function WorkProgram() {
                                       survives both: the UA repaints outline-color as a system
                                       colour, and outline-color is untouched by the `*` rule.
 
-                                      The two separators below need `!` for the same reason. An
-                                      earlier fix used `[border-bottom-color:var(...)]`, which
-                                      compiles INTO @layer utilities and therefore loses to the
-                                      unlayered rule exactly as a plain utility does -- it shipped
-                                      the same 1.27:1 while looking deliberate. The `!` is also a
-                                      greppable marker of the debt; retire it when the `*` rule
-                                      moves into @layer base.
+                                      The two separators below carried `!` until the `*` rule moved
+                                      into @layer base. That was the debt marker, and it is paid --
+                                      a plain `border-*-popover-border` utility now wins on its own.
 
                                       STILL BROKEN, deliberately not fixed here (issue #8 / 024):
                                       this is mouse-only -- no tabIndex, role, onKeyDown or focus
@@ -2728,7 +2724,7 @@ export default function WorkProgram() {
                                       it mouse-only for everyone else. The fix is a real tooltip
                                       with a focusable trigger, which is 024's job. */}
                                   <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg outline-1 outline-popover-border z-50 w-64 transition-all duration-200">
-                                    <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b border-b-popover-border! pb-1">
+                                    <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b border-b-popover-border pb-1">
                                       {row.code && <span className="text-muted-foreground mr-1">[{row.code}]</span>}
                                       {row.name}
                                     </div>
@@ -2774,7 +2770,7 @@ export default function WorkProgram() {
                                           <span className="text-foreground truncate max-w-[140px]">{row.responsible}</span>
                                         </div>
                                       )}
-                                      <div className="text-[9px] text-muted-foreground/60 italic text-center mt-2 border-t border-t-popover-border! pt-1.5 select-none pointer-events-none">
+                                      <div className="text-[9px] text-muted-foreground/60 italic text-center mt-2 border-t border-t-popover-border pt-1.5 select-none pointer-events-none">
                                         Click timeline bar to edit
                                       </div>
                                     </div>
