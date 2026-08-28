@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\ProjectInvitationResource;
 use App\Http\Resources\ProjectMembershipResource;
 use App\Models\ClientDomain;
@@ -29,7 +30,7 @@ class ProjectInvitationController extends Controller
 
     public function index(Request $request, Project $project)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canManageInvitations($user, $project)) {
             AuditLogger::denied($request, 'project_invitation.list', 'project', $project->id);
@@ -46,7 +47,7 @@ class ProjectInvitationController extends Controller
 
     public function store(Request $request, Project $project)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$this->canManageInvitations($user, $project)) {
             AuditLogger::denied($request, 'project_invitation.create', 'project', $project->id);
@@ -130,7 +131,7 @@ class ProjectInvitationController extends Controller
 
     public function accept(Request $request)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         $validated = $request->validate([
             'token' => ['required', 'string'],

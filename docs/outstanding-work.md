@@ -225,6 +225,30 @@ the #14 sign-off implied it had.
 
 ---
 
+## Found by the controller-layer sweep
+
+Commissioned after the sixth Client-disclosure defect was found by a person reading a controller two
+others had already read. 30 files, ~6,300 lines, every route cross-checked against `routes/api.php`.
+
+**No new Client disclosure defect** — the six closed leaks appear to have exhausted that seam. What it
+found instead was one axis nobody had named and one forbidden shape.
+
+| Item | Status | Notes |
+|---|---|---|
+| **Preview-as-Client answered permissively on 11 routes** — a controller `user()` helper returning `$request->user()` makes every role gate beneath it evaluate the real Admin | **CLOSED** — [ADR 0001 Decision 1b](adr/0001-client-scoping-row-and-field.md), `PreviewFidelityTest` | Not a disclosure defect; the Admin is entitled to the data. Worse in a specific way: preview is the only tool for answering "what does this client see", and it answered in the **permissive** direction. Three of the six closed defects would have been visible in a faithful preview |
+| `NotificationController:148` — `!$user->isClient()` **granting** on the negation, so a null role skipped the `client_visible` check | **CLOSED** — positive allowlist | Verified before the fix: a null-role user received a notification linked to a hidden task. Bounded blast radius, forbidden shape |
+| **Authz M3 is wider than recorded**: `health_updated_by` (written as `$user->name`, an internal staff name) and `health_updated_at` also ride on raw `Project` models, not just `health_note` | OPEN — widened | `health_updated_by` is `responsible`-shaped by ADR Decision 1's own test. Recorded now so `ProjectResource` is not written with the field included |
+| `AuditLogResource` **exists and is referenced nowhere** in `app/` or `tests/` | OPEN | The fix for `AuditLogController:72`'s raw models is already written and unused. Admin-only, so no disclosure |
+| Write responses on the three planning levels return every column (`ModuleController:128,185`, `ActivityController:84,146`, `SubActivityController:94,158`) | OPEN | PR #26 fixed the read side of exactly these controllers. Admin/PM-gated, so Principle II rather than disclosure |
+| Dead private methods: `CommentController:20` `isInternalUser`, `ProjectController:31` `accessibleDepartments` | OPEN — nit | One occurrence each, their own definition |
+
+**Two labels collide.** The accessibility audit and the identity audit each produced an "M3". The
+accessibility M3 is the `--input` contrast row above; the authz M3 is `ProjectResource`. Neither
+renamed, because both are cited by that label in artifacts already merged — recorded here so the next
+reader is not misled by a cross-reference.
+
+---
+
 ## Closed — verified, not assumed
 
 - **`recent_activities` leaked internal tasks to Clients** (021). **FIXED** — `ProjectController.php`

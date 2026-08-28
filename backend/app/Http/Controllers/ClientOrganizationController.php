@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\AccessContext;
 use App\Http\Resources\ClientOrganizationResource;
 use App\Models\ClientOrganization;
 use App\Services\AuditLogger;
@@ -13,7 +14,7 @@ class ClientOrganizationController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->isPmOrAdmin()) {
             AuditLogger::denied($request, 'client_organization.list', 'client_organization');
@@ -25,7 +26,7 @@ class ClientOrganizationController extends Controller
 
     public function store(Request $request)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->isAdmin()) {
             AuditLogger::denied($request, 'client_organization.create', 'client_organization');
@@ -69,7 +70,7 @@ class ClientOrganizationController extends Controller
 
     public function updateTrustedDomainPolicy(Request $request, ClientOrganization $clientOrganization)
     {
-        $user = $request->user();
+        $user = AccessContext::user($request);
 
         if (!$user->isAdmin()) {
             AuditLogger::denied($request, 'trusted_domain_policy.update', 'client_organization', $clientOrganization->id);
