@@ -7,11 +7,19 @@ This file exists because of the first entry below.
 
 ---
 
-## 2026-08-28 — `Design tokens (cascade)` must become a required check — **PENDING USER APPROVAL**
+## 2026-08-28 — `Design tokens (cascade)` added to required checks on `main`
 
-**Decided by**: Software Architect, reviewing feature 024 Story 4 before PR. **Status**: NOT YET
-APPLIED — the API call was blocked by the session's permission classifier, which is the correct
-behaviour for a repository-settings write. Recorded here first so the decision is not lost.
+**Decided by**: Software Architect, reviewing feature 024 Story 4 before PR. **Approved by**: the
+user, explicitly, after the session's permission classifier blocked the write — which is the correct
+behaviour for a repository-settings change. **Executed by**: the orchestrating session, immediately
+after PR #32 merged. **Status**: APPLIED and verified.
+
+| Required status checks | `Backend (PHPUnit)`, `Frontend (build)`, `Design tokens (contrast)`, **`Design tokens (cascade)`** |
+|---|---|
+| `strict` | `false` — unchanged |
+| `enforce_admins` | `false` — unchanged |
+
+Verified by reading the protection back after the write; no other setting moved.
 
 **The defect.** `SC-009` names the input-token separation fixture as the mechanism proving the 41
 control boundaries actually moved. That fixture is `verify-cascade.py` assertion 1b, which runs in
@@ -25,11 +33,11 @@ So a change reverting `--input` to `#e5e4e7` turns the cascade job red and **mer
 one criterion this feature exists to protect is guarded by an advisory check. This is the same shape
 as the defects 024 keeps finding: a gate that runs, reports correctly, and constrains nothing.
 
-**The change**, to be run once approved:
+**The change**, as run (note `PATCH`, not `PUT` — and an explicit `owner/repo`, because the
+`:owner/:repo` placeholder returned a 404 on this endpoint):
 
 ```bash
-gh api -X PUT repos/:owner/:repo/branches/main/protection/required_status_checks \
-  -f strict=false \
+gh api -X PATCH repos/iamrgalisanao/itrack/branches/main/protection/required_status_checks \
   -f 'contexts[]=Backend (PHPUnit)' \
   -f 'contexts[]=Frontend (build)' \
   -f 'contexts[]=Design tokens (contrast)' \
@@ -39,7 +47,7 @@ gh api -X PUT repos/:owner/:repo/branches/main/protection/required_status_checks
 **Reversible**: yes — re-run without the last `contexts[]` line. This is why it is a routine settings
 change once approved and not an irreversible one.
 
-**Deadline: before PR B merges, not before PR A.** Requiring this check protects *future* merges from
+**Why it was applied after PR A rather than before it.** Requiring this check protects *future* merges from
 reverting `--input`; it does nothing for PR A, whose cascade run is already green. The hole first
 becomes exercisable at PR B — the first PR to edit `verify-cascade.py` itself and the token
 vocabulary that job measures, i.e. a PR modifying a gate while that gate is advisory. Paired with
