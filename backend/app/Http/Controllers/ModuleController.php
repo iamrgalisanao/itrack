@@ -134,7 +134,12 @@ class ModuleController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $module->load('activities');
+        $module->load('activities');
+
+        return [
+            ...ModuleResource::make($module)->resolve($request),
+            'activities' => ActivityResource::collection($module->activities)->resolve($request),
+        ];
     }
 
     // ─── PATCH /api/modules/{module} ─────────────────────────────────────────
