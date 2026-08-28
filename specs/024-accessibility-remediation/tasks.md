@@ -83,9 +83,19 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
   - `ui/button.jsx:13` — the `outline` Button variant, **56 usages**, the largest visual change in this PR
   - `ui/select.jsx:14` — `SelectTrigger`, 29 usages
   - `MyWorkPanel.jsx:483` — the "Add task" chip (verified numerically in T018; confirm visually)
-  - `WorkProgram.jsx:3133` — a **read-only `<p>`** in the task modal. It was already styled as a read-only field (Label + border + `bg-muted/30`), so the question is not "is it now a field" but **does it now read as an *editable* one**, sitting beside real inputs at the same edge weight. It keeps `bg-muted/30` where a live input has `bg-background`, so the expected answer is no — confirm it
+  - `WorkProgram.jsx:3133` — a **read-only `<p>`** in the task modal. It was already styled as a read-only field (Label + border + `bg-muted/30`), so the question is not "is it now a field" but **does it now read as an *editable* one**, sitting beside real inputs at the same edge weight. **Decide whether to drop `border-input` here.**
+
+    The measurements, so this is decided on evidence rather than on either prediction that was recorded before them. `bg-muted/30` over `--card` resolves to `#fcfbf9` light / `#1d1e25` dark. Against a live input's `--background` fill that is **1.03:1 light, 1.08:1 dark**; against the modal's own `--card`, **1.01:1** in dark. The fill is not a differentiator at those ratios. Both borders are now pixel-identical at `--input`.
+
+    So this feature *strengthened* the signal the two elements share and left the one that separates them untouched. Before, both carried a 1.27:1 hairline — two weak signals, neither claiming "editable"; now both carry the same 3.61:1 edge. An earlier draft of this bullet predicted "the expected answer is no", which the arithmetic above does not support and which would have primed whoever ran the pass to confirm it. **No expected answer is recorded here on purpose.**
 
   **The deadline is not decoration.** PR B retokenises the status vocabulary across `GroupSummaryBar`, `taskStatus.js` and `Reports.jsx`. Once B lands, a visual regression reported afterwards cannot be attributed to A or B — which destroys the bisectability the three-PR split exists to create.
+
+- [ ] **PR B PRECONDITIONS — both must hold before PR B merges. Neither is a PR A blocker.**
+  1. **T017 closed** (above).
+  2. **`Design tokens (cascade)` added to the required-checks list on `main`** — see `docs/repo-settings.md`, pending user approval.
+
+  They are paired deliberately. Requiring the cascade job protects *future* merges from reverting `--input`; it does nothing for PR A, whose cascade run is already green. The hole first becomes *exercisable* at PR B, which is the first PR to edit `verify-cascade.py` itself (T041) and the token vocabulary that job measures — a PR modifying a gate while that gate is advisory is the actual failure mode. Coupling PR A to a settings approval would only manufacture pressure to approve it unread, which is how branch protection got enabled as a side effect of an unrelated commit in the first place.
 - [x] T018 [US4] Check `MyWorkPanel.jsx:483` (the "Add task" chip) individually: it has no fill of its own, so its inner edge is the container rather than `--background` (research.md R11a). Worst measured 3.25 against `--muted` on hover — clears 3:1. **The line number matters:** the file has six `border-input` sites (113, 166, 178, 188, 200, 483) and the other five are native controls with their own fill; only 483 has this property
 
 ---
@@ -196,6 +206,14 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 - [ ] T077 Run `code-slop` on the diff: no per-row `useState` in the timeline map, no defensive wrapper around values the caller guarantees, and every comment either records a rejected alternative or is deleted
 - [ ] T078 Run `laravel-owasp-security` scoped to FR-007's surface — a new rendering path for role-restricted data, not an endpoint
 - [ ] T079 Write `verification-record.md` with each gate's **actual output**, every manual result, and every Critical/Major with its resolution. **Regenerate figures, never retype them** — three drafts of 023's artifacts carried hand-transcribed ratios and two were wrong
+> **PR B and PR C will legitimately trip the ratchet, and that is correct.**
+> `scripts/count-control-borders.py` now holds the residue at **equality** (81), not as a ceiling,
+> and the `border-input` site count at equality too (45). T030 replaces the Reports chart and T037
+> retokenises the risk tiles, so both numbers will move — and the gate will fail until
+> `BASELINE_BORDER` / `BASELINE_INPUT_SITES` are updated **in the same commit that moved them**.
+> That is the designed behaviour: a one-sided ceiling let the baseline drift away from the floor,
+> which is the defect this replaced. **Do not "fix" a red ratchet by loosening it back to `>`.**
+
 - [ ] T080 Update the ACR to **Partially Supports** on 1.4.11 with both residues named: the 81 hand-rolled controls (feature 025) and the progress-overlay edge.
 
   **Name the edition, and check the denominator before publishing.** "Partially Supports on 1.4.11" is only a valid cell in a **WCAG 2.1/2.2 or INT edition** ACR — a VPAT 2.x *508 edition* carries WCAG 2.0 tables, and 1.4.11 does not exist in WCAG 2.0, so adding a row for it there is a category error. Section 508's legal baseline is WCAG 2.0 AA, under which the 81 residual controls are **not** a non-conformance at all. If any iTrack client is a US state or local government body, ADA Title II binds WCAG 2.1 AA independently and 1.4.11 becomes binding through *that* statute — at which point the Remarks carry legal weight and must state the population correctly: 41 hand-rolled controls **plus 72 shared-primitive usages** fixed, against a residue of 81. Not "41 of 127" 

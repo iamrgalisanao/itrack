@@ -39,6 +39,16 @@ gh api -X PUT repos/:owner/:repo/branches/main/protection/required_status_checks
 **Reversible**: yes — re-run without the last `contexts[]` line. This is why it is a routine settings
 change once approved and not an irreversible one.
 
+**Deadline: before PR B merges, not before PR A.** Requiring this check protects *future* merges from
+reverting `--input`; it does nothing for PR A, whose cascade run is already green. The hole first
+becomes exercisable at PR B — the first PR to edit `verify-cascade.py` itself and the token
+vocabulary that job measures, i.e. a PR modifying a gate while that gate is advisory. Paired with
+T017 in `specs/024-accessibility-remediation/tasks.md` so neither precondition can be quietly
+dropped. PR A was deliberately **not** blocked on this, because coupling a code merge to a human
+settings approval manufactures pressure to approve it unread — which is exactly how branch
+protection came to be enabled as a side effect of an unrelated commit, the incident this file
+exists to record.
+
 **Caveat worth knowing before approving**: the cascade job installs Playwright Chromium, so it is the
 slowest job in CI and the most likely to fail for infrastructure reasons rather than code reasons.
 It already sets `CASCADE_REQUIRED=1`, which makes a missing browser fail loudly instead of skipping
