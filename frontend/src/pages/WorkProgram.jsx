@@ -1915,7 +1915,14 @@ export default function WorkProgram() {
                                 <div className="hidden sm:block shrink-0" style={{ width: LIST_COLUMN_WIDTHS.actualDates }} aria-hidden="true" />
 
                                 <div className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-3 text-sm text-muted-foreground shrink-0">
-                                  <span>{activity.responsible}</span>
+                                  {/* The `!isClient` twelve lines above gates the layout SPACER,
+                                      not this. Clients have been reading internal staff names in
+                                      the collapsed Activity header. PR #26 stops the field being
+                                      sent at all, which would leave this rendering an empty span
+                                      inside a gap-3 flex -- "the value is absent so the markup
+                                      does not matter" is the defence-in-depth reasoning that
+                                      produced #26 in the first place. */}
+                                  {!isClient && <span>{activity.responsible}</span>}
                                   {['Admin', 'Project Manager'].includes(userRole) && (
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>

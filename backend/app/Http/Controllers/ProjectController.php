@@ -45,7 +45,12 @@ class ProjectController extends Controller
     {
         $user = $this->user($request);
 
-        return Project::with('modules')
+        // `with('modules')` was here and had no consumer -- nothing in
+        // frontend/src reads `project.modules` (Dashboard's `stats.modules` is
+        // a count). It shipped every module's `responsible` and `support` to
+        // every caller of the app's most-frequently-hit endpoint. Dropping it
+        // closes that and removes a per-project query.
+        return Project::query()
             ->accessibleTo($user)
             ->get()
             ->each(fn (Project $project) => $project->setAttribute(
@@ -108,7 +113,8 @@ class ProjectController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
-        return $project->load('modules')->setAttribute(
+        // Same unused eager load as index(); see the note there.
+        return $project->setAttribute(
             'can_manage_client_access',
             $this->canManageClientAccess($user, $project)
         );
