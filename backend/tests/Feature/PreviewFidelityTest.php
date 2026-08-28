@@ -85,6 +85,24 @@ class PreviewFidelityTest extends TestCase
             'assigned_by_user_id' => $admin->id,
         ]);
 
+        // The project MUST have a client organization, or two of these rows are
+        // vacuous. `canManageMemberships:154` and `canManageInvitations:231`
+        // both return false when `client_organization_id === null` -- for the
+        // Admin too -- so without this the memberships and invitations rows
+        // return 403 on both sides and pass whether the fix is present or not.
+        //
+        // They are the two the ADR calls the most serious, and the two whose
+        // `client=403 preview=200` line it prints as measured fact. A test that
+        // agrees with a claim by never exercising it is the shape of #14's
+        // vacuous `reports` row, in the test written to prove the fix.
+        $org = \App\Models\ClientOrganization::create([
+            'name' => 'Sentinel Client Org',
+            'slug' => 'sentinel-client-org',
+            'status' => 'active',
+            'created_by_user_id' => $admin->id,
+        ]);
+        $project->forceFill(['client_organization_id' => $org->id])->save();
+
         $url = strtr($template, ['%project%' => $project->id]);
 
         $asClient = $this->actingAs($client, 'sanctum')->getJson($url)->status();
