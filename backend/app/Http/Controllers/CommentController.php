@@ -41,6 +41,13 @@ class CommentController extends Controller
             return response()->json(['message' => 'You do not have access to this resource.'], 403);
         }
 
+        // A comment inherits its parent's visibility. Filtering comment
+        // `visibility` while never asking the task was the whole defect: a
+        // client-visible comment on a hidden task passed both checks above.
+        if (!$detailedActivity->isVisibleTo($user)) {
+            return response()->json(['message' => 'You do not have access to this resource.'], 403);
+        }
+
         $query = $detailedActivity->comments()->orderBy('created_at', 'asc');
 
         if ($user->isClient()) {

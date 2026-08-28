@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Activity;
+use App\Models\Attachment;
 use App\Models\Comment;
 use App\Models\DetailedActivity;
 use App\Models\Module;
@@ -131,7 +132,55 @@ class ClientVisibilityBoundaryTest extends TestCase
             'evidence'        => self::FIELD_SENTINEL,
         ]);
 
-        return compact('chain', 'client', 'internal', 'visible', 'teamMember');
+        // Derived resources on the HIDDEN task, each marked client-visible in
+        // its OWN right. That combination is the whole point: every existing
+        // check passes for them -- the project is accessible, the comment and
+        // the attachment are client_visible -- and only the parent task's
+        // client_visible says no. Nothing was asking the parent.
+        $hiddenComment = Comment::create([
+            'detailed_activity_id' => $internal->id,
+            'author'               => 'PM',
+            'author_role'          => 'Project Manager',
+            'body'                 => self::FIELD_SENTINEL,
+            'visibility'           => Comment::VISIBILITY_CLIENT_VISIBLE,
+        ]);
+
+        // Two things this fixture has to get right, and the first draft got
+        // neither.
+        //
+        // The file must EXIST on the fake disk, or download() aborts 404 at the
+        // existence check before it ever reaches the visibility gate.
+        //
+        // And the sentinel must be the file's CONTENT, not just its name. A
+        // download response streams bytes; the filename rides in a
+        // Content-Disposition header, which the body assertion never sees. With
+        // the sentinel only in `original_name` the row returned 200 carrying
+        // the actual file and still passed.
+        //
+        // Both are the vacuity that made #14's reports row and this session's
+        // two preview rows green -- three times now, in fixtures written by
+        // someone who had just finished writing about it.
+        \Illuminate\Support\Facades\Storage::fake('local');
+        \Illuminate\Support\Facades\Storage::disk('local')
+            ->put('attachments/sentinel.pdf', self::FIELD_SENTINEL);
+
+        $hiddenAttachment = Attachment::create([
+            'detailed_activity_id' => $internal->id,
+            'uploader'             => 'PM',
+            'uploader_role'        => 'Project Manager',
+            'original_name'        => self::FIELD_SENTINEL . '.pdf',
+            'stored_name'          => 'sentinel.pdf',
+            'disk'                 => 'local',
+            'path'                 => 'attachments/sentinel.pdf',
+            'mime_type'            => 'application/pdf',
+            'size_bytes'           => 1024,
+            'visibility'           => Attachment::VISIBILITY_CLIENT_VISIBLE,
+        ]);
+
+        return compact(
+            'chain', 'client', 'internal', 'visible', 'teamMember',
+            'hiddenComment', 'hiddenAttachment'
+        );
     }
 
     public static function clientReachableRoutes(): array
@@ -152,6 +201,13 @@ class ClientVisibilityBoundaryTest extends TestCase
             // every person's role and internal description.
             'team members'         => ['/api/team-members'],
             'team member show'     => ['/api/team-members/%teamMember%'],
+            // C2 and M1. These sat in ClientReachableRouteCoverageTest's
+            // REACHABLE_NOT_YET_PROVEN because the sentinel could not reach
+            // them -- the fixture had no comment or attachment on a hidden
+            // task. Seeding one is what turns a declared gap into a check.
+            'hidden task comments'    => ['/api/detailed-activities/%hiddenTask%/comments'],
+            'hidden task attachments' => ['/api/detailed-activities/%hiddenTask%/attachments'],
+            'hidden attachment dl'    => ['/api/attachments/%hiddenAttachment%/download'],
             // Added after PR #26 review found the fix had closed three of
             // eight endpoints. Every one of these returns a raw Eloquent model
             // or relation -- `return $module->load('activities')` and friends --
@@ -169,35 +225,61 @@ class ClientVisibilityBoundaryTest extends TestCase
     #[DataProvider('clientReachableRoutes')]
     public function test_no_client_reachable_endpoint_discloses_an_internal_task(string $template): void
     {
-        ['chain' => $chain, 'client' => $client, 'teamMember' => $teamMember] = $this->seedBoundary();
+        [
+            'chain' => $chain, 'client' => $client, 'teamMember' => $teamMember,
+            'internal' => $internal, 'hiddenAttachment' => $hiddenAttachment,
+        ] = $this->seedBoundary();
 
         $url = strtr($template, [
             '%project%'     => $chain['project']->id,
             '%module%'      => $chain['module']->id,
             '%teamMember%'  => $teamMember->id,
+            '%hiddenTask%'  => $internal->id,
+            '%hiddenAttachment%' => $hiddenAttachment->id,
             '%activity%'    => $chain['activity']->id,
             '%subActivity%' => $chain['subActivity']->id,
         ]);
 
-        $response = $this->actingAs($client, 'sanctum')->getJson($url);
+        // `get()` only for the streamed download; `getJson()` for the rest.
+        //
+        // Applying `get()` to every row drops the `Accept: application/json`
+        // header the SPA always sends, and a future row whose controller uses
+        // `abort(403)` rather than `response()->json(...)` would then render an
+        // HTML error page -- the status branch early-returns and the row goes
+        // quietly vacuous. That is precisely the failure mode this file exists
+        // to catch, so it must not be introduced by the file itself.
+        $isDownload = str_contains($url, '/download');
+        $response = $isDownload
+            ? $this->actingAs($client, 'sanctum')->get($url)
+            : $this->actingAs($client, 'sanctum')->getJson($url);
+
+        // `getStatusCode()`, not `status()`, and the body pulled deliberately:
+        // TestResponse forwards unknown methods to the base response, and a
+        // StreamedResponse has neither `status()` nor a body written at
+        // assertion time. The download row ERRORED rather than failing, and a
+        // summary counting only `failed` reported it green. Twice.
+        $status = $response->getStatusCode();
+        $body = $response->baseResponse instanceof \Symfony\Component\HttpFoundation\StreamedResponse
+            ? $response->streamedContent()
+            : $response->getContent();
 
         // A 403 is a perfectly good answer; what must never happen is a 200
         // carrying the sentinel.
-        if ($response->status() !== 200) {
-            $this->assertContains($response->status(), [403, 404], "Unexpected status for {$url}");
+        if ($status !== 200) {
+            $this->assertContains($status, [403, 404], "Unexpected status for {$url}");
 
             return;
         }
 
         $this->assertStringNotContainsString(
             self::SENTINEL,
-            $response->getContent(),
+            $body,
             "{$url} disclosed an internal task to a Client"
         );
 
         $this->assertStringNotContainsString(
             self::FIELD_SENTINEL,
-            $response->getContent(),
+            $body,
             "{$url} disclosed internal fields of a client-visible task to a Client"
         );
     }
@@ -408,6 +490,75 @@ class ClientVisibilityBoundaryTest extends TestCase
             json_encode($json),
             'preview-as-Client disclosed an internal field somewhere in the tree'
         );
+    }
+
+    /**
+     * The other direction for C2/M1: a fix that denies these to everyone
+     * satisfies the leak rows and breaks the product. Internal roles must still
+     * read comments and attachments on an internal task, and still download.
+     */
+    public function test_internal_roles_still_reach_derived_resources_on_a_hidden_task(): void
+    {
+        [
+            'chain' => $chain, 'internal' => $internal,
+            'hiddenAttachment' => $attachment,
+        ] = $this->seedBoundary();
+
+        $member = $this->createUser('Team Member');
+        $this->assign($member, $chain['project']);
+
+        $this->actingAs($member, 'sanctum')
+            ->getJson("/api/detailed-activities/{$internal->id}/comments")
+            ->assertOk()
+            ->assertSee(self::FIELD_SENTINEL, false);
+
+        $this->actingAs($member, 'sanctum')
+            ->getJson("/api/detailed-activities/{$internal->id}/attachments")
+            ->assertOk()
+            ->assertSee(self::FIELD_SENTINEL, false);
+
+        $download = $this->actingAs($member, 'sanctum')
+            ->get("/api/attachments/{$attachment->id}/download");
+        $this->assertSame(200, $download->getStatusCode(), 'internal role lost the download');
+        $this->assertStringContainsString(self::FIELD_SENTINEL, $download->streamedContent());
+    }
+
+    /**
+     * `isVisibleTo` must DENY an unknown or absent role, not grant.
+     *
+     * The first version was `!$user->isClient() || $this->client_visible`, which
+     * returns true for a null role and for a role the system does not
+     * recognise. There was no live vulnerability -- `isAccessibleTo()` gates
+     * first at all three call sites -- but the safety was BORROWED, and the
+     * method's own docblock invites four more callers who would not inherit it.
+     *
+     * Standing assertion rather than a one-off probe, because "it is safe
+     * because of what happens to call it" is the shape that stops being true
+     * without anyone editing the method.
+     */
+    public function test_task_visibility_denies_an_unknown_role(): void
+    {
+        ['internal' => $internal, 'visible' => $visible] = $this->seedBoundary();
+
+        foreach (['Auditor', '', null] as $role) {
+            $user = User::factory()->create(['role' => $role, 'is_active' => true]);
+
+            $this->assertFalse(
+                $internal->isVisibleTo($user),
+                sprintf('a hidden task was visible to role %s', var_export($role, true))
+            );
+            $this->assertFalse(
+                $visible->isVisibleTo($user),
+                sprintf('a task was visible to role %s -- an unrecognised role must fail closed '
+                    . 'regardless of client_visible', var_export($role, true))
+            );
+        }
+
+        // And the four real internal roles still see both.
+        foreach (['Admin', 'Project Manager', 'Department Head', 'Team Member'] as $role) {
+            $user = User::factory()->create(['role' => $role, 'is_active' => true]);
+            $this->assertTrue($internal->isVisibleTo($user), $role);
+        }
     }
 
     public function test_internal_roles_still_see_the_internal_task(): void
