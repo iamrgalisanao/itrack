@@ -119,18 +119,18 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 ### Tokenise first — this is a prerequisite, not cleanup
 
-- [ ] T019 [US2] Retokenise `STATUS_SEGMENT_CLASSES` in `frontend/src/lib/taskStatus.js` onto the `GANTT_STATUS_TOKENS` vocabulary. **Until this lands, SC-004 has no gate at all**: the current fills are raw Tailwind palette in oklch, and `verify-contrast.py` parses `#[0-9a-fA-F]{6}` only, so it cannot see a single one of them
-- [ ] T020 [US2] Retokenise `STATUS_BADGE_CLASSES` in the same file, in this task and not later. The segment and badge render one row apart in the same view (`MyWorkPanel.jsx:565`/`:120`, `TaskboardView.jsx:245`/`:294`) — that is the same-page adjacency FR-011 governs. Left undone the change is **net-negative**: it trades "segment disagrees with the Gantt" for "segment disagrees with the badge beside it"
-- [ ] T021 [US2] Express the badge as token utilities (`border-warning/40 bg-warning/10 text-warning`), never literals, or `verify-contrast.py`'s existing `on_tint` assertion — which already measures exactly that construction at α 0.10/0.15 — cannot see it
-- [ ] T022 [US2] Retokenise `LIST_STATUS_SEGMENT_CLASSES` at `frontend/src/pages/WorkProgram.jsx:126`. **Out of scope and must stay raw**: BugTracker's local map at `:38`, Retrospectives' sentiment, priority segments (research.md R17)
+- [x] T019 [US2] Retokenise `STATUS_SEGMENT_CLASSES` in `frontend/src/lib/taskStatus.js` onto the `GANTT_STATUS_TOKENS` vocabulary. **Until this lands, SC-004 has no gate at all**: the current fills are raw Tailwind palette in oklch, and `verify-contrast.py` parses `#[0-9a-fA-F]{6}` only, so it cannot see a single one of them
+- [x] T020 [US2] Retokenise `STATUS_BADGE_CLASSES` in the same file, in this task and not later. The segment and badge render one row apart in the same view (`MyWorkPanel.jsx:565`/`:120`, `TaskboardView.jsx:245`/`:294`) — that is the same-page adjacency FR-011 governs. Left undone the change is **net-negative**: it trades "segment disagrees with the Gantt" for "segment disagrees with the badge beside it"
+- [x] T021 [US2] Express the badge as token utilities (`border-warning/40 bg-warning/10 text-warning`), never literals, or `verify-contrast.py`'s existing `on_tint` assertion — which already measures exactly that construction at α 0.10/0.15 — cannot see it
+- [x] T022 [US2] Retokenise `LIST_STATUS_SEGMENT_CLASSES` at `frontend/src/pages/WorkProgram.jsx:126`. **Retokenised only — NOT widened.** The map still covers four of seven statuses, so the List view silently drops `backlog`/`for_review`/`blocked`; widening it changes which rows appear, a behaviour change no 024 requirement asks for. Filed in `docs/outstanding-work.md`. (An amendment note briefly said US2 owned this; it does not.) **Out of scope and must stay raw**: BugTracker's local map at `:38`, Retrospectives' sentiment, priority segments (research.md R17)
 
 ### The non-colour channel
 
-- [ ] T023 [US2] Extend `buildSegments` in `frontend/src/lib/groupSummary.js` with an optional glyph/ink source keyed like `className`, **defaulting to no glyph** so sentiment and priority callers are untouched. It currently returns `{key, count, pct, className}` with no ink and no glyph source
-- [ ] T024 [US2] Render a 1–2 character abbreviation centred in each segment of `frontend/src/components/GroupSummaryBar.jsx`, in the segment's `ink` token — `ganttPalette.js` already pairs fill/ink at a measured 4.5:1 for exactly this
-- [ ] T025 [US2] Suppress the glyph below a measured px width, mirroring the gate at `WorkProgram.jsx:2681`. Verify against the narrowest **real** column, and confirm `overflow-hidden` on the container is not clipping silently — that is the failure that looks fine in a wide reviewer browser
-- [ ] T026 [US2] Add `outline-1 -outline-offset-1` as the adjacency separator, **not `border`**: a border adds layout width inside the flex row and shifts the percentage widths the component's own header comment spends 20 lines protecting
-- [ ] T027 [US2] Add a text legend beneath the bar **printing the per-status count**. The count is a condition of shipping the glyph, not a nicety: `buildSegments` gives every present status an equal share regardless of count, so without printed numbers the glyph makes a misleading width *more* legible (research.md R18)
+- [x] T023 [US2] Extend `buildSegments` in `frontend/src/lib/groupSummary.js` with an optional glyph/ink source keyed like `className`, **defaulting to no glyph** so sentiment and priority callers are untouched. It currently returns `{key, count, pct, className}` with no ink and no glyph source
+- [x] T024 [US2] Render a 1–2 character abbreviation centred in each segment of `frontend/src/components/GroupSummaryBar.jsx`, in the segment's `ink` token — `ganttPalette.js` already pairs fill/ink at a measured 4.5:1 for exactly this
+- [x] T025 [US2] Suppress the glyph below a measured px width, mirroring the gate at `WorkProgram.jsx:2681`. Verify against the narrowest **real** column, and confirm `overflow-hidden` on the container is not clipping silently — that is the failure that looks fine in a wide reviewer browser
+- [x] T026 [US2] Add `outline-1 -outline-offset-1` as the adjacency separator, **not `border`**: a border adds layout width inside the flex row and shifts the percentage widths the component's own header comment spends 20 lines protecting
+- [x] T027 [US2] Add a text legend beneath the bar **printing the per-status count**. The count is a condition of shipping the glyph, not a nicety: `buildSegments` gives every present status an equal share regardless of count, so without printed numbers the glyph makes a misleading width *more* legible (research.md R18)
 
 ### The chart — rotate it
 
@@ -201,10 +201,29 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 - [ ] T041a [US3] Extract the chart's arithmetic to a pure `barWidth(count, total)` (and `buildStatusChartRows(breakdown)`) in `frontend/src/lib/reportChart.js`, and test it with `node --test`. Assert: `barWidth(1, 900)` clamps to the floor; `barWidth(0, 900)` is `0px`; the denominator is the **sum of all response values**, not of the seven known keys; rows sum to the printed header total; a status key absent from `STATUS_ORDER` surfaces rather than vanishing. This is testable because it is arithmetic — the same reasoning already applied to `ganttA11y.js` in Story 1 and not applied here
 - [ ] T041b [US3] Assert in `verify-contrast.py` that `Reports.jsx` imports `barWidth` from that module and contains no inline width arithmetic, so the function under test is the one that ships
-- [ ] T042 [US2] Tamper: give `delayed` its own hue. Contract 2 must fail. This is the assertion that stops a future contributor "fixing" the sanctioned sharing and reopening what 023 closed
-- [ ] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
-- [ ] T044 [US3] Manual: a 20-project report, not one card. R6 accepts +76px per card; across 20 stacked cards that is +1500px of scroll and the cost was weighed against a single card
-- [ ] T045 [US3] Manual: a count of 1 beside a count of 100+ (SC-007), and zero/single-status projects
+- [x] T042 [US2] Tamper: give `delayed` its own hue. Contract 2 must fail. This is the assertion that stops a future contributor "fixing" the sanctioned sharing and reopening what 023 closed
+- [x] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
+
+- **T043 result: PASS.** Re-run 2026-08-29 after seeding all seven statuses, in **light and dark × protanopia and deuteranopia** (Viénot–Brettel–Mollon `feColorMatrix` over the whole document), Taskboard collapsed group header, `admin@itrack.test`.
+
+  The first run was recorded PARTIAL and was right to be: the seed data held only `not_started`/`in_progress`/`completed`, so the ΔE00 sub-threshold pairs — the ones FR-009 exists for — never rendered. 14 tasks were reassigned across all seven statuses in the local dev database (snapshot taken first; see the restore note below). `STATUS_ORDER` then renders the bar as `BL NS IP RV BK DL OK`, which places **every** pair that matters in direct adjacency.
+
+  **What the eye saw that the arithmetic understated.** The measured worst pair is `for_review` vs `blocked`/`delayed` at ΔE00 3.98 in light deuteranopia. Rendered, it is worse than one number suggests — the collapse is not pairwise, it is a **run**:
+
+  | theme | deficiency | observed |
+  |---|---|---|
+  | light | deutan | `RV` `BK` `DL` `OK` all render one olive — **four statuses, one colour** |
+  | light | protan | same four-way collapse |
+  | dark | deutan | `BK` `DL` `OK` one tan — *blocked*, *delayed* and *done* indistinguishable |
+  | dark | protan | `BK` `DL` olive, `OK` pale yellow — closest separation of the four conditions, still slight |
+
+  So in light theme a deuteranope cannot tell *for review*, *blocked*, *delayed* and *done* apart **at all**. Failure and success are the same colour. The glyph is not a supplement to the colour channel there; it is the entire channel. That is the case for FR-009's inverted contract, demonstrated rather than argued.
+
+  **Measured at real Taskboard widths** after the 2026-08-29 re-run: at `1280x900`, the Status column is `131.17px` and each seven-status segment is `18.73px`; at `1920x1000`, the column is `222.63px` and each segment is `31.8px`. Both widths now render `BL NS IP RV BK DL OK` above the suppression floor, with `RV BK DL OK` directly adjacent in light/dark protanopia and deuteranopia. Ink-on-fill remains **6.46-10.71:1** at 9px/700 against a 4.5:1 threshold. `BL`/`NS` share a fill and `BK`/`DL` share a fill -- the two sanctioned fill-sharing pairs are pixel-identical in fill and separated **only** by glyph, in every theme and every deficiency. Counts aligned beneath their own segments, one line, all four conditions.
+
+  **Four defects found and fixed before this pass**, all invisible to the automated gates: the legend broke the collapsed-header footprint (wrapped to three lines in the real status column, lifting the segment bar 7px off the Priority bar); every status name was announced twice; the `20px` glyph floor suppressed all seven glyphs at `1280x900` even though the bad pairs rendered; and the visual glyph bar still exposed status names through `title` while the `sr-only` list carried the canonical accessible status list. The final pass measured Status/Priority bar top offset at `0`, one `sr-only` list item per status, `aria-hidden="true"` on the glyph-bearing visual bar and count row, and zero focusable controls inside the summary.
+
+  **Dev-data note.** The final re-run temporarily reassigned task IDs `23-36` from `not_started` across two `STATUS_ORDER` runs, then restored those same 14 rows to `not_started` after the browser pass. No seeded DB state is required to remain in place for B2.
 
 ---
 

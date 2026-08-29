@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { GroupSegmentBar } from '@/components/GroupSummaryBar'
 import { buildSegments } from '@/lib/groupSummary'
-import { STATUS_ORDER, STATUS_SEGMENT_CLASSES, STATUS_SEGMENT_LABELS, STATUS_BADGE_CLASSES } from '@/lib/taskStatus'
+import { STATUS_ORDER, STATUS_SEGMENT_CLASSES, STATUS_SEGMENT_LABELS, STATUS_BADGE_CLASSES, STATUS_GLYPHS, STATUS_SEGMENT_INK } from '@/lib/taskStatus'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import { fetchMyWork, fetchDetailedActivity, updateDetailedActivity, createMyWorkTask, fetchProjects, fetchModules } from '@/lib/api'
 import { useEffectiveUser } from '@/context/PreviewContext'
@@ -564,7 +564,7 @@ export default function MyWorkPanel({ onTaskMutated }) {
                       ) : (
                         <GroupSegmentBar
                           title="Status"
-                          segments={buildSegments(group.tasks, 'status', STATUS_ORDER, STATUS_SEGMENT_CLASSES)}
+                          segments={buildSegments(group.tasks, 'status', STATUS_ORDER, STATUS_SEGMENT_CLASSES, { glyphs: STATUS_GLYPHS, inks: STATUS_SEGMENT_INK })}
                           labels={STATUS_SEGMENT_LABELS}
                           width={COLUMN_WIDTHS.status}
                         />

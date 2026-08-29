@@ -24,7 +24,13 @@ export const GROUP_ACCENT_CLASSES = [
 // value (e.g. everything unset) fills the whole bar; two present values
 // split it 50/50 regardless of their individual counts. Tooltips still show
 // the real per-value count.
-export function buildSegments(items, field, order, classes) {
+// `options` is optional and defaults to no glyph and no ink, so the callers that
+// do not have a non-colour channel -- priority segments in TaskboardView and
+// BugTracker, sentiment in Retrospectives -- are untouched by this signature
+// change. Only the status vocabulary passes glyphs today (research.md R17: the
+// other three maps are deliberately out of 024's scope).
+export function buildSegments(items, field, order, classes, options = {}) {
+  const { glyphs, inks } = options
   const counts = new Map()
   for (const item of items) {
     const key = item[field] || 'unset'
@@ -32,5 +38,12 @@ export function buildSegments(items, field, order, classes) {
   }
   const present = order.filter((key) => counts.get(key) > 0)
   const equalPct = present.length ? 100 / present.length : 0
-  return present.map((key) => ({ key, count: counts.get(key), pct: equalPct, className: classes[key] }))
+  return present.map((key) => ({
+    key,
+    count: counts.get(key),
+    pct: equalPct,
+    className: classes[key],
+    glyph: glyphs ? glyphs[key] : undefined,
+    inkClassName: inks ? inks[key] : undefined,
+  }))
 }
