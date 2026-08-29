@@ -73,7 +73,7 @@ export function GroupProgressBar({ title, pct, width }) {
 // clipped SILENTLY -- it looks correct in a wide reviewer browser and vanishes
 // on a narrow one. That is the failure this gate exists to prevent, and it is
 // why the legend below is not optional.
-const GLYPH_MIN_PX = 20
+const GLYPH_MIN_PX = 18
 
 export function GroupSegmentBar({ title, segments, labels, width }) {
   const barRef = useRef(null)
@@ -104,7 +104,11 @@ export function GroupSegmentBar({ title, segments, labels, width }) {
   return (
     <div className="hidden sm:block shrink-0" style={{ width }}>
       <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
-      <div ref={barRef} className="flex h-7 w-full overflow-hidden rounded-md bg-muted">
+      <div
+        ref={barRef}
+        className="flex h-7 w-full overflow-hidden rounded-md bg-muted"
+        aria-hidden={hasGlyphs || undefined}
+      >
         {segments.map((segment) => {
           // `outline`, deliberately not `border`. A border adds layout width
           // inside this flex row and shifts the percentage widths that this
