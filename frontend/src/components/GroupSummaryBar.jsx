@@ -92,6 +92,9 @@ export function GroupSegmentBar({ title, segments, labels, width }) {
       <div className="hidden sm:block shrink-0" style={{ width }}>
         <div className="text-xs font-medium text-muted-foreground text-center mb-1.5">{title}</div>
         <div className="h-7 w-full rounded-md bg-muted" />
+        {/* Same reserved count-row height as the populated branch below, or an
+            empty group's bar drifts out of alignment with a populated one. */}
+        <div className="mt-0.5 h-[13px] w-full" />
       </div>
     )
   }
@@ -126,24 +129,64 @@ export function GroupSegmentBar({ title, segments, labels, width }) {
         })}
       </div>
 
-      {/* The legend is a CONDITION of shipping the glyph, not an addition to it.
-          buildSegments gives every present status an EQUAL share regardless of
-          count, so the bar's lengths are not quantities. A glyph without a
-          printed number makes that misleading width more legible, not less --
-          research.md R18. The number is also the channel that survives when the
-          glyph is suppressed at narrow widths, and the only one available to a
-          screen reader, since the bar itself is decorative. */}
+      {/* Counts, ALIGNED UNDER THEIR OWN SEGMENT -- not a wrapping legend.
+          The count is a CONDITION of shipping the glyph, not an addition to it:
+          buildSegments gives every present status an equal share regardless of
+          count, so the bar's lengths are not quantities, and a glyph without a
+          printed number makes that misleading width more legible rather than
+          less (research.md R18). It is also the channel that survives when the
+          glyph is suppressed at narrow widths.
+
+          The first implementation was a `flex-wrap` legend printing
+          "<glyph> <label> <count>" per status. T043 caught it on the live app:
+          inside the status column (~217px) it wrapped to THREE lines, grew the
+          collapsed header's height, and pushed the neighbouring Priority column
+          out of alignment -- breaking the "same footprint as GroupProgressBar
+          so the two sit flush" contract this file's own header states. No
+          amount of arithmetic would have found that.
+
+          Mirroring the segment widths keeps it to exactly one line for any
+          number of statuses, puts each number directly beneath the mark it
+          describes, and needs no separate glyph-to-label mapping step from the
+          reader. The full label stays available to assistive tech below. */}
+      {/* ALWAYS RENDERED, even with no glyphs, and that is the fix for a
+          regression T043 caught rather than a stylistic choice.
+
+          The count row makes the Status column taller than its neighbours. The
+          parent centres the columns, so a taller Status column lifts its bar
+          off the shared baseline -- measured at 7px above the Priority bar,
+          breaking the "same footprint ... so the two sit flush in the same
+          collapsed header row" contract stated at the top of this file. The
+          Priority and sentiment bars carry no glyphs and so no counts, but they
+          must still reserve the same height or they drift.
+
+          Reserving it here keeps the fix inside this component: it does not
+          change what the out-of-scope vocabularies DISPLAY (research.md R17),
+          only the box they occupy. */}
+      <div className="mt-0.5 flex h-[13px] w-full" aria-hidden="true">
+        {hasGlyphs && segments.map((segment) => (
+          <span
+            key={segment.key}
+            className="text-[10px] leading-tight font-semibold tabular-nums text-muted-foreground text-center"
+            style={{ width: `${segment.pct}%` }}
+          >
+            {segment.count}
+          </span>
+        ))}
+      </div>
       {hasGlyphs && (
-        <ul className="mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5">
-          {segments.map((segment) => (
-            <li key={segment.key} className="text-[10px] leading-tight text-muted-foreground">
-              <span className="font-bold tracking-tight">{segment.glyph}</span>
-              <span className="sr-only"> {labels[segment.key]}</span>
-              <span aria-hidden="true"> {labels[segment.key]}</span>
-              <span className="ml-0.5 font-semibold tabular-nums text-foreground">{segment.count}</span>
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* The bar and the count row are both visual; this is the only
+              rendering that carries the status NAME, so it is not decorative
+              and must not be aria-hidden. Previously the label was emitted
+              twice -- once sr-only and once aria-hidden -- so screen readers
+              announced every status name two times. */}
+          <ul className="sr-only">
+            {segments.map((segment) => (
+              <li key={segment.key}>{labels[segment.key]}: {segment.count}</li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )

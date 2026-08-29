@@ -202,7 +202,26 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 - [ ] T041a [US3] Extract the chart's arithmetic to a pure `barWidth(count, total)` (and `buildStatusChartRows(breakdown)`) in `frontend/src/lib/reportChart.js`, and test it with `node --test`. Assert: `barWidth(1, 900)` clamps to the floor; `barWidth(0, 900)` is `0px`; the denominator is the **sum of all response values**, not of the seven known keys; rows sum to the printed header total; a status key absent from `STATUS_ORDER` surfaces rather than vanishing. This is testable because it is arithmetic — the same reasoning already applied to `ganttA11y.js` in Story 1 and not applied here
 - [ ] T041b [US3] Assert in `verify-contrast.py` that `Reports.jsx` imports `barWidth` from that module and contains no inline width arithmetic, so the function under test is the one that ships
 - [x] T042 [US2] Tamper: give `delayed` its own hue. Contract 2 must fail. This is the assertion that stops a future contributor "fixing" the sanctioned sharing and reopening what 023 closed
-- [ ] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
+- [~] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
+
+- **T043 result: PARTIAL — two defects found and fixed; the decisive pairs could not be exercised.** Run 2026-08-29 against the live app (`localhost:5178`, Laravel on `127.0.0.1:8011`) as `admin@itrack.test`, Taskboard collapsed group header, dark theme, with Viénot–Brettel–Mollon protanopia/deuteranopia applied as SVG `feColorMatrix` filters over the whole document.
+
+  **Defect 1 — the legend broke the collapsed-header footprint (fixed in this PR).** The first implementation printed `<glyph> <label> <count>` per status in a `flex-wrap` list. Inside the real status column (**217px**) it wrapped to **three lines**, grew the column to 65px against the Priority column's 50px, and — because the parent centres its columns — lifted the segment bar **7px above** the Priority bar. That breaks the contract stated at the top of `GroupSummaryBar.jsx`: *"same footprint (label + h-7 bar) as GroupSegmentBar so the two sit flush in the same collapsed header row."* Replaced with a count row whose cells mirror the segment widths, so each number sits under the mark it describes and the row is always one line for any number of statuses. The reserved height is rendered even when there are no glyphs, or the out-of-scope Priority and sentiment bars drift instead. **Re-measured after the fix: both bars at top 357, offset 0.**
+
+  **Defect 2 — every status name was announced twice (fixed in this PR).** The legend carried both an `sr-only` and an `aria-hidden` copy of the label. Now the visual count row is `aria-hidden` and a single `sr-only` list carries `"<label>: <count>"` once.
+
+  **What passed.** Fills resolve to the tokens, not the old palette — `--muted-foreground #9ca3af`, `--info #60a5fa`, `--success #4ade80`, inks to `--background #16171d`. Glyph-on-fill contrast measured **7.04 / 7.03 / 10.26:1** at 9px/700 (WCAG normal-text threshold 4.5:1). Segments 72px against the 20px suppression floor, so glyphs render. Under deuteranopia the three present statuses stay mutually distinct and the glyphs and aligned counts remain legible.
+
+  **What this pass could NOT establish, and it is the half that matters most.** The seed data holds only three statuses — `not_started` (67), `in_progress` (2), `completed` (1). **No task is `for_review`, `blocked` or `delayed`,** so the four ΔE00 sub-threshold pairs FR-009 exists for never rendered:
+
+  | pair | ΔE00 | exercised? |
+  |---|---|---|
+  | `for_review` vs `blocked`/`delayed` (light deutan) | **3.98** | no |
+  | `for_review` vs `blocked`/`delayed` (light protan) | 4.85 | no |
+  | `completed` vs `for_review` (light protan) | 7.28 | no |
+  | `blocked`/`delayed` vs `completed` (dark deutan) | 7.07 | no |
+
+  The two statuses that *share* a fill outright (`backlog`/`not_started`, `blocked`/`delayed`) never rendered adjacent either. Populating those statuses needs a write to the dev database, which was deliberately not performed. **Until they are exercised, the claim "adjacent status treatments remain distinguishable" is verified by measurement and by the gate, not by eye.** Recorded rather than rounded up to a pass.
 - [ ] T044 [US3] Manual: a 20-project report, not one card. R6 accepts +76px per card; across 20 stacked cards that is +1500px of scroll and the cost was weighed against a single card
 - [ ] T045 [US3] Manual: a count of 1 beside a count of 100+ (SC-007), and zero/single-status projects
 
