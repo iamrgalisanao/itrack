@@ -915,5 +915,277 @@ else:
               % (len(_order), len(_seen),
                  ' '.join('%s=%s' % (_k, _glyphs[_k]) for _k in _order)))
 
+# ============================================================================
+# FEATURE 024 / PR B3 -- Contract 3: the chart's fill vocabulary.
+#
+# FIVE assertions, not four. The fifth is treatment distinctness, and it is
+# SC-004's only mechanism -- building "the four" drops it.
+#
+# What this block does NOT cover, stated rather than implied, because a green
+# gate has twice been cited in this project for a property it could not see:
+#   * project HEALTH. `Reports.jsx`'s getHealthStyle is a second status
+#     vocabulary with its own enum and a `default:` returning 'On Track' in
+#     emerald -- an unknown health renders as healthy. FR-022 covers it in
+#     principle; this gate is anchored to STATUS_ORDER and does not. Filed in
+#     docs/outstanding-work.md rather than left to be discovered.
+#   * the 27 palette literals elsewhere in Reports.jsx (health badges, the
+#     milestone dot). They are not status vocabulary, and a file-wide ban would
+#     be red on day one -- at which point the regex gets weakened, which is how
+#     coverage is lost. Scoped to the chart component, same reasoning that
+#     scoped the existing ratchet to named maps.
+# ============================================================================
+
+_reports_src = io.open('frontend/src/pages/Reports.jsx', encoding='utf-8').read()
+
+_fill_m = re.search(r"STATUS_FILL_TOKENS\s*=\s*\{(.*?)\n\}", _ts, re.S)
+_seg_m = re.search(r"STATUS_SEGMENT_CLASSES\s*=\s*\{(.*?)\n\}", _ts, re.S)
+_label_m = re.search(r"STATUS_SEGMENT_LABELS\s*=\s*\{(.*?)\n\}", _ts, re.S)
+
+print()
+print("contract 3 -- the chart's fill vocabulary")
+
+if not (_fill_m and _seg_m and _label_m and _order_m):
+    ok = False
+    print('  FAIL: STATUS_FILL_TOKENS, STATUS_SEGMENT_CLASSES, '
+          'STATUS_SEGMENT_LABELS or STATUS_ORDER is not parseable in '
+          'taskStatus.js -- every assertion below measured nothing.')
+else:
+    _fills = dict(re.findall(r"(\w+):\s*'([\w-]+)'", _fill_m.group(1)))
+    _segs = dict(re.findall(r"(\w+):\s*'([^']*)'", _seg_m.group(1)))
+    _labels = dict(re.findall(r"(\w+):\s*'([^']*)'", _label_m.group(1)))
+
+    # --- assertion 1: enum coverage -------------------------------------
+    #
+    # `pending` is excluded and that exclusion is asserted, not assumed: it is
+    # synthesised client-side by getRollupStatus for parent rows and never
+    # reaches /api/reports, whose status_breakdown is countBy('status') over
+    # LEAF rows. An entry for it would encode a false claim about the endpoint.
+    if sorted(_fills) != sorted(_order):
+        ok = False
+        print('  FAIL assertion 1: STATUS_FILL_TOKENS covers %s, STATUS_ORDER '
+              'is %s. A status with no entry cannot render a fill; a spare '
+              'entry is a status the chart claims to handle and does not.'
+              % (sorted(_fills), sorted(_order)))
+    elif 'pending' in _fills:
+        ok = False
+        print('  FAIL assertion 1: STATUS_FILL_TOKENS has `pending`, which the '
+              'reports endpoint cannot return.')
+    else:
+        print('  assertion 1  enum coverage: %d statuses, pending excluded'
+              % len(_fills))
+
+    # --- assertion 2: the register, and the class pin --------------------
+    #
+    # Iterates over STATUS_FILL_TOKENS (seven) rather than the Gantt map
+    # (eight), so `pending` is skipped by construction rather than by a
+    # special case that could be deleted.
+    #
+    # The SECOND half is what makes the chain assertable end to end. The
+    # component cannot use token NAMES -- Tailwind builds no class at runtime --
+    # so it renders STATUS_SEGMENT_CLASSES. Pinning the two maps to each other
+    # means the utility the user sees is joined to the token name, which is
+    # joined to the Gantt register, which is joined to the value in index.css.
+    # Without this pin the chart could drift from the Gantt while both maps
+    # individually passed.
+    _drift = []
+    for _s in sorted(_fills):
+        if _register.get(_s) != _fills[_s]:
+            _drift.append('%s: chart says --%s, Gantt register says --%s'
+                          % (_s, _fills[_s], _register.get(_s)))
+        if _segs.get(_s) != 'bg-' + _fills[_s]:
+            _drift.append('%s: STATUS_SEGMENT_CLASSES is %r, but the token map '
+                          'says it must be %r'
+                          % (_s, _segs.get(_s), 'bg-' + _fills[_s]))
+    if _drift:
+        ok = False
+        print('  FAIL assertion 2: the chart, the utility classes and the Gantt '
+              'register have drifted --')
+        for _d in _drift:
+            print('    ' + _d)
+    else:
+        print('  assertion 2  register + class pin: css value <- token name '
+              '<- utility class <- component')
+
+    # --- assertion 3: 3:1 on the panel surface the chart actually sits on -
+    #
+    # NOT --card and NOT --muted. The panel is `bg-muted/20` over a card, so the
+    # surface behind every bar is the COMPOSITE of the two. Measuring against
+    # either component alone would report a ratio no reader ever experiences.
+    # 3:1 is 1.4.11's non-text threshold: these bars are the entire quantitative
+    # content of the chart, so their boundary against the panel is the boundary
+    # of a component, not decoration.
+    _panel_rows = 0
+    for _theme, _sel in (('light', ':root'), ('dark', '.dark')):
+        _t = block(_sel)
+        _panel = blend(_t['muted'], _t['card'], 0.20)
+        for _tok in sorted(set(_fills.values())):
+            _panel_rows += 1
+            _r = ratio(_t[_tok], _panel)
+            print('  %-6s--%-18s on panel %s  %5.2f  needs 3.0   %s'
+                  % (_theme, _tok, _panel, _r, 'ok' if _r >= 3.0 else 'FAIL'))
+            if _r < 3.0:
+                ok = False
+                print('    A CHART BAR IS NOT DISTINGUISHABLE FROM ITS PANEL.')
+
+        # The TRACK, reported and deliberately NOT gated at 3:1.
+        #
+        # A first draft outlined the track in --input to clear 3.0, and
+        # count-control-borders.py rejected it: --input means "the boundary of
+        # a form control", and borrowing it for a chart track invalidates the
+        # blast-radius set PR A reasoned about when it moved that token.
+        #
+        # The right answer was not to widen that allowlist. 1.4.11 governs the
+        # boundary of a COMPONENT and the parts of a graphic REQUIRED to
+        # understand the content. Here that is the bars (assertion 3, above,
+        # 5.62-9.95) and the printed counts, which every reader gets without
+        # hovering. The track is a backdrop; driving it to 3:1 makes it compete
+        # with the data. So the number is printed rather than asserted -- a
+        # measurement on the record, not a threshold invented to be cleared.
+        _track = blend(_t['muted-foreground'], _panel, 0.30)
+        print('  %-6s%-18s   on panel %s  %5.2f  reported, not gated'
+              % (_theme, 'track (mf/30)', _panel, ratio(_track, _panel)))
+
+    # Frozen literal, not `2 * len(...)`. The first draft of the equivalent
+    # guard on NON_TEXT_TIER read `!= 2 * len(NON_TEXT_TIER)`, which shrinks
+    # with a deleted row and is therefore true by construction.
+    EXPECTED_PANEL_ROWS = 10        # 5 distinct fills x 2 themes
+    if _panel_rows != EXPECTED_PANEL_ROWS:
+        ok = False
+        print('  FAIL assertion 3: measured %d panel rows, expected %d -- a '
+              'fill was added or removed. If deliberate, update '
+              'EXPECTED_PANEL_ROWS in the same commit.'
+              % (_panel_rows, EXPECTED_PANEL_ROWS))
+
+    # --- assertion 4: treatment distinctness (SC-004) --------------------
+    #
+    # THE MEASURED OBJECT IS THE TREATMENT, NEVER THE FILL. A pairwise fill
+    # check fails by construction the moment the sanctioned shared pairs land --
+    # backlog/not_started and blocked/delayed are the SAME fill on purpose.
+    #
+    # In the summary bar the non-colour channel is the glyph, and the block
+    # above already asserts all seven are distinct. In the CHART there is no
+    # glyph: every row prints its full label, which is a stronger channel than a
+    # two-character abbreviation and avoids minting a second vocabulary. So the
+    # chart's distinctness rests entirely on the labels, and this is the
+    # assertion that holds it. Two statuses sharing a label would be two rows a
+    # reader cannot tell apart, in the one surface where colour already fails.
+    _by_label = {}
+    _label_fail = False
+    for _s in _order:
+        _l = _labels.get(_s)
+        if not _l:
+            ok = True and ok
+            _label_fail = True
+            print('  FAIL assertion 4: %s has no label. In the chart the label '
+                  'IS the non-colour channel.' % _s)
+        elif _l in _by_label:
+            _label_fail = True
+            print('  FAIL assertion 4: %s and %s both render as %r. They share '
+                  'no glyph in the chart -- the label is all a reader has.'
+                  % (_by_label[_l], _s, _l))
+        else:
+            _by_label[_l] = _s
+    if _label_fail:
+        ok = False
+    else:
+        print('  assertion 4  treatment distinctness: %d statuses, %d distinct '
+              'chart labels (the glyph block above holds the summary bar)'
+              % (len(_order), len(_by_label)))
+
+    # --- assertion 5: component drift ------------------------------------
+    #
+    # A grep for the old function name was the first draft and is too weak: it
+    # fires on a comment mentioning it and passes if the function is renamed.
+    # These are anchored to the imports and to the component's own body.
+    _drift5 = []
+    if not re.search(r"import\s*\{[^}]*STATUS_SEGMENT_CLASSES[^}]*\}\s*from\s*'@/lib/taskStatus'", _reports_src):
+        _drift5.append('Reports.jsx does not import STATUS_SEGMENT_CLASSES from '
+                       '@/lib/taskStatus -- the map above is not the one that '
+                       'ships, and every assertion here is about a file the '
+                       'chart does not read')
+    if not re.search(r"import\s*\{[^}]*\bbarWidth\b[^}]*\}\s*from\s*'@/lib/reportChart'", _reports_src):
+        _drift5.append('Reports.jsx does not import barWidth from '
+                       '@/lib/reportChart -- node --test is then holding a '
+                       'function nothing renders (T041b)')
+
+    # T041b: the arithmetic under test must be the arithmetic that ships. An
+    # interpolated expression carrying * or / and ending in a CSS unit is a
+    # length computed in the JSX.
+    _inline_math = re.findall(r'\$\{[^}]*[*/][^}]*\}(?:%|px|rem)', _reports_src)
+    if _inline_math:
+        _drift5.append('Reports.jsx computes a length inline: %s. Lengths belong '
+                       'in lib/reportChart.js where node --test can reach them'
+                       % ', '.join(sorted(set(_inline_math))[:3]))
+
+    _panel_m = re.search(r'\nfunction StatusBreakdownPanel\b(.*?)\n\}', _reports_src, re.S)
+    if not _panel_m:
+        _drift5.append('StatusBreakdownPanel not found in Reports.jsx -- it was '
+                       'renamed or removed, and the two assertions below '
+                       'measured nothing')
+    else:
+        _panel_body = _panel_m.group(1)
+        if not re.search(r'style=\{\{\s*width:\s*barWidth\(', _panel_body):
+            _drift5.append('StatusBreakdownPanel does not set a bar width from '
+                           'barWidth() -- the tested function is not on the '
+                           'rendering path (T041b)')
+        _n_lit = len(_palette_rx.findall(_panel_body))
+        if _n_lit:
+            _drift5.append('StatusBreakdownPanel carries %d raw palette literal(s)'
+                           % _n_lit)
+        # T038a / FR-022. A DISTINCT REGRESSION CLASS from the palette-literal
+        # ratchet: `default: return 'bg-primary/70'` is a semantic TOKEN, not a
+        # palette literal, and it is what collapsed not_started, completed and
+        # delayed into one violet. A literal ban would have passed it. Anchored
+        # to structure -- no switch, no default, no fallback operator reaching a
+        # treatment -- rather than to the deleted function's name.
+        for _pat, _why in (
+            (r'\bdefault\s*:', 'a `default:` branch'),
+            (r'\bswitch\s*\(', 'a `switch`'),
+            (r"(?:\?\?|\|\|)\s*'[^']*\b(?:bg|text|border|outline)-", 'a fallback to a treatment string'),
+        ):
+            if re.search(_pat, _panel_body):
+                _drift5.append('StatusBreakdownPanel contains %s. No status may '
+                               'reach its treatment through a default (FR-022); '
+                               'index every key explicitly' % _why)
+
+    if _drift5:
+        ok = False
+        print('  FAIL assertion 5: component drift --')
+        for _d in _drift5:
+            print('    ' + _d)
+    else:
+        print('  assertion 5  component drift: imports pinned, no palette '
+              'literal, no default branch, barWidth on the render path')
+
+    # --- T038a, second half: every map indexes every status explicitly ---
+    #
+    # The maps are what make the "no default branch" claim true at the source.
+    # A component with no default that reads an incomplete map renders
+    # `undefined` as a className, which is a fail-open by a different route.
+    print()
+    print('no status reaches a treatment through a default -- map completeness')
+    for _name, _m in (('STATUS_SEGMENT_LABELS', _label_m),
+                      ('STATUS_SEGMENT_CLASSES', _seg_m),
+                      ('STATUS_FILL_TOKENS', _fill_m),
+                      ('STATUS_GLYPHS', _glyph_m),
+                      ('STATUS_SEGMENT_INK',
+                       re.search(r"STATUS_SEGMENT_INK\s*=\s*\{(.*?)\n\}", _ts, re.S)),
+                      ('STATUS_BADGE_CLASSES',
+                       re.search(r"STATUS_BADGE_CLASSES\s*=\s*\{(.*?)\n\}", _ts, re.S))):
+        if not _m:
+            ok = False
+            print('  %-24s MAP NOT FOUND -- this row measured nothing' % _name)
+            continue
+        _keys = set(re.findall(r"(\w+):", _m.group(1)))
+        _absent = [_k for _k in _order if _k not in _keys]
+        if _absent:
+            ok = False
+            print('  %-24s MISSING %s -- an unindexed status renders undefined'
+                  % (_name, ', '.join(_absent)))
+        else:
+            print('  %-24s all %d statuses indexed explicitly' % (_name, len(_order)))
+
+
+
 print('\nCONTRACT', 'HOLDS' if ok else 'VIOLATED')
 sys.exit(0 if ok else 1)

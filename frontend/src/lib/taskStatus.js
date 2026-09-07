@@ -109,3 +109,33 @@ export const STATUS_BADGE_CLASSES = {
   delayed: 'border-destructive/40 bg-destructive/10 text-destructive',
   completed: 'border-success/40 bg-success/10 text-success',
 }
+
+// The chart fill vocabulary, as TOKEN NAMES rather than utility classes.
+//
+// SEVEN entries. `pending` is deliberately absent: it is synthesised client-side
+// by getRollupStatus for parent rows and never reaches /api/reports, whose
+// `status_breakdown` is countBy('status') over LEAF rows. Including it would
+// encode a false claim about what that endpoint can return -- the map would say
+// the chart handles a value the chart can never receive.
+//
+// Why this exists alongside STATUS_SEGMENT_CLASSES rather than instead of it:
+// Tailwind cannot build a class name at runtime, so the component needs the
+// utility form; the gate needs the token form, because it joins these names to
+// the values in index.css and to GANTT_STATUS_TOKENS' shared-fill register.
+// verify-contrast.py pins the two maps to each other (`STATUS_SEGMENT_CLASSES[s]
+// === 'bg-' + STATUS_FILL_TOKENS[s]`), so they cannot drift. That pin is what
+// makes the whole chain assertable end to end: css value <- token name <-
+// utility class <- component.
+//
+// Do NOT fold this into ganttPalette.js or rename GANTT_STATUS_TOKENS.
+// verify-contrast.py anchors its register parse to that literal export name and
+// two tamper proofs were built on the anchor.
+export const STATUS_FILL_TOKENS = {
+  backlog: 'muted-foreground',
+  not_started: 'muted-foreground',
+  in_progress: 'info',
+  for_review: 'warning',
+  blocked: 'destructive',
+  delayed: 'destructive',
+  completed: 'success',
+}

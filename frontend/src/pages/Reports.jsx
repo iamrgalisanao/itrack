@@ -6,6 +6,8 @@ import {
   downloadReportCsv,
 } from '@/lib/api'
 import { useEffectiveUser } from '@/context/PreviewContext'
+import { STATUS_SEGMENT_LABELS, STATUS_SEGMENT_CLASSES } from '@/lib/taskStatus'
+import { buildStatusChartRows, barWidth } from '@/lib/reportChart'
 import {
   BarChart3,
   AlertTriangle,
@@ -460,7 +462,7 @@ export default function Reports() {
       ) : (
         <div className="space-y-6">
           {/* Summary KPIs Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Overall Progress Circle */}
             <Card className="overflow-hidden bg-card">
               <CardContent className="p-4 flex items-center gap-4">
@@ -486,8 +488,23 @@ export default function Reports() {
             {!isClient && (
               <Card className="bg-card">
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className="rounded-lg bg-red-500/10 text-red-500 h-10 w-10 flex items-center justify-center border border-red-500/20">
-                    <Clock className="h-5 w-5 animate-pulse" />
+                  {/* Encoded by PRESENCE, not by hue. Red/amber/orange across
+                      these three tiles read as a three-step severity scale that
+                      does not exist -- the counts are unrelated metrics, and the
+                      two warmest hues are indistinguishable under protanopia
+                      anyway. --destructive when there is something to act on,
+                      --muted-foreground when there is not. `animate-pulse` goes
+                      with it: it pulsed at a count of zero, which is an alarm
+                      raised by an icon about nothing. (The global
+                      prefers-reduced-motion reset in index.css already
+                      neutralised it for users who ask; this is about the other
+                      ones.)
+
+                      `outline`, not `border` -- index.css's unlayered
+                      `* { border-color }` reset outranks every border-*-color
+                      utility app-wide, so the old ring rendered grey. */}
+                  <div className={`rounded-lg h-10 w-10 flex items-center justify-center outline-1 -outline-offset-1 ${summary.overdue_count > 0 ? 'bg-destructive/10 text-destructive outline-destructive/30' : 'bg-muted-foreground/10 text-muted-foreground outline-muted-foreground/30'}`}>
+                    <Clock className="h-5 w-5" />
                   </div>
                   <div>
                     <p className="text-[10px] uppercase font-bold text-muted-foreground">Overdue Tasks</p>
@@ -497,26 +514,22 @@ export default function Reports() {
               </Card>
             )}
 
-            {/* Warning Signal Blocked (Omitted from Client) */}
-            {!isClient && (
-              <Card className="bg-card">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="rounded-lg bg-amber-500/10 text-amber-500 h-10 w-10 flex items-center justify-center border border-amber-500/20">
-                    <AlertTriangle className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Blocked Tasks</p>
-                    <p className="text-2xl font-black mt-0.5">{summary.blocked_count || 0}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* The page-level Blocked tile is GONE, for the same reason the
+                per-project one is (FR-020/SC-013) -- and the screenshot is what
+                settled it. The tile read "Blocked Tasks 2" while the chart row
+                one card below read "Blocked  2": the same count, twice, on one
+                screen, in two visual languages, from two code paths. The
+                page-scope reading of SC-013 is the correct one.
+
+                Overdue and Dependency Risks stay: they are derived predicates
+                that appear nowhere in the chart, so the tiles are now purely
+                derived and the chart purely a partition, at BOTH scopes. */}
 
             {/* Warning Signal Dependency Risks (Omitted from Client) */}
             {!isClient && (
               <Card className="bg-card">
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className="rounded-lg bg-orange-500/10 text-orange-500 h-10 w-10 flex items-center justify-center border border-orange-500/20">
+                  <div className={`rounded-lg h-10 w-10 flex items-center justify-center outline-1 -outline-offset-1 ${summary.dependency_risk_count > 0 ? 'bg-destructive/10 text-destructive outline-destructive/30' : 'bg-muted-foreground/10 text-muted-foreground outline-muted-foreground/30'}`}>
                     <AlertOctagon className="h-5 w-5" />
                   </div>
                   <div>
@@ -641,53 +654,41 @@ export default function Reports() {
                     {/* Operational Details Grid (Hidden from Client) */}
                     {!isClient && (
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {/* Warn Stats */}
+                        {/* Risk Flags -- OVERLAPPING PREDICATES, and the title
+                            now says so. The chart beside this is a PARTITION:
+                            mutually exclusive, summing to a printed denominator.
+                            These are filters one task can satisfy several of at
+                            once. Nothing on the panel said so, so a reader
+                            seeing "Overdue: 47" beside a chart whose largest bar
+                            is 30 would try to place 47 on that scale.
+
+                            Blocked was removed from HERE rather than from the
+                            chart. It was the only one of the three that is also
+                            a status, printed twice on this panel in two visual
+                            languages from two code paths
+                            (ReportController.php:127 vs :130). Removing it makes
+                            the tiles purely derived and the chart purely
+                            partition, so the two vocabularies stop overlapping
+                            instead of needing reconciliation (FR-020/SC-013).
+
+                            Grid rows, not flex: index.css's print block flattens
+                            `.flex` to display:block, and this panel prints. */}
                         <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2">
-                          <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Warning Signals</span>
+                          <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Risk Flags</span>
+                          <p className="text-[10px] leading-tight text-muted-foreground">A task can carry more than one of these.</p>
                           <div className="space-y-1.5 text-xs font-medium">
-                            <div className="flex items-center justify-between">
+                            <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                               <span className="text-muted-foreground">Overdue Tasks:</span>
-                              <span className={`font-bold ${project.overdue_count > 0 ? 'text-red-500' : 'text-foreground'}`}>{project.overdue_count}</span>
+                              <span className={`font-bold tabular-nums ${project.overdue_count > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{project.overdue_count}</span>
                             </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Blocked Tasks:</span>
-                              <span className={`font-bold ${project.blocked_count > 0 ? 'text-amber-500' : 'text-foreground'}`}>{project.blocked_count}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
+                            <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                               <span className="text-muted-foreground">Dependency Risks:</span>
-                              <span className={`font-bold ${project.dependency_risk_count > 0 ? 'text-orange-500' : 'text-foreground'}`}>{project.dependency_risk_count}</span>
+                              <span className={`font-bold tabular-nums ${project.dependency_risk_count > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{project.dependency_risk_count}</span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Status Chart Breakdown */}
-                        {project.status_breakdown && (
-                          <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2 sm:col-span-2">
-                            <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Task Breakdown</span>
-                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 px-1 pt-1.5 h-16 items-end border-b border-border">
-                              {Object.entries(project.status_breakdown).map(([status, count]) => {
-                                const maxVal = Math.max(...Object.values(project.status_breakdown), 1)
-                                const pct = (count / maxVal) * 100
-                                const barColorClass = matchStatusColor(status)
-                                return (
-                                  <div key={status} className="flex flex-col items-center gap-1 group relative h-full justify-end">
-                                    {/* Tooltip */}
-                                    <div className="absolute bottom-full mb-1 scale-0 group-hover:scale-100 transition-transform origin-bottom bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded shadow z-10 font-bold whitespace-nowrap">
-                                      {count} tasks
-                                    </div>
-                                    <div
-                                      className={`w-full rounded-t ${barColorClass}`}
-                                      style={{ height: `${pct}%` }}
-                                    />
-                                    <span className="text-[10px] text-muted-foreground truncate w-full text-center capitalize font-semibold">
-                                      {status.replace('_', ' ')}
-                                    </span>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
+                        <StatusBreakdownPanel breakdown={project.status_breakdown} />
                       </div>
                     )}
 
@@ -728,22 +729,136 @@ export default function Reports() {
   )
 }
 
-// Helpers
-function matchStatusColor(status) {
-  switch (status) {
-    case 'backlog':
-      return 'bg-slate-400 dark:bg-slate-600'
-    case 'todo':
-      return 'bg-primary/70'
-    case 'in_progress':
-      return 'bg-blue-500/70'
-    case 'for_review':
-      return 'bg-amber-500/70'
-    case 'done':
-      return 'bg-emerald-500/70'
-    case 'blocked':
-      return 'bg-red-500/70'
-    default:
-      return 'bg-primary/70'
+// The project status chart.
+//
+// What it replaces: a six-column grid of vertical bars, each card normalised to
+// its OWN largest count, with no axis, no ticks, no printed figures, and the
+// count reachable only by hovering. Three defects in one component -- a 40/30/30
+// split rendered identically to a 90/5/5; a status holding one task beside one
+// holding nine hundred rendered at 0.07px; and a keyboard or touch user saw no
+// numbers at all. Its colour map ended `default: return 'bg-primary/70'`, so
+// not_started, completed and delayed were one violet, and its `todo`/`done`
+// branches were dead against the backend enum.
+//
+// EVERY status reaches its fill through an explicit key. There is no default
+// branch here and there must not be one again: verify-contrast.py asserts that
+// structurally (FR-022), because a palette-literal ban would not have caught the
+// token-utility default that caused the original bug.
+//
+// All arithmetic lives in lib/reportChart.js and is held by node --test. Nothing
+// in this function divides.
+function StatusBreakdownPanel({ breakdown }) {
+  const { total, rows } = buildStatusChartRows(breakdown)
+
+  // `status_breakdown` is countBy(), and Laravel serialises an EMPTY collection
+  // as `[]` -- which is truthy. The `breakdown &&` guard this replaces therefore
+  // rendered a bare bordered rail for every zero-task project. The test is the
+  // total, not the container.
+  if (total === 0) {
+    return (
+      <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2 sm:col-span-2">
+        <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">Task Breakdown</span>
+        <p className="py-3 text-xs text-muted-foreground">No tasks yet.</p>
+      </div>
+    )
   }
+
+  const hasPip = rows.some((row) => row.kind === 'pip')
+
+  return (
+    <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2 sm:col-span-2">
+      {/* The denominator, printed. Bar lengths are shares of THIS number, so two
+          project cards are comparable to one another; per-card max normalisation
+          made them look comparable while they were not. */}
+      <span className="text-[10px] uppercase font-extrabold text-muted-foreground tracking-wider block">
+        Task Breakdown &middot; {total} {total === 1 ? 'task' : 'tasks'}
+      </span>
+
+      <div className="space-y-1 pt-1">
+        {rows.map((row) => {
+          // Explicit branch on a computed flag, never a lookup fallback: an
+          // unrecognised status gets a treatment belonging to NO status, so it
+          // reads as "the backend grew a value this chart has never heard of"
+          // rather than impersonating one of the seven.
+          const fill = row.known ? STATUS_SEGMENT_CLASSES[row.status] : 'bg-foreground'
+          const label = row.known ? STATUS_SEGMENT_LABELS[row.status] : row.status
+          return (
+            // Grid, not flex, and that is FR-021 rather than taste: index.css's
+            // print block sets `.flex { display: block !important; width: 100%
+            // !important }`, so a flex row STACKS VERTICALLY when printed -- on a
+            // page whose primary action is Print / Save as PDF. Grid is also the
+            // honest expression of "these bars share one length scale".
+            <div key={row.status} className="grid grid-cols-[6rem_1fr_3rem] items-center gap-2">
+              <span className="truncate text-[10px] font-semibold text-muted-foreground">{label}</span>
+              {/* The track is a TINT of the chart's own vocabulary, and it is
+                  deliberately NOT held to 3:1. 1.4.11 governs the boundary of a
+                  component and the parts of a graphic required to understand
+                  the content -- here that is the bars and the printed counts,
+                  both of which are gated. A track driven to 3:1 competes with
+                  the data drawn on it.
+
+                  THE MARK CARRIES `block` EXPLICITLY, and that is the part
+                  that matters. The first version was `flex items-center` here
+                  with plain <span> marks inside; under @media print index.css
+                  flattens `.flex` to `display: block !important`, the marks
+                  lost the blockification the flex container was giving them,
+                  reverted to `display: inline` -- and a percentage width does
+                  nothing on an inline box. Measured under emulated print media:
+                  every bar came out 0.00px. The chart printed as seven empty
+                  rails, with print-color-adjust faithfully preserving the
+                  colour of nothing. FR-021 is about the LAYOUT as much as the
+                  palette, and making only the ROW a grid was not enough.
+
+                  Attributing the fix to this element's `block` was the first
+                  diagnosis and it was wrong: tampering it back to `flex` here
+                  still printed correctly, because by then the marks declared
+                  their own display. The track is `block` anyway so that no part
+                  of the chart depends on a display value the print stylesheet
+                  deletes, and the pip is absolutely positioned rather than a
+                  flex child for the same reason -- but the load-bearing change
+                  is on the marks. Verified by tamper in both directions.
+
+                  The first version outlined this in --input, and
+                  count-control-borders.py rejected it: --input means "the
+                  boundary of a form control", a chart track is not one, and
+                  borrowing a token for its VALUE rather than its MEANING is
+                  what breaks the blast-radius reasoning PR A recorded when it
+                  moved that token. The gate was right. */}
+              <span className="print-exact relative block h-3 w-full rounded-sm bg-muted-foreground/30">
+                {row.kind === 'bar' && (
+                  // `rounded-[2px]`, not `rounded-sm`: this theme maps
+                  // --radius-sm to 6px, and at the narrow end a 6px-radius bar
+                  // is a rounded blob visually identical to the pip -- which
+                  // collapses the exact distinction the third mark type exists
+                  // to make. Found by measuring the rendered box, not by
+                  // reading the class. An arbitrary value so a future --radius
+                  // change cannot reopen it.
+                  <span className={`print-exact block h-full rounded-[2px] ${fill}`} style={{ width: barWidth(row.count, total) }} />
+                )}
+                {/* THE THIRD MARK TYPE (FR-019). A dot, not a short bar: a
+                    clamped minimum length is still a length, so a reader cannot
+                    tell 1 from 7 while the mark keeps making a quantitative claim
+                    it cannot support. Different shape AND different height, so it
+                    cannot be misread as a very short bar. */}
+                {row.kind === 'pip' && (
+                  <span className={`print-exact absolute left-0.5 top-[3px] block h-1.5 w-1.5 rounded-full ${fill}`} />
+                )}
+              </span>
+              {/* The count, always, for every reader. It used to live in a
+                  `scale-0` hover tooltip -- and `scale-0` is a transform, so that
+                  text sat in the accessibility tree the whole time while being
+                  unreachable by a keyboard or touch user. */}
+              <span className="text-right text-[10px] font-bold tabular-nums text-foreground">{row.count}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {hasPip && (
+        <p className="text-[10px] leading-tight text-muted-foreground">
+          A dot marks a count too small to draw to scale.
+        </p>
+      )}
+    </div>
+  )
 }
