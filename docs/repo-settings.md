@@ -155,3 +155,5 @@ Workflow Master while auditing the branch, not by anyone reviewing the change.
 Constitution 1.5.0 was written partly in response. Its architect review then found that 1.5.0 *as
 first drafted* would have flagged the decision and still left no artifact — the gate named the
 action but nothing named where the record goes. Rule 5 and this file close that gap.
+
+<!-- throwaway: proving the widened pull_request trigger fires on a non-main base -->
