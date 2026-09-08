@@ -31,7 +31,7 @@ const FileIcon = ({ mimeType, className = 'h-5 w-5' }) => {
  *
  * Props:
  *   taskId        {number}    The detailed_activity_id to scope attachments to.
- *   userRole      {string}    Current mock role (e.g. 'Project Manager', 'Client').
+ *   userRole      {string}    The effective role from useEffectiveUser() (e.g. 'Project Manager', 'Client').
  *   onCountChange {function}  Callback(count) invoked after load/upload/delete.
  *   readOnly      {boolean}   009-support-ops-knowledge-base — additive, defaults
  *                             to false. When true, the upload control is not

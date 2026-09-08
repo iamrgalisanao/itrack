@@ -15,7 +15,7 @@ import {
  *
  * Props:
  *   taskId        {number}   The detailed_activity_id to scope comments to.
- *   userRole      {string}   Current mock role (e.g. 'Project Manager', 'Client').
+ *   userRole      {string}   The effective role from useEffectiveUser() (e.g. 'Project Manager', 'Client').
  *   onCountChange {function} Callback(count) invoked after comment create/delete
  *                            so the parent tab badge can update.
  *   readOnly      {boolean}  009-support-ops-knowledge-base — additive, defaults

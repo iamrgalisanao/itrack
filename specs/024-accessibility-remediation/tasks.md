@@ -478,9 +478,9 @@ forced-colors (T066).
 
 ---
 
-- [ ] T068 [P] [US5] Rewrite the "Mock Auth Mode" copy at `frontend/src/pages/Admin.jsx:1455` to describe the production mechanism (issue #12)
-- [ ] T069 [P] [US5] Grep JSX string literals for `mock`, `prototype`, `scaffold`. SC-010 says "no interface text"; T068 fixes one known site, and the sweep is the difference between fixing an instance and satisfying the criterion
-- [ ] T070 [US5] Hide the Schedule assignee filter on **emptiness, never role**: the test is `assignees.length <= 1` (the array is seeded with `'all'`, so `=== 0` never fires and the feature ships looking done), and force `assigneeFilter` back to `'all'` when hidden or the predicate at `:344` keeps filtering by an invisible value
+- [x] T068 [P] [US5] Rewrite the "Mock Auth Mode" copy at `frontend/src/pages/Admin.jsx:1455` to describe the production mechanism (issue #12)
+- [x] T069 [P] [US5] Grep JSX string literals for `mock`, `prototype`, `scaffold`. SC-010 says "no interface text"; T068 fixes one known site, and the sweep is the difference between fixing an instance and satisfying the criterion
+- [x] T070 [US5] Hide the Schedule assignee filter on **emptiness, never role**: the test is `assignees.length <= 1` (the array is seeded with `'all'`, so `=== 0` never fires and the feature ships looking done), and force `assigneeFilter` back to `'all'` when hidden or the predicate at `:344` keeps filtering by an invisible value
 
 ### Verification
 
@@ -488,6 +488,59 @@ forced-colors (T066).
 - [ ] T072 [US1] **NVDA + Firefox in both focus and browse mode**; JAWS + Chrome; VoiceOver + Safari — the last is the one that exposes a cross-pane `aria-describedby` problem if there is one
 - [ ] T073 [US1] **Real** Windows High Contrast, not Chromium emulation: emulation does not faithfully reproduce the inline-style override on the Gantt bars, which is the mechanism T066 addresses
 - [ ] T074 [US1] Confirm each task is announced **once** — no duplicate card content inline (FR-004, SC-002)
+
+---
+
+### C6 result — honest interface text (2026-09-08)
+
+**T068 — the copy's consequence was true; its stated reason was false.** `DepartmentGrant` keys on
+`(grantee_role, grantee_department) -> granted_department`, so a grant really does apply to everyone
+holding that role in that department. That is the production design. The card attributed it to
+"Mock Auth Mode" — an auth mode the app has not used since feature 001 — and closed by calling
+itself suitable "for testing and prototyping ... before introducing production directory
+integrations". Rewritten to describe the real mechanism, and to point at `ProjectAssignment` as the
+per-user tool, which is the question the old copy left a reader with.
+
+**T069 — the sweep found three sites the task does not name**, all repeating the same false claim:
+`TaskComments.jsx:18` and `TaskFiles.jsx:34` ("Current mock role"), and `DepartmentGrant.php:19`
+("In mock mode this applies to any user matching that persona"). These are JSDoc and a PHP docblock,
+so strictly outside SC-010, which governs interface *text*. Fixed anyway — one-line corrections
+repeating a falsehood where a developer looks, in a repo that treats comments as checked artifacts.
+Recorded as beyond the criterion's letter rather than passed off as part of it.
+
+**And T069 got a mechanism, not a grep.** The task says the sweep "is the difference between fixing
+an instance and satisfying the criterion" — so a one-time search satisfies neither the next day.
+`interfaceText.test.js` scans every `.jsx`/`.js` under `src/`, strips comments (SC-010 governs
+interface text, and a comment explaining the ban would otherwise trip it), and fails naming
+`file:line`. It also asserts it can *see* a violation and that it scanned a plausible number of
+files, so it cannot go green over an empty list.
+
+**T070 — the trap was real and the fix went further than the task.** `assignees` is seeded with
+`'all'`, so `length === 0` can never fire and a filter gated on it ships looking implemented. The
+predicates moved to `lib/scheduleFilters.js` and are held by `node --test`.
+
+The second half deviates deliberately: rather than resetting `assigneeFilter` to `'all'` when the
+control is hidden, the predicate tests whether the selection is still **available**
+(`assigneeFilter !== 'all' && assignees.includes(assigneeFilter)`). That covers the stated defect and
+one the task does not name — the selected assignee disappearing while *others* remain, leaving the
+`<select>` showing a value absent from its own options and filtering everything away. It also needs
+no state-syncing effect and keeps the user's choice if that assignee returns.
+
+**A bug only running the app could catch.** Wiring the predicates put
+`const assigneeFilterActive` *below* `getFilteredTasks()`, which runs during render — so every render
+threw a temporal-dead-zone `ReferenceError` and the Schedule page rendered nothing. `npm run build`
+compiled it happily. The definitions moved above their use, and the comment there says why.
+
+**Two vacuous passes caught in the live check itself.** It reported the assignee filter hidden — a
+false negative: `uppercase` styling makes `innerText` return `ASSIGNEE:`, and the match was
+case-sensitive. And it reported the Admin copy clean while never rendering it: the card is behind the
+Department Grants tab, and `element.click()` does not activate a Radix tab, which listens on pointer
+events. Both fixed; the check now asserts the rewritten card is actually on screen before concluding
+anything about it.
+
+**Verification.** 118 frontend tests (11 new), 492 backend tests, build clean, lint 0 errors,
+contrast and border gates hold. Two tampers, each failing by name: a banned word in interface text,
+and the emptiness test reverted to `length === 0`.
 
 ---
 

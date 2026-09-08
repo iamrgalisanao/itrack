@@ -22,6 +22,7 @@ import {
   Paperclip,
 } from 'lucide-react'
 import { useEffectiveUser } from '@/context/PreviewContext'
+import { hasAssignees, isAssigneeFilterActive } from '@/lib/scheduleFilters'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import TaskComments from '@/components/TaskComments'
 import TaskFiles from '@/components/TaskFiles'
@@ -326,6 +327,20 @@ export default function Schedule() {
     }
   })
 
+  // Assignee options and their two predicates, declared ABOVE getFilteredTasks
+  // because that function runs during render and reads assigneeFilterActive.
+  // Left below it, the `const` sits in its temporal dead zone and every render
+  // throws a ReferenceError -- which `npm run build` compiles happily and only
+  // loading the page reveals.
+  const assignees = ['all', ...new Set(tasks.map(t => t.responsible).filter(Boolean))]
+
+  // Both predicates live in lib/scheduleFilters.js, where node --test can reach
+  // them: each hides a trap a reader cannot see. See that file for why the
+  // emptiness test is not `length === 0`, and why the selection is tested for
+  // availability rather than reset.
+  const showAssigneeFilter = hasAssignees(assignees)
+  const assigneeFilterActive = isAssigneeFilterActive(assigneeFilter, assignees)
+
   // Scopes and filters
   const getFilteredTasks = () => {
     return tasks.filter(task => {
@@ -341,7 +356,7 @@ export default function Schedule() {
       }
 
       // Assignee Filter
-      if (assigneeFilter !== 'all' && task.responsible !== assigneeFilter) {
+      if (assigneeFilterActive && task.responsible !== assigneeFilter) {
         return false
       }
 
@@ -369,7 +384,7 @@ export default function Schedule() {
 
   // Unique lists for filter options
   const departments = ['all', ...new Set(projects.map(p => p.department).filter(Boolean))]
-  const assignees = ['all', ...new Set(tasks.map(t => t.responsible).filter(Boolean))]
+
 
   // Date controls helper
   const prevPeriod = () => {
@@ -872,7 +887,8 @@ export default function Schedule() {
             </div>
           )}
 
-          {/* Assignee Filter */}
+          {/* Assignee Filter — absent when there is nobody to filter by */}
+          {showAssigneeFilter && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-semibold uppercase tracking-wider text-[10px]">Assignee:</span>
             <select
@@ -886,6 +902,7 @@ export default function Schedule() {
               ))}
             </select>
           </div>
+          )}
 
           {/* View Mode Switcher Pills */}
           <div role="group" aria-label="View mode" className="flex items-center rounded-lg bg-muted p-1">
