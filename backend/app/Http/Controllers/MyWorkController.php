@@ -36,7 +36,27 @@ class MyWorkController extends Controller
             // both "before today" and "after week_end"), which silently breaks
             // the count-partition guarantee below.
             'today'      => ['nullable', 'date_format:Y-m-d', 'required_with:week_end'],
-            'week_end'   => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today', 'required_with:today'],
+            // NO `after_or_equal:today` HERE, and its absence is the fix rather
+            // than an omission.
+            //
+            // `today` is both the name of the field above AND one of the
+            // relative date strings Laravel's date rules understand. The rule
+            // resolved the keyword, not the sibling field, so `week_end` was
+            // compared against the SERVER'S current date -- which contradicts
+            // this endpoint's whole anchor design (see resolveAnchors: the
+            // browser is the only authority on "today", because iTrack stores
+            // no per-user timezone).
+            //
+            // It also duplicated an invariant resolveAnchors already enforces
+            // correctly, for every combination of supplied and defaulted
+            // anchors, throwing on the same field. So the rule added no
+            // protection and imposed a constraint the design explicitly
+            // rejects: no client could ask for a week that had already ended.
+            //
+            // It went unnoticed because it only fails once the hard-coded test
+            // anchors fall behind the server clock -- a test that passes on the
+            // day it is written and fails silently a week later.
+            'week_end'   => ['nullable', 'date_format:Y-m-d', 'required_with:today'],
             'per_bucket' => ['nullable', 'integer', 'min:1', 'max:100'],
             'bucket'     => ['nullable', 'in:' . implode(',', self::BUCKETS), 'required_with:all'],
             'all'        => ['nullable', 'boolean', 'required_with:bucket'],
@@ -163,9 +183,12 @@ class MyWorkController extends Controller
         $today = $validated['today'] ?? now()->toDateString();
         $weekEnd = $validated['week_end'] ?? now()->endOfWeek(\Carbon\CarbonInterface::SUNDAY)->toDateString();
 
-        // The validator's after_or_equal cannot compare a supplied week_end
-        // against a defaulted today, so re-assert the invariant here: the four
-        // predicates must partition the open set.
+        // THE ONLY PLACE THIS INVARIANT IS ENFORCED, deliberately. The four
+        // bucket predicates must partition the open set, which they only do
+        // when today <= weekEnd; this catches every combination of supplied and
+        // defaulted anchors, which a validation rule on a single field cannot.
+        // A rule that tried to duplicate it compared against the server clock
+        // instead of the supplied anchor -- see the note in index().
         if ($today > $weekEnd) {
             throw ValidationException::withMessages([
                 'week_end' => 'The week end must be on or after today.',
