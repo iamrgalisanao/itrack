@@ -7,6 +7,56 @@ This file exists because of the first entry below.
 
 ---
 
+## 2026-09-07 — CI ran on no stacked pull request at all
+
+**The `pull_request` trigger was filtered by base branch and is no longer.**
+
+`.github/workflows/ci.yml` carried:
+
+```yaml
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]     # <- filters by the PR's BASE branch
+```
+
+On `push` that filter is correct. On `pull_request` it means **any PR that does not
+target `main` runs no CI whatsoever**. It is a natural thing to copy down from the line
+above it, and nothing about the resulting check list says anything is missing.
+
+Found when 024 was delivered as a stack of small increments — each PR based on the one
+before it, which is the standard way to keep increments reviewable:
+
+| PR | Base | Checks that ran |
+|---|---|---|
+| #38 | `main` | Backend, Frontend, contrast, cascade, GitGuardian |
+| #39 | `024-b2-status-vocabulary` | **GitGuardian only** |
+| #40 | `024-b3-chart-honesty` | **GitGuardian only** |
+| #41 | `024-c1-gantt-a11y-module` | **GitGuardian only** |
+
+Not a failing gate. **No gate, presented as a passing one** — a clean green check list
+carrying a single third-party secret scan, while the backend suite, the frontend build,
+the contrast gate and the cascade gate had never executed. That is the same defect class
+this repository closed for the cascade job (a gate nobody required) and for
+`supportTemplates.test.js` (a suite nobody ran), arriving through a third door.
+
+**What changed:** the `branches:` filter is removed from `pull_request` only. `push`
+stays restricted to `main` — every commit on the default branch should still get its own
+verdict, and feature-branch pushes are covered by their PR.
+
+**What did NOT change:** branch protection on `main`, and the required-checks list. This
+decides whether a verdict is *produced*; required checks decide whether it *blocks*. A
+stacked PR merging into its parent is not covered by `main`'s protection, so the visible
+verdict is the only signal a reviewer gets — which is precisely why it has to be real.
+
+**Consequence for an existing stack:** a PR only picks this up once the workflow file is
+in its own history. The clean way through is to merge the stack from the bottom: as each
+PR lands on `main`, the next one retargets to `main` and gets a full run. #39, #40 and
+#41 carry **no verdict** until that happens, and should not be read as verified.
+
+---
+
 ## 2026-08-28 — `Design tokens (cascade)` added to required checks on `main`
 
 **Decided by**: Software Architect, reviewing feature 024 Story 4 before PR. **Approved by**: the
