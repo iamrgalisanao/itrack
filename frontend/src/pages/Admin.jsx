@@ -1448,18 +1448,23 @@ export default function Admin() {
             <div>
               <Card className="h-full">
                 <CardHeader>
-                  <CardTitle>Mock Limitation Note</CardTitle>
+                  <CardTitle>How grants are scoped</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground space-y-3 leading-relaxed">
                   <p>
-                    Because this project operates in <strong>Mock Auth Mode</strong>, grants map roles to departments rather than individuals.
+                    Grants are scoped to a <strong>role within a department</strong>, not to an individual account. A grant records
+                    "Department Head of Engineering may see IT" — so it applies to every user holding that role in that department,
+                    including anyone given it later.
                   </p>
                   <p>
-                    For example, granting <strong>Department Head</strong> of <strong>Engineering</strong> visibility to <strong>IT</strong> projects will let ANY user switched to "Department Head" with department "Engineering" view both Engineering and IT projects.
+                    So granting <strong>Department Head</strong> of <strong>Engineering</strong> visibility of <strong>IT</strong> projects lets
+                    <strong>every</strong> Department Head in Engineering see both — present and future. A user always sees their own
+                    department; grants only ever add to that.
                   </p>
                   <p className="text-xs border-t pt-2 border-border flex items-start gap-1.5">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    Perfect for testing and prototyping role configurations before introducing production directory integrations (e.g. Active Directory/Okta).
+                    To scope visibility to one person rather than a whole role, assign them to the project directly — project
+                    assignments are per-user, and are the narrower tool.
                   </p>
                 </CardContent>
               </Card>

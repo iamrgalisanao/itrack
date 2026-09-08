@@ -15,8 +15,12 @@ class DepartmentGrant extends Model
     ];
 
     /**
-     * Return all departments granted to a specific role+dept persona.
-     * In mock mode this applies to any user matching that persona.
+     * Return all departments granted to a specific role+department pairing.
+     *
+     * A grant is keyed on (grantee_role, grantee_department), so it applies to
+     * EVERY user holding that role in that department -- by design, not as a
+     * limitation of some earlier auth mode. Per-user scoping is what
+     * ProjectAssignment is for.
      */
     public static function grantedDepartments(string $granteeRole, string $granteeDept): array
     {
