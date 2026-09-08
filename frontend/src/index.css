@@ -325,6 +325,20 @@ body {
   }
 }
 
+/* Browsers drop background fills from a printed copy by default, so a chart
+   made of tracks and bars prints as a set of empty outlines -- on a page whose
+   primary action is a Print / Save as PDF button (FR-021/SC-012).
+   `print-color-adjust` appeared NOWHERE in this file before 024 Story 3.
+
+   Declared outside @media print deliberately: the property is only consulted
+   during printing, and keeping one declaration means a component opts in once
+   rather than the print block growing a selector per chart. */
+.print-exact,
+.print-exact * {
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
 @media print {
   html, body {
     height: auto !important;

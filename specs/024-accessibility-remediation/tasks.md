@@ -134,40 +134,40 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
 ### The chart — rotate it
 
-- [ ] T028 [US3] Add `STATUS_FILL_TOKENS` to `frontend/src/lib/taskStatus.js` — **seven entries**, token names not values. Do **not** rename or generalise `ganttPalette.js`: `verify-contrast.py` anchors its parse to the literal export `GANTT_STATUS_TOKENS` and two tamper proofs were built on that anchor
-- [ ] T029 [US3] Exclude `pending`. It is synthesised by `getRollupStatus` for parent rows and never reaches `/api/reports`, whose `status_breakdown` is `countBy('status')` over leaf rows — including it would encode a false claim about the endpoint
-- [ ] T030 [US3] Replace the vertical `grid-cols-3 sm:grid-cols-6` chart at `frontend/src/pages/Reports.jsx:667` with a horizontal aligned-bar list: one row per status, label | track+bar | count. The current grid wraps at **four** statuses on mobile, and because the container is `h-16 items-end` a wrapped row does not extend the box — both rows compress and the baseline sits under only the bottom one.
+- [x] T028 [US3] Add `STATUS_FILL_TOKENS` to `frontend/src/lib/taskStatus.js` — **seven entries**, token names not values. Do **not** rename or generalise `ganttPalette.js`: `verify-contrast.py` anchors its parse to the literal export `GANTT_STATUS_TOKENS` and two tamper proofs were built on that anchor
+- [x] T029 [US3] Exclude `pending`. It is synthesised by `getRollupStatus` for parent rows and never reaches `/api/reports`, whose `status_breakdown` is `countBy('status')` over leaf rows — including it would encode a false claim about the endpoint
+- [x] T030 [US3] Replace the vertical `grid-cols-3 sm:grid-cols-6` chart at `frontend/src/pages/Reports.jsx:667` with a horizontal aligned-bar list: one row per status, label | track+bar | count. The current grid wraps at **four** statuses on mobile, and because the container is `h-16 items-end` a wrapped row does not extend the box — both rows compress and the baseline sits under only the bottom one.
 
   **Build the rows with `grid-cols-[6rem_1fr_3rem]`, not flex — FR-021/SC-012.** `index.css`'s print block sets `.flex { display: block !important; width: 100% !important; padding: 0 !important }`, so a flex row **stacks vertically when printed**, on a page whose primary action is the Print / Save as PDF button at `:283`. Grid is also the honest expression of "bars sharing one length scale" and is immune to that reset
-- [ ] T031 [US3] Compute `total` **once outside the map** and bar length as share of project total; print the total in the panel header (`Task Breakdown · 412 tasks`). `maxVal` is currently recomputed inside the map callback, and per-card max normalisation makes a 40/30/30 split render identically to a 90/5/5
-- [ ] T032 [US3] Render all seven rows always, driven by `STATUS_ORDER` and indexed `breakdown[status] ?? 0` — not `Object.entries`. This also makes the chart immune to `countBy`'s empty-collection serialisation
-- [ ] T033 [US3] **THREE mark types, not two — FR-019/SC-011, amended 2026-08-29.** Zero renders an empty track and a printed `0`; a count **below the scale's resolution** renders a *pip* — a fixed small mark that is visibly **not** a bar; anything above renders a proportional bar.
+- [x] T031 [US3] Compute `total` **once outside the map** and bar length as share of project total; print the total in the panel header (`Task Breakdown · 412 tasks`). `maxVal` is currently recomputed inside the map callback, and per-card max normalisation makes a 40/30/30 split render identically to a 90/5/5
+- [x] T032 [US3] Render all seven rows always, driven by `STATUS_ORDER` and indexed `breakdown[status] ?? 0` — not `Object.entries`. This also makes the chart immune to `countBy`'s empty-collection serialisation
+- [x] T033 [US3] **THREE mark types, not two — FR-019/SC-011, amended 2026-08-29.** Zero renders an empty track and a printed `0`; a count **below the scale's resolution** renders a *pip* — a fixed small mark that is visibly **not** a bar; anything above renders a proportional bar.
 
   The original `max(0.25rem, share)` clamp trades one indistinguishability for another. Every count below the clamp's threshold renders at identical length, so a reader cannot tell 1 from 7 — while the mark still *looks* proportional and therefore still makes a quantitative claim it cannot support. The current chart shows how bad this gets: it is **max-scaled**, `height: (count / max) × 100%` in a 64px box, so a count of 1 against a largest count of 900 is **0.07px**.
 
   The pip extends the rule already adopted for zero rather than inventing a precedent — and it turns the replacement for the deleted T041 into a real assertion (*"a sub-resolution row renders the pip and no bar"*) rather than one certifying that CSS `max()` works.
 
-- [ ] T033a [US3] Set `print-color-adjust: exact` on the track and fill — FR-021/SC-012. `print-color-adjust` appears **nowhere** in `index.css` today, so browsers drop background fills from the printed copy and the chart prints as empty tracks
-- [ ] T034 [US3] Print counts in a right-aligned `tabular-nums` column and **delete the hover tooltip**. `scale-0` is a transform and does not remove the node from the accessibility tree, so "N tasks" is currently live text on every bar — FR-004's defect class on a second surface
-- [ ] T035 [US3] Delete `matchStatusColor` at `Reports.jsx:732-749` entirely. Its `todo`/`done` branches are dead against the backend enum and `not_started`/`completed`/`delayed` all fall through `default` to one violet
-- [ ] T036 [US3] Replace the `project.status_breakdown &&` truthiness guard at `:664` with `total > 0` and render an explicit "No tasks yet" panel. An empty collection JSON-encodes as `[]`, which is truthy, so a zero-task project currently renders a bare bordered rail
-- [ ] T037 [US3] Retokenise the risk tiles to stop encoding by hue: `--destructive` when count > 0, `--muted-foreground` when 0. Two of the three are **not statuses at all** — overdue and dependency-risk are derived metrics borrowing the status palette's hues. This is deliberate scope beyond FR-011's letter, recorded rather than ridden in implicitly.
+- [x] T033a [US3] Set `print-color-adjust: exact` on the track and fill — FR-021/SC-012. `print-color-adjust` appears **nowhere** in `index.css` today, so browsers drop background fills from the printed copy and the chart prints as empty tracks
+- [x] T034 [US3] Print counts in a right-aligned `tabular-nums` column and **delete the hover tooltip**. `scale-0` is a transform and does not remove the node from the accessibility tree, so "N tasks" is currently live text on every bar — FR-004's defect class on a second surface
+- [x] T035 [US3] Delete `matchStatusColor` at `Reports.jsx:732-749` entirely. Its `todo`/`done` branches are dead against the backend enum and `not_started`/`completed`/`delayed` all fall through `default` to one violet
+- [x] T036 [US3] Replace the `project.status_breakdown &&` truthiness guard at `:664` with `total > 0` and render an explicit "No tasks yet" panel. An empty collection JSON-encodes as `[]`, which is truthy, so a zero-task project currently renders a bare bordered rail
+- [x] T037 [US3] Retokenise the risk tiles to stop encoding by hue: `--destructive` when count > 0, `--muted-foreground` when 0. Two of the three are **not statuses at all** — overdue and dependency-risk are derived metrics borrowing the status palette's hues. This is deliberate scope beyond FR-011's letter, recorded rather than ridden in implicitly.
 
   **Line-number correction:** the cited `:502-509` is the **Blocked tile alone**. The three page-level tiles span roughly `:485-527`. Following the original range lands only one of them.
 
-- [ ] T037a [US3] **Remove the Blocked count from the risk tiles — FR-020/SC-013, amended 2026-08-29.** It is printed twice on the same page in two visual languages: once as a tile and, ~16px away, once as a chart row computed from a second code path (`ReportController.php:127` vs `:130`).
+- [x] T037a [US3] **Remove the Blocked count from the risk tiles — FR-020/SC-013, amended 2026-08-29.** It is printed twice on the same page in two visual languages: once as a tile and, ~16px away, once as a chart row computed from a second code path (`ReportController.php:127` vs `:130`).
 
   The chart is a **partition** — mutually exclusive, summing to a denominator. The tiles are **overlapping predicates**: a task can be overdue *and* blocked *and* counted in a status row. Nothing on the panel says so, so a reader seeing "Overdue: 47" beside a chart whose largest bar is 30 will try to place 47 on that scale. `Blocked` is the only one of the three tiles that is *also* a status, so removing it makes the tiles purely derived and the chart purely partition — the vocabularies stop overlapping rather than needing reconciliation.
 
-- [ ] T037b [US3] Retitle the tile group to name what it is (e.g. "Risk Flags") and state that a task may appear in more than one. One line, and it is what stops the partition/predicate confusion the amendment describes
+- [x] T037b [US3] Retitle the tile group to name what it is (e.g. "Risk Flags") and state that a task may appear in more than one. One line, and it is what stops the partition/predicate confusion the amendment describes
 
 ### Gates
 
-- [ ] T038a [US3] **Assert no status reaches its treatment through a default branch — FR-022, amended 2026-08-29.** This is a **distinct regression class** from B1's palette-literal ratchet and needs its own assertion.
+- [x] T038a [US3] **Assert no status reaches its treatment through a default branch — FR-022, amended 2026-08-29.** This is a **distinct regression class** from B1's palette-literal ratchet and needs its own assertion.
 
   B1 shipped the literal half and recorded the boundary rather than implying coverage: **a token utility is not a palette literal, and the live bug is a token utility.** `matchStatusColor`'s `default: return 'bg-primary/70'` is what collapses `not_started`, `completed` and `delayed` into one violet today, and it would pass a palette-literal ban unchanged. T035 deletes that function; this assertion is what stops the shape returning. Anchor it to structure (no `default:` in a status→treatment map, and every `STATUS_ORDER` key present as an explicit key), not to the function name — a name grep fires on a comment and passes if the function is renamed
 
-- [ ] T038 [US3] Add the five `STATUS_FILL_TOKENS` contracts to `scripts/verify-contrast.py` per `contracts/ui-contracts.md`. **Five, not four** — the fifth is treatment distinctness and is SC-004's only mechanism; building "the four" drops it
+- [x] T038 [US3] Add the five `STATUS_FILL_TOKENS` contracts to `scripts/verify-contrast.py` per `contracts/ui-contracts.md`. **Five, not four** — the fifth is treatment distinctness and is SC-004's only mechanism; building "the four" drops it
 - [x] T039 [US2] **DONE in B1 — and the contract it names was the wrong one.** ΔE00 threshold **stated: 11.0**, and the assertion is not what this task described.
 
   Every artifact said the fills must clear "a stated ΔE00" and none of them stated the number, which leaves the implementer to measure first and then pick a threshold the measurement clears. So it is fixed in the gate, before any fill is chosen.
@@ -199,8 +199,8 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
 
   The only way to satisfy T041 as written is to hand-write a fixture whose width the author also writes — `<div style="width: max(0.25rem, 0.2%)">` computes to 4px because the CSS spec says so, in a document containing no application code. It would be green, it would be correct, and it would say nothing whatsoever about `Reports.jsx`. That is not a *risk* of vacuity; it is vacuity by construction, and it is the same shape as the reports row whose fixture made the sentinel structurally ineligible.
 
-- [ ] T041a [US3] Extract the chart's arithmetic to a pure `barWidth(count, total)` (and `buildStatusChartRows(breakdown)`) in `frontend/src/lib/reportChart.js`, and test it with `node --test`. Assert: `barWidth(1, 900)` clamps to the floor; `barWidth(0, 900)` is `0px`; the denominator is the **sum of all response values**, not of the seven known keys; rows sum to the printed header total; a status key absent from `STATUS_ORDER` surfaces rather than vanishing. This is testable because it is arithmetic — the same reasoning already applied to `ganttA11y.js` in Story 1 and not applied here
-- [ ] T041b [US3] Assert in `verify-contrast.py` that `Reports.jsx` imports `barWidth` from that module and contains no inline width arithmetic, so the function under test is the one that ships
+- [x] T041a [US3] Extract the chart's arithmetic to a pure `barWidth(count, total)` (and `buildStatusChartRows(breakdown)`) in `frontend/src/lib/reportChart.js`, and test it with `node --test`. Assert: `barWidth(1, 900)` clamps to the floor; `barWidth(0, 900)` is `0px`; the denominator is the **sum of all response values**, not of the seven known keys; rows sum to the printed header total; a status key absent from `STATUS_ORDER` surfaces rather than vanishing. This is testable because it is arithmetic — the same reasoning already applied to `ganttA11y.js` in Story 1 and not applied here
+- [x] T041b [US3] Assert in `verify-contrast.py` that `Reports.jsx` imports `barWidth` from that module and contains no inline width arithmetic, so the function under test is the one that ships
 - [x] T042 [US2] Tamper: give `delayed` its own hue. Contract 2 must fail. This is the assertion that stops a future contributor "fixing" the sanctioned sharing and reopening what 023 closed
 - [x] T043 [US2] Manual protanopia and deuteranopia simulation of every status treatment, both themes. SC-004 says "verified by measurement rather than inspection" — the gate measures treatments, but pairwise perceptual judgement still needs an eye
 
@@ -224,6 +224,96 @@ No blocking prerequisite spans the three PRs. Each is independently landable in 
   **Four defects found and fixed before this pass**, all invisible to the automated gates: the legend broke the collapsed-header footprint (wrapped to three lines in the real status column, lifting the segment bar 7px off the Priority bar); every status name was announced twice; the `20px` glyph floor suppressed all seven glyphs at `1280x900` even though the bad pairs rendered; and the visual glyph bar still exposed status names through `title` while the `sr-only` list carried the canonical accessible status list. The final pass measured Status/Priority bar top offset at `0`, one `sr-only` list item per status, `aria-hidden="true"` on the glyph-bearing visual bar and count row, and zero focusable controls inside the summary.
 
   **Dev-data note.** The final re-run temporarily reassigned task IDs `23-36` from `not_started` across two `STATUS_ORDER` runs, then restored those same 14 rows to `not_started` after the browser pass. No seeded DB state is required to remain in place for B2.
+
+---
+
+### PR B3 result — Story 3 delivered 2026-09-07
+
+All gates green on the final tree: `verify-contrast.py` HOLDS, `count-control-borders.py`
+RATCHET HOLDS (81 == 81), `verify-cascade.py` CASCADE CONTRACT HOLDS with `CASCADE_REQUIRED=1`,
+`npm run build` clean, `npm run lint` 0 errors, `npm test` 67 pass / 0 fail (13 new in
+`reportChart.test.js`).
+
+**Ten tampers, each failing by name** (harness re-run after every change, tree restored between):
+assertion 1 by adding `pending`; assertion 2 by giving `delayed` its own hue, and again by drifting
+`STATUS_SEGMENT_CLASSES` from the token map; assertion 3 by driving `--success` onto the panel
+colour; assertion 4 by giving two statuses one label; assertion 5 four ways — inline width
+arithmetic, `barWidth` off the render path, a `?? 'bg-primary/70'` fallback, a raw palette literal;
+and map completeness by deleting a glyph.
+
+**Decisions taken as architect, recorded because they are not in the task text:**
+
+- **`STATUS_FILL_TOKENS` is the token-name form of `STATUS_SEGMENT_CLASSES`, not a new vocabulary.**
+  The gate pins them (`STATUS_SEGMENT_CLASSES[s] === 'bg-' + STATUS_FILL_TOKENS[s]`), which is what
+  makes the chain assertable end to end: css value <- token name <- utility class <- component.
+  Tailwind cannot build a class at runtime, so the component must use the utility form; without the
+  pin both maps could pass individually while the chart drifted from the Gantt.
+- **The scale's resolution is stated at 1% of the total** (`SCALE_RESOLUTION_PCT`), and the pip is a
+  6px **dot**, not a short bar — different shape *and* height, so it makes no length claim.
+- **No glyph in the chart.** Every row prints its full label, which is a stronger non-colour channel
+  than a two-character abbreviation and avoids minting a second treatment vocabulary. Assertion 4 is
+  therefore anchored to label distinctness on this surface, and the existing glyph block continues
+  to hold the summary bar. Confirmed under simulation: in light deuteranopia `Delayed` and `Done`
+  render as one olive, and the rows stay unambiguous by label, position and printed count.
+- **An unknown status key renders in `bg-foreground` with its raw key as the label** — a treatment
+  belonging to no status, so it reads as "the backend grew a value this chart has never heard of"
+  rather than impersonating one of the seven.
+- **T037a extended to the page-level Blocked tile as well**, which the task scoped to the
+  per-project one. The screenshot settled it: the tile read "Blocked Tasks 2" while the chart row
+  one card below read "Blocked 2" — the same count, twice, on one screen, in two visual languages,
+  from two code paths. SC-013 is page-scoped. The summary grid moved from `lg:grid-cols-4` to
+  `lg:grid-cols-3`.
+- **T041a's `barWidth(1, 900)` returns `'0%'`, not a clamped floor.** The task predates Amendment B;
+  a clamp is still a length, and FR-019 replaced it with the third mark type. The test asserts the
+  amended behaviour and says so at the assertion.
+
+**Two defects found by measurement that no gate could see, both fixed:**
+
+1. **`rounded-sm` computes to 6px in this theme**, so a narrow bar rendered as a rounded blob
+   visually identical to the pip — collapsing the exact distinction the third mark type exists to
+   make. Found by reading the rendered box (`markRadius: "6px"`), not by reading the class. Bars now
+   use `rounded-[2px]`, an arbitrary value so a future `--radius` change cannot reopen it.
+2. **The chart printed as seven empty rails.** Under `@media print`, `index.css` flattens `.flex` to
+   `display: block !important`; the mark `<span>`s lost the blockification the flex track was giving
+   them, reverted to `display: inline`, and a percentage width does nothing on an inline box. Every
+   bar measured **0.00px** under emulated print media, with `print-color-adjust` faithfully
+   preserving the colour of nothing. FR-021 is about layout as much as palette, and making only the
+   *row* a grid was not enough. Marks now carry `block` explicitly.
+
+   **The first diagnosis was wrong and the tamper caught it.** Attributing the fix to the track's
+   `block` failed to reproduce: tampering the track back to `flex` still printed correctly, because
+   by then the marks declared their own display. The in-code comment was corrected to match the
+   evidence.
+
+**And the verification itself failed twice before it worked**, which is the part worth keeping:
+
+- Draft 1 of the print check measured layout and colour only, and reported **PASSES** with every
+  printed bar at 0.00px.
+- Draft 2 compared print against screen (`screen > 0 and print == 0`) and went green again the
+  moment a tamper broke *both* media at once — the defect became invisible because its own
+  reference moved with it. Same defect class as the `!= 2 * len(...)` guard recorded in
+  `verify-contrast.py`, and the same as the max-normalised chart this story replaces.
+- Draft 3 derives the expectation from the **data** — a count at or above the scale's resolution
+  must draw a mark with width, in both media — and fails by name on the tamper.
+
+  The script is `scratchpad/print_check.py` and is deliberately **not** a committed gate: it needs
+  the app running and a login, which `verify-cascade.py` structurally does not do. Recorded here
+  rather than implied, per Contract 4.
+
+**`--input` was misused and an existing gate caught it.** The track's boundary was first drawn in
+`outline-input` to clear 3:1, and `count-control-borders.py` failed: *"`--input` has a consumer
+other than plain `border-input`"*. It was right — `--input` means "the boundary of a form control",
+a chart track is not one, and borrowing a token for its **value** rather than its **meaning** is
+exactly what invalidates the blast-radius set PR A recorded when it moved that token. The fix was
+to the cause, not the allowlist: the track is now `bg-muted-foreground/30`, a tint of the chart's
+own vocabulary, and its ratio (1.52 light / 1.76 dark) is **printed by the gate rather than
+asserted** — 1.4.11 governs the parts of a graphic required to understand the content, which here
+are the bars (5.62–9.95, asserted) and the printed counts, not the backdrop.
+
+**Not covered, stated rather than implied:** `getHealthStyle` in `Reports.jsx` is a second status
+vocabulary with its own enum and a `default:` returning **'On Track' in emerald** — an unknown or
+null health renders as healthy. FR-022 covers it in principle; this gate is anchored to
+`STATUS_ORDER` and does not. Filed in `docs/outstanding-work.md`.
 
 ---
 
