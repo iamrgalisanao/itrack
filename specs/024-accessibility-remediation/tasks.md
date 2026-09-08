@@ -325,8 +325,8 @@ null health renders as healthy. FR-022 covers it in principle; this gate is anch
 
 ### The failing test comes first — this ordering is the point
 
-- [ ] T046 [US1] Create `frontend/src/lib/ganttA11y.test.js` **before the formatter exists**, seeding `responsible: 'SENTINEL-CONTRIBUTOR'` and asserting the Client-role string does not contain it, for `'Client'`, `null`, `undefined`, `''` and an unknown role — and that an internal role **does** receive it. Both directions: a formatter withholding from everyone satisfies the first assertion and breaks the product
-- [ ] T047 [US1] Confirm it fails for the right reason (module absent), not a passing no-op. Snapshot-testing a rendered span would pass when the field is missing *for the wrong reason* — the fixture simply had no `responsible`. That is the trap that made #14's `reports` row vacuous
+- [x] T046 [US1] Create `frontend/src/lib/ganttA11y.test.js` **before the formatter exists**, seeding `responsible: 'SENTINEL-CONTRIBUTOR'` and asserting the Client-role string does not contain it, for `'Client'`, `null`, `undefined`, `''` and an unknown role — and that an internal role **does** receive it. Both directions: a formatter withholding from everyone satisfies the first assertion and breaks the product
+- [x] T047 [US1] Confirm it fails for the right reason (module absent), not a passing no-op. Snapshot-testing a rendered span would pass when the field is missing *for the wrong reason* — the fixture simply had no `responsible`. That is the trap that made #14's `reports` row vacuous
 - [x] T048 [P] [US1] **DONE in B1, pulled forward, and as a STEP rather than its own job — deliberately against this task's instruction.**
 
   The path hazard this task names is real for the *documented repo-root command*, but not for an npm script: `npm test` runs with `frontend/` as its cwd, and `node --test "src/**/*.test.js"` resolves correctly there. Verified, 55 tests passing.
@@ -337,17 +337,17 @@ null health renders as healthy. FR-022 covers it in principle; this gate is anch
 
 ### The pure module
 
-- [ ] T049 [US1] Extract `getGanttStatusLabel` from `WorkProgram.jsx:644` into `frontend/src/lib/ganttA11y.js`. It is a component-scoped arrow, so a pure module can neither import it nor duplicate it without minting a fifth status vocabulary. The **Gantt** set is authoritative for the announcement, not `taskStatus.js`'s competing `completed → "Done"`
-- [ ] T050 [US1] Implement `canSeeContributor(role)` as a **positive allowlist** over the four non-Client roles. The current `role === 'Client'` fails **open** — `useEffectiveUser()` returns null before auth resolves, so `isClient === false` and the contributor renders
-- [ ] T051 [US1] Implement `buildGanttBarLabel(row)`: code, name truncated at ~80 chars on a word boundary, status via T049, dates via `formatDate`. **Never** append "button" (the role supplies it) and **never** append "Click timeline bar to edit"
-- [ ] T052 [US1] Implement `buildGanttBarDescription(row, { includeContributor })` — level, planned-vs-actual, duration, progress. It takes the **decision**, never the role
-- [ ] T053 [US1] Confirm T046 now passes, and re-run the sentinel tamper: force `includeContributor` true for a Client and watch it fail by name
+- [x] T049 [US1] Extract `getGanttStatusLabel` from `WorkProgram.jsx:644` into `frontend/src/lib/ganttA11y.js`. It is a component-scoped arrow, so a pure module can neither import it nor duplicate it without minting a fifth status vocabulary. The **Gantt** set is authoritative for the announcement, not `taskStatus.js`'s competing `completed → "Done"`
+- [x] T050 [US1] Implement `canSeeContributor(role)` as a **positive allowlist** over the four non-Client roles. The current `role === 'Client'` fails **open** — `useEffectiveUser()` returns null before auth resolves, so `isClient === false` and the contributor renders
+- [x] T051 [US1] Implement `buildGanttBarLabel(row)`: code, name truncated at ~80 chars on a word boundary, status via T049, dates via `formatDate`. **Never** append "button" (the role supplies it) and **never** append "Click timeline bar to edit"
+- [x] T052 [US1] *(function delivered and tested in C1; **consumed** in C4)* Implement `buildGanttBarDescription(row, { includeContributor })` — level, planned-vs-actual, duration, progress. It takes the **decision**, never the role
+- [x] T053 [US1] Confirm T046 now passes, and re-run the sentinel tamper: force `includeContributor` true for a Client and watch it fail by name
 
 ### The timeline
 
-- [ ] T054 [US1] Convert `WorkProgram.jsx:2662` to a **non-focusable wrapper** carrying `group` and the inline `left`/`width`/`top`; put a `<button className="h-full w-full">` inside it with the visual classes, `getGanttBarStyles` and the click handler; make the card a **sibling of the button**, still inside the wrapper. The card at `:2733` is a *descendant* of that div today, so converting in place nests a field grid inside a button
-- [ ] T055 [US1] Move progress fill, percentage label and milestone diamond inside the button as `<span>`s. The wrapper takes **no `tabIndex` and no `onClick`** — both on the button, or the element ships two activation paths
-- [ ] T056 [US1] Focus style `focus-visible:outline-2 focus-visible:outline-offset-2`. **Not `ring-2`** — Tailwind v4 ring is box-shadow, lost over a busy grid and erased by forced-colors. Do **not** add `outline-none`; the file already carries 122
+- [x] T054 [US1] Convert `WorkProgram.jsx:2662` to a **non-focusable wrapper** carrying `group` and the inline `left`/`width`/`top`; put a `<button className="h-full w-full">` inside it with the visual classes, `getGanttBarStyles` and the click handler; make the card a **sibling of the button**, still inside the wrapper. The card at `:2733` is a *descendant* of that div today, so converting in place nests a field grid inside a button
+- [x] T055 [US1] Move progress fill, percentage label and milestone diamond inside the button as `<span>`s. The wrapper takes **no `tabIndex` and no `onClick`** — both on the button, or the element ships two activation paths
+- [x] T056 [US1] Focus style `focus-visible:outline-2 focus-visible:outline-offset-2`. **Not `ring-2`** — Tailwind v4 ring is box-shadow, lost over a busy grid and erased by forced-colors. Do **not** add `outline-none`; the file already carries 122
 - [ ] T057 [US1] Reveal the card with `group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`. **Not `group-focus-visible`** — after T054 the `group` is the non-focusable wrapper and that selector can never match. **Not `group-focus-within`** — it fires on mouse focus and pins the card open behind the modal it just launched
 - [ ] T058 [US1] Mark the card `aria-hidden="true"`, and cite the in-file comment at `:2730` in the diff: it forbids exactly this, and is right about `aria-hidden` **alone** — T059 is what makes it safe
 - [ ] T059 [US1] Render `buildGanttBarDescription` into an `sr-only` span at the end of the **left-pane** row (after the Edit button, ~`:2538`) with a stable id, and point the bar's `aria-describedby` at it. Left pane, not right: browse mode reads all N left rows then all N bars, so a right-pane description lands N rows away from its summary
@@ -355,12 +355,79 @@ null health renders as healthy. FR-022 covers it in principle; this gate is anch
 - [ ] T061 [US1] Implement `dismissedRowId` as **one** state on the timeline pane: Escape sets it and stops propagation, focus change clears it, and the reveal class is one ternary inside the map. Never one hook per row. Session-sticky dismissal is worse than the defect 1.4.13 asks you to fix
 - [ ] T062 [US1] Flip the card from `bottom-full` to `top-full` for row 0 — it currently renders over the sticky header
 - [ ] T063 [US1] Give the chevron button at `:2456` an `aria-label` and `aria-expanded`. It is icon-only and announces as "button" — **4.1.2 and 1.3.1, both level A, inside the 508 legal floor**, unlike most of this feature
-- [ ] T064 [US1] Wrap the timeline in `<section aria-label="Project timeline">`. Three tab stops per row is ~150 before a user escapes a 50-row timeline — 2.4.1 in practice
+- [x] T064 [US1] Wrap the timeline in `<section aria-label="Project timeline">`. Three tab stops per row is ~150 before a user escapes a 50-row timeline — 2.4.1 in practice
 - [ ] T065 [US1] Consume `canSeeContributor` at the three **visible** sites (`:2441`, `:2476`, `:2774`), not only in the formatter. Using it in one and leaving `!isClient` in the other recreates precisely the divergence FR-007's single-definition clause forbids
 - [ ] T066 [US1] Add the forced-colors rule giving critical-path bars `outline-style: dashed`. `getGanttBarStyles` sets colours **inline**, which HCM overrides wholesale, so today every bar reads as critical-path — and a solid focus outline makes that worse
-- [ ] T067 [US1] Verify `scroll-margin-top` on the button so tabbing to an off-screen bar is not obscured by the sticky `h-20` header (2.4.11)
+- [x] T067 [US1] Verify `scroll-margin-top` on the button so tabbing to an off-screen bar is not obscured by the sticky `h-20` header (2.4.11)
 
 ### US5
+
+### C3 result — the bar is a focusable, named button (2026-09-08)
+
+Delivered as its own increment, ahead of the description work, and **named as well as focusable**
+deliberately: a focusable bar with no accessible name would add one tab stop per row announcing
+only *"button"*. On a fifty-row timeline that is fifty unnamed stops — worse for the exact user
+Story 1 exists for than the mouse-only bar it replaces. "Independently verifiable" was the wrong
+test for an increment; **independently shippable** is the right one.
+
+**Line references re-baselined first.** `tasks.md` had drifted ~28 lines from the file; the bar is
+at `:2690`, the card at `:2760`, the chevron at `:2483`, the left-pane Edit button at `:2542`.
+Every anchor in T054–T067 was located before anything was edited.
+
+**Structure.** The clickable div became a non-focusable positioning wrapper carrying `group`, with a
+real `<button type="button">` inside holding the visuals, `getGanttBarStyles` and the click handler.
+The hover card is now a **sibling** of the button inside that wrapper — it was a *descendant* of the
+old div, so converting in place would have put a field grid inside a button and folded the whole
+card into the element's accessible name. Progress fill, percentage label and milestone diamond moved
+inside as `<span>`s (a button's content model is phrasing content). The wrapper takes no `tabIndex`
+and no `onClick`.
+
+**T049 closed a duplication this feature created.** C1 put `getGanttStatusLabel` in
+`lib/ganttA11y.js` and `WorkProgram.jsx` kept its own copy — for one increment there were genuinely
+two copies of the vocabulary, which is the fifth-vocabulary outcome the extraction existed to
+prevent. The visible badge and the bar's accessible name now read the same function.
+
+**Verification.** 101 frontend tests (7 new structural assertions in
+`WorkProgram.ganttBar.test.js`), build clean, lint 0 errors, contrast/cascade/ratchet gates hold.
+A new runtime check, `scripts/uichecks/gantt_keyboard.py`, confirms against a real session: every
+bar is a `<button type="button">` with a non-empty name, Tab reaches them in row order, focus is
+indicated, and **both Enter and Space open the same editor a click opens**.
+
+**Three things went wrong that are worth keeping:**
+
+1. **A check that could not attribute its own failure.** `gantt_keyboard.py` first selected bars by
+   the `focus-visible:outline-2` class — so *deleting the focus outline* made it report **"no bars
+   found"** instead of "no focus indicator". The right verdict for the wrong reason. It now selects
+   `[data-gantt-bar]`, a structural hook, and the component carries a comment saying why a test hook
+   is in production code.
+
+2. **An assertion that matched its own prose.** The structural test's "no `ring-2`" check read the
+   whole button tag — including the comment explaining why a ring is wrong — and failed on the text
+   describing the correct decision. Exactly what `verify-contrast.py`'s header already warns about
+   ("a name grep fires on a comment"). It now reads the `className` value only.
+
+3. **An afternoon spent fixing something that was never broken.** Headless Chromium reports
+   `outline-width`, `outline-color` and `outline-offset` pinned at their initial values regardless of
+   what is set — *including inline*, which nothing can override. `outline: 4px dashed red` set inline
+   computes as `dashed 3px currentColor offset 0`: only `outline-style` responds. On that evidence
+   the Tailwind focus utilities were declared broken, replaced with an unlayered `index.css` rule,
+   and that "did not work either". Headed, the original utilities report
+   `solid 2px rgb(180,83,255) offset 1.33px` — correct all along. The rule was removed, the utilities
+   restored, and every comment claiming they failed was deleted rather than shipped. The check now
+   asserts `outline-style` only and carries the reason at the assertion; width and colour belong to
+   the manual pass, which is what T073 already says about trusting emulation.
+
+**Not done here, deliberately:** the accessible *description* (`aria-describedby` into the left
+pane), the card's `aria-hidden`, Escape dismissal, the chevron's name, and forced-colors — C4 and
+C5. The card is still read inline by a screen reader, exactly as before this change; that is
+unchanged status quo, not a new defect.
+
+**Specialist routing:** the constitution routes an accessibility surface to the Section 508
+Specialist during planning. Not dispatched — recorded as an exception, per the constitution's own
+instruction to record rather than skip silently. `/impeccable audit` and `code-slop` remain scheduled
+at T075–T077 and are not skipped, only sequenced.
+
+---
 
 - [ ] T068 [P] [US5] Rewrite the "Mock Auth Mode" copy at `frontend/src/pages/Admin.jsx:1455` to describe the production mechanism (issue #12)
 - [ ] T069 [P] [US5] Grep JSX string literals for `mock`, `prototype`, `scaffold`. SC-010 says "no interface text"; T068 fixes one known site, and the sweep is the difference between fixing an instance and satisfying the criterion
