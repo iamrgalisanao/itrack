@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEffectiveUser } from '@/context/PreviewContext'
+import { canSeeContributor } from '@/lib/ganttA11y'
 import AccessDenied from '@/components/AccessDenied'
 import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
 import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
@@ -187,6 +188,21 @@ export default function WorkProgram() {
   const user = useEffectiveUser()
   const userRole = user?.role
   const isClient = userRole === 'Client'
+  // FR-007, ONE DEFINITION. `isClient` is a denylist and it fails OPEN:
+  // useEffectiveUser() returns null until auth resolves, so `userRole === 'Client'`
+  // is false for a viewer whose role is not yet known and the contributor renders
+  // to them. canSeeContributor is a positive allowlist over the four internal
+  // roles, held by node --test in both directions.
+  //
+  // Consumed at all FIVE Gantt sites, not the three that display data. The two
+  // column-span ternaries are layout consequences of the same decision: gate the
+  // data on the allowlist and leave the spans on `isClient`, and a null-role
+  // viewer gets the contributor hidden AND a col-span-5 gap where it used to be.
+  //
+  // `isClient` survives elsewhere in this file (List view, taskboard routing,
+  // client-visibility filters). Those are out of 024's scope and filed, not fixed
+  // in passing.
+  const showContributor = canSeeContributor(userRole)
   const canReviewClientMemberships = ['Admin', 'Project Manager'].includes(userRole)
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
@@ -2448,8 +2464,8 @@ export default function WorkProgram() {
             {/* Header */}
             <div className="h-20 bg-muted/20 border-b border-border flex items-center px-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
               <div className="grid grid-cols-12 w-full gap-2 items-center">
-                <div className={isClient ? 'col-span-7' : 'col-span-5'}>Task Name</div>
-                {!isClient && <div className="col-span-2">Contributor</div>}
+                <div className={showContributor ? 'col-span-5' : 'col-span-7'}>Task Name</div>
+                {showContributor && <div className="col-span-2">Contributor</div>}
                 <div className="col-span-2 text-center">Status</div>
                 <div className="col-span-2 text-right">Dates</div>
                 <div className="col-span-1 text-right">Edit</div>
@@ -2461,7 +2477,7 @@ export default function WorkProgram() {
                 <div key={row.id} className="h-12 flex items-center px-4 hover:bg-muted/30 transition-colors">
                   <div className="grid grid-cols-12 w-full gap-2 items-center text-xs">
                     {/* Task name with indentation based on depth */}
-                    <div className={`${isClient ? 'col-span-7' : 'col-span-5'} flex items-center gap-1`} style={{ paddingLeft: `${row.depth * 12}px` }}>
+                    <div className={`${showContributor ? 'col-span-5' : 'col-span-7'} flex items-center gap-1`} style={{ paddingLeft: `${row.depth * 12}px` }}>
                       {row.type !== 'task' ? (
                         <button
                           onClick={() => handleGanttToggle(row)}
@@ -2484,7 +2500,7 @@ export default function WorkProgram() {
                       </span>
                     </div>
 
-                    {!isClient && (
+                    {showContributor && (
                       <div className="col-span-2 truncate text-muted-foreground/80 text-[11px]">
                         {row.responsible}
                       </div>
@@ -2782,7 +2798,7 @@ export default function WorkProgram() {
                                         <span>Status:</span>
                                         <span className="text-foreground capitalize font-medium">{row.status}</span>
                                       </div>
-                                      {!isClient && (
+                                      {showContributor && (
                                         <div className="flex justify-between">
                                           <span>Contributor:</span>
                                           <span className="text-foreground truncate max-w-[140px]">{row.responsible}</span>
