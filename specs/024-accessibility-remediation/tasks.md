@@ -348,12 +348,12 @@ null health renders as healthy. FR-022 covers it in principle; this gate is anch
 - [x] T054 [US1] Convert `WorkProgram.jsx:2662` to a **non-focusable wrapper** carrying `group` and the inline `left`/`width`/`top`; put a `<button className="h-full w-full">` inside it with the visual classes, `getGanttBarStyles` and the click handler; make the card a **sibling of the button**, still inside the wrapper. The card at `:2733` is a *descendant* of that div today, so converting in place nests a field grid inside a button
 - [x] T055 [US1] Move progress fill, percentage label and milestone diamond inside the button as `<span>`s. The wrapper takes **no `tabIndex` and no `onClick`** — both on the button, or the element ships two activation paths
 - [x] T056 [US1] Focus style `focus-visible:outline-2 focus-visible:outline-offset-2`. **Not `ring-2`** — Tailwind v4 ring is box-shadow, lost over a busy grid and erased by forced-colors. Do **not** add `outline-none`; the file already carries 122
-- [ ] T057 [US1] Reveal the card with `group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`. **Not `group-focus-visible`** — after T054 the `group` is the non-focusable wrapper and that selector can never match. **Not `group-focus-within`** — it fires on mouse focus and pins the card open behind the modal it just launched
-- [ ] T058 [US1] Mark the card `aria-hidden="true"`, and cite the in-file comment at `:2730` in the diff: it forbids exactly this, and is right about `aria-hidden` **alone** — T059 is what makes it safe
-- [ ] T059 [US1] Render `buildGanttBarDescription` into an `sr-only` span at the end of the **left-pane** row (after the Edit button, ~`:2538`) with a stable id, and point the bar's `aria-describedby` at it. Left pane, not right: browse mode reads all N left rows then all N bars, so a right-pane description lands N rows away from its summary
-- [ ] T060 [US1] Delete the "Click timeline bar to edit" string at `:2781` — do not rephrase it (FR-005)
+- [x] T057 [US1] Reveal the card with `group-hover:opacity-100 group-has-[:focus-visible]:opacity-100`. **Not `group-focus-visible`** — after T054 the `group` is the non-focusable wrapper and that selector can never match. **Not `group-focus-within`** — it fires on mouse focus and pins the card open behind the modal it just launched
+- [x] T058 [US1] Mark the card `aria-hidden="true"`, and cite the in-file comment at `:2730` in the diff: it forbids exactly this, and is right about `aria-hidden` **alone** — T059 is what makes it safe
+- [x] T059 [US1] Render `buildGanttBarDescription` into an `sr-only` span at the end of the **left-pane** row (after the Edit button, ~`:2538`) with a stable id, and point the bar's `aria-describedby` at it. Left pane, not right: browse mode reads all N left rows then all N bars, so a right-pane description lands N rows away from its summary
+- [x] T060 [US1] Delete the "Click timeline bar to edit" string at `:2781` — do not rephrase it (FR-005)
 - [ ] T061 [US1] Implement `dismissedRowId` as **one** state on the timeline pane: Escape sets it and stops propagation, focus change clears it, and the reveal class is one ternary inside the map. Never one hook per row. Session-sticky dismissal is worse than the defect 1.4.13 asks you to fix
-- [ ] T062 [US1] Flip the card from `bottom-full` to `top-full` for row 0 — it currently renders over the sticky header
+- [x] T062 [US1] Flip the card from `bottom-full` to `top-full` for row 0 — it currently renders over the sticky header
 - [ ] T063 [US1] Give the chevron button at `:2456` an `aria-label` and `aria-expanded`. It is icon-only and announces as "button" — **4.1.2 and 1.3.1, both level A, inside the 508 legal floor**, unlike most of this feature
 - [x] T064 [US1] Wrap the timeline in `<section aria-label="Project timeline">`. Three tab stops per row is ~150 before a user escapes a 50-row timeline — 2.4.1 in practice
 - [ ] T065 [US1] Consume `canSeeContributor` at the three **visible** sites (`:2441`, `:2476`, `:2774`), not only in the formatter. Using it in one and leaving `!isClient` in the other recreates precisely the divergence FR-007's single-definition clause forbids
@@ -426,6 +426,55 @@ unchanged status quo, not a new defect.
 Specialist during planning. Not dispatched — recorded as an exception, per the constitution's own
 instruction to record rather than skip silently. `/impeccable audit` and `code-slop` remain scheduled
 at T075–T077 and are not skipped, only sequenced.
+
+---
+
+### C4 result — the announcement (2026-09-08)
+
+The card is `aria-hidden` **and** revealed by keyboard focus. Both halves had to land together: the
+comment that stood there was right that `aria-hidden` alone would be worse, deleting the information
+for screen-reader users while leaving it mouse-only for everyone else. Nothing is deleted — it is
+relocated to an `sr-only` node the bar points at with `aria-describedby`.
+
+**The description lives in the LEFT pane.** The panes are separate subtrees, so browse mode reads all
+N left rows and then all N bars; a description in the right pane would be met N rows from the summary
+it belongs to.
+
+**It sits outside the 12-column grid, and that is load-bearing.** Those cells already sum to 12
+(5+2+2+2+1), so a thirteenth child wraps to a second line and makes every left row taller than the bar
+it must stay level with. `gantt_announcement.py` asserts left rows are still 48px so it cannot
+regress quietly.
+
+Row ids are prefixed by level (`module-1`, `task-1`), so the `aria-describedby` targets are unique —
+a collision would have had two rows described by each other's task, silently.
+
+`group-has-[:focus-visible]`, not `group-focus-visible` (the `group` is the non-focusable wrapper, so
+it can never match) and not `group-focus-within` (fires on mouse focus and pins the card open behind
+the modal the click just opened). Row 0's card flips to `top-full`; verified `['down','up','up','up']`.
+
+**Verification.** 106 frontend tests (6 new structural), build clean, lint 0 errors, all three
+design-token gates hold. `gantt_announcement.py` confirms against a real session: every bar points at
+a description node that exists and is non-empty, the card is inside an `aria-hidden` subtree, nothing
+outside a description exposes the detail fields, the click-only instruction is gone, and the card
+reveals on keyboard focus. **Six tampers, each failing by name.**
+
+**Three reported failures this increment were the check's construction, not the app's** — bars
+selected by their focus-outline class; exposed-node count compared against *bar* count when rows
+without dates render a row and no bar; card opacity read mid-transition. Each was caught by asking
+why a red looked odd rather than by changing the app to satisfy it. On this surface a surprising red
+is more often the instrument than the subject.
+
+**And one assertion turned out to be vacuous.** The description is a new rendering path for
+role-restricted data, so FR-007 applies — but measured against the API, a Client's
+`/projects/{id}/modules` omits `responsible` **entirely**, so there is nothing for the description to
+leak. Tampering `includeContributor` to a hard `true` left the check green: correct, and useless.
+FR-007 is enforced **server-side**; the frontend gate is defence in depth. The check now asserts the
+API response — which is non-vacuous and is where the control lives — and keeps the rendered-text
+assertion with its vacuity stated at the assertion, because it stops being vacuous the day the
+resource starts sending the field. That also discharges T078's substance for this surface.
+
+**Still open for C5:** Escape dismissal (T061), the chevron's name and expanded state (T063), and
+forced-colors (T066).
 
 ---
 

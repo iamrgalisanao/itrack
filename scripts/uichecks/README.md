@@ -71,6 +71,7 @@ python -m pip install playwright && python -m playwright install --with-deps chr
 |---|---|---|
 | `gantt_contributor_gate.py` | Does a Client's Work Program timeline actually withhold the contributor column, and does the layout close the gap rather than leaving one? | FR-007 |
 | `gantt_keyboard.py` | Can the timeline be operated without a mouse — every bar a real `<button>`, reachable by Tab in row order, named, visibly focused, and activated by Enter and Space? | FR-001–FR-003, SC-001 |
+| `gantt_announcement.py` | Is each task announced **once**, with the fields the row summary omits — description node present and non-empty, card excluded from the tree, no mouse-only instruction, card revealed by keyboard focus? | FR-004, FR-005, SC-002 |
 
 `gantt_keyboard.py` selects on `[data-gantt-bar]`, a structural hook in the component, and that is
 deliberate. Its first version selected on the `focus-visible:outline-2` class — so deleting the focus
