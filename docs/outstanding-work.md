@@ -230,6 +230,13 @@ the #14 sign-off implied it had.
 |---|---|---|
 | **React "unique key prop" warning in `WorkProgram.jsx`**, reported by Vite during the live T017 pass | **OPEN — filed, not investigated** | Pre-existing; not introduced by 024, which changed one token value and no JSX in that file. Deliberately not chased during T017: that task's scope was whether four elements read correctly, and widening it mid-pass is how a visual check stops being a visual check. Recorded here rather than left in a terminal buffer because a missing/duplicate key silently breaks React's reconciliation of list state — the failure mode is a row keeping the previous row's local state after a sort or filter, which reads as a data bug, not a rendering one |
 
+## Found while implementing 024 Story 2
+
+| Item | Status | Notes |
+|---|---|---|
+| **`LIST_STATUS_ORDER` in `WorkProgram.jsx:119` covers only four of the seven statuses** — `backlog`, `for_review` and `blocked` are absent, so the List view's collapsed group bar silently drops every task holding one | **OPEN** | Exactly what `taskStatus.js`'s own header warns about ("the four-value set used by Work Program's List view predates backlog/for_review/blocked"). Story 2 **retokenised** the map (T022's actual scope) and deliberately did **not** widen it: adding three statuses changes which rows appear in the bar, a behaviour change no 024 requirement asks for. A spec amendment note briefly claimed US2 owned this — it does not, and that claim is corrected here. Widening it will raise the palette-literal ratchet's `LIST_STATUS_SEGMENT_CLASSES` row from 0, which is the conversation the ratchet exists to force |
+| **`GroupSegmentBar` is wrapped `hidden sm:block`** (`GroupSummaryBar.jsx`), so the segment bar — and therefore the new glyph, legend and printed counts — does not render below 640px | **OPEN** | Pre-existing, not introduced by 024. It bounds what the non-colour channel can claim: FR-008's compensating channel is **desktop-only**, and any 1.4.1 conformance statement resting on the legend must say so. The counts are still reachable on mobile through the expanded row, so this is a degraded presentation rather than lost information |
+
 ## Found while remediating
 
 | Item | Status | Notes |

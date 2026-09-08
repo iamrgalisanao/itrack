@@ -9,7 +9,7 @@ import { LayoutGrid, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import TaskDetailModal from '@/components/TaskDetailModal'
 import { GroupSegmentBar } from '@/components/GroupSummaryBar'
 import { GROUP_ACCENT_CLASSES, buildSegments } from '@/lib/groupSummary'
-import { STATUS_ORDER, STATUS_SEGMENT_LABELS, STATUS_SEGMENT_CLASSES, STATUS_BADGE_CLASSES } from '@/lib/taskStatus'
+import { STATUS_ORDER, STATUS_SEGMENT_LABELS, STATUS_SEGMENT_CLASSES, STATUS_BADGE_CLASSES, STATUS_GLYPHS, STATUS_SEGMENT_INK } from '@/lib/taskStatus'
 
 const PRIORITY_BADGE_CLASSES = {
   Critical: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400',
@@ -106,7 +106,7 @@ export default function TaskboardView({ project, modules = [], userRole }) {
         tasks: groupTasks,
         pointSum: groupTasks.reduce((sum, t) => sum + (t.estimated_story_points || 0), 0),
         accent: GROUP_ACCENT_CLASSES[index % GROUP_ACCENT_CLASSES.length],
-        statusSegments: buildSegments(groupTasks, 'status', STATUS_ORDER, STATUS_SEGMENT_CLASSES),
+        statusSegments: buildSegments(groupTasks, 'status', STATUS_ORDER, STATUS_SEGMENT_CLASSES, { glyphs: STATUS_GLYPHS, inks: STATUS_SEGMENT_INK }),
         prioritySegments: buildSegments(groupTasks, 'priority', PRIORITY_ORDER, PRIORITY_SEGMENT_CLASSES),
       }
     })

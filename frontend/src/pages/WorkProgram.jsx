@@ -66,6 +66,7 @@ import {
 } from '@/lib/api'
 import { formatDate, getStatusColor, getStatusLabel, getTypeColor, getTypeLabel } from '@/lib/utils'
 import { GroupProgressBar, GroupSegmentBar } from '@/components/GroupSummaryBar'
+import { STATUS_GLYPHS, STATUS_SEGMENT_INK } from '@/lib/taskStatus'
 import { buildSegments } from '@/lib/groupSummary'
 import {
   ChevronDown,
@@ -123,11 +124,21 @@ const LIST_STATUS_SEGMENT_LABELS = {
   completed: 'Completed',
   delayed: 'Delayed',
 }
+// Token names, matching taskStatus.js's STATUS_SEGMENT_CLASSES so the List
+// view speaks the same vocabulary as Taskboard and the Gantt.
+//
+// STILL ONLY FOUR STATUSES, and that is a separate open defect rather than
+// something this feature fixed. backlog, for_review and blocked are absent, so
+// LIST_STATUS_ORDER silently drops any task holding one -- precisely what
+// taskStatus.js's own header warns about ("the four-value set used by Work
+// Program's List view predates backlog/for_review/blocked"). Widening it
+// changes which rows appear in the bar, which is a behaviour change no 024
+// requirement asks for. Filed in docs/outstanding-work.md.
 const LIST_STATUS_SEGMENT_CLASSES = {
-  not_started: 'bg-slate-400',
-  in_progress: 'bg-blue-500',
-  completed: 'bg-emerald-500',
-  delayed: 'bg-red-500',
+  not_started: 'bg-muted-foreground',
+  in_progress: 'bg-info',
+  completed: 'bg-success',
+  delayed: 'bg-destructive',
 }
 
 // Column widths (px) shared between the Activity-group header summary row
@@ -1828,7 +1839,7 @@ export default function WorkProgram() {
                         const accent = GROUP_ACCENT_CLASSES[activityIndex % GROUP_ACCENT_CLASSES.length]
                         const isExpanded = !!expandedActivities[groupKey]
                         const tasks = filterActivities(activityTasks[groupKey] || [])
-                        const statusSegments = buildSegments(tasks, 'status', LIST_STATUS_ORDER, LIST_STATUS_SEGMENT_CLASSES)
+                        const statusSegments = buildSegments(tasks, 'status', LIST_STATUS_ORDER, LIST_STATUS_SEGMENT_CLASSES, { glyphs: STATUS_GLYPHS, inks: STATUS_SEGMENT_INK })
                         // Computed from the same `tasks` the Status bar reads (activityTasks[groupKey]),
                         // not rolledUpData.rolledUpActivities — that rollup depends on
                         // detailedActivities[fullKey], which only the Gantt view's toggleSubActivity
