@@ -243,6 +243,17 @@ export default function WorkProgram() {
   const [ganttDataLoading, setGanttDataLoading] = useState(false)
   const [ganttColWidth, setGanttColWidth] = useState(40)
   const [showBaseline, setShowBaseline] = useState(false)
+  // 1.4.13 Content on Hover or Focus: the timeline card must be dismissable
+  // without moving focus. ONE state for the whole pane, holding at most one row
+  // id -- not a hook per row, which would put a useState inside a map and break
+  // the rules of hooks the moment the row count changes.
+  //
+  // It is deliberately NOT session-sticky. Escape hides the card for the row
+  // that has focus; the next focus event or leaving the bar with the pointer
+  // clears it. A dismissal that outlived the interaction would be a worse
+  // defect than the one 1.4.13 asks to fix -- the user would lose the card
+  // permanently with no way to ask for it back.
+  const [dismissedRowId, setDismissedRowId] = useState(null)
   const [showCriticalPath, setShowCriticalPath] = useState(false)
   const [projectModalOpen, setProjectModalOpen] = useState(false)
   const [clientAccessModalOpen, setClientAccessModalOpen] = useState(false)
@@ -2470,7 +2481,21 @@ export default function WorkProgram() {
                     <div className={`${showContributor ? 'col-span-5' : 'col-span-7'} flex items-center gap-1`} style={{ paddingLeft: `${row.depth * 12}px` }}>
                       {row.type !== 'task' ? (
                         <button
+                          type="button"
                           onClick={() => handleGanttToggle(row)}
+                          /* 4.1.2 and 1.3.1, both level A -- inside the Section 508
+                             legal floor, unlike most of this feature. The button is
+                             icon-only and lucide-react marks its own SVGs
+                             aria-hidden, so the accessible name was EMPTY: every
+                             one of these announced as "button", with no indication
+                             of what it toggles or whether it is open.
+
+                             The name describes the content it controls and does not
+                             change on toggle; `aria-expanded` carries the state, so
+                             it is announced without the name churning underneath
+                             the user mid-interaction. */
+                          aria-expanded={isGanttRowExpanded(row)}
+                          aria-label={`Sub-items of ${row.code ? row.code + ' ' : ''}${row.name}`}
                           className="p-1 hover:bg-muted rounded-md transition-colors shrink-0"
                         >
                           {isGanttRowExpanded(row) ? (
@@ -2719,6 +2744,13 @@ export default function WorkProgram() {
                                    announces itself twice. */
                                 <div
                                   className="absolute h-6 group"
+                                  /* Clearing on pointer-leave as well as on focus.
+                                     1.4.13 requires the content stay dismissed
+                                     while the pointer or focus remains on the
+                                     trigger -- and no longer. Without this a mouse
+                                     user who pressed Escape once would find the
+                                     card gone on every later hover of that row. */
+                                  onMouseLeave={() => setDismissedRowId((id) => (id === row.id ? null : id))}
                                   style={{
                                     left: `${actualPos.left}px`,
                                     width: `${actualPos.width}px`,
@@ -2735,6 +2767,14 @@ export default function WorkProgram() {
                                      the wrong cause. A check whose target moves with the
                                      thing it measures cannot tell you what broke. */
                                   data-gantt-bar=""
+                                  /* Read only by the forced-colors rule in
+                                     index.css. In High Contrast the inline
+                                     background from getGanttBarStyles is overridden
+                                     wholesale, so status colour is gone and every
+                                     bar looks alike -- including the critical-path
+                                     ring, which is drawn in the same solid stroke
+                                     the focus indicator uses. */
+                                  data-critical={isCritical ? 'true' : undefined}
                                   /* focus-visible:outline, NOT ring. Tailwind v4's ring is a
                                      box-shadow, and forced-colors mode sets box-shadow: none --
                                      which leaves no focus indicator at all in Windows High
@@ -2764,6 +2804,15 @@ export default function WorkProgram() {
                                   style={getGanttBarStyles(row.status, isCritical)}
                                   aria-label={buildGanttBarLabel(row)}
                                   aria-describedby={`gantt-desc-${row.id}`}
+                                  onKeyDown={(e) => {
+                                    if (e.key !== 'Escape') return
+                                    // Stop here: an Escape meant for this card
+                                    // should not also reach whatever else is
+                                    // listening further up.
+                                    e.stopPropagation()
+                                    setDismissedRowId(row.id)
+                                  }}
+                                  onFocus={() => setDismissedRowId(null)}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (row.type === 'module') {
@@ -2845,7 +2894,7 @@ export default function WorkProgram() {
                                       opened. */}
                                   <div
                                     aria-hidden="true"
-                                    className={`opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 pointer-events-none absolute left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg outline-1 outline-popover-border z-50 w-64 transition-all duration-200 ${rowIndex === 0 ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+                                    className={`opacity-0 pointer-events-none absolute left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg outline-1 outline-popover-border z-50 w-64 transition-all duration-200 ${rowIndex === 0 ? 'top-full mt-2' : 'bottom-full mb-2'} ${dismissedRowId === row.id ? '' : 'group-hover:opacity-100 group-has-[:focus-visible]:opacity-100'}`}
                                   >
                                     <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b border-b-popover-border pb-1">
                                       {row.code && <span className="text-muted-foreground mr-1">[{row.code}]</span>}

@@ -352,12 +352,12 @@ null health renders as healthy. FR-022 covers it in principle; this gate is anch
 - [x] T058 [US1] Mark the card `aria-hidden="true"`, and cite the in-file comment at `:2730` in the diff: it forbids exactly this, and is right about `aria-hidden` **alone** — T059 is what makes it safe
 - [x] T059 [US1] Render `buildGanttBarDescription` into an `sr-only` span at the end of the **left-pane** row (after the Edit button, ~`:2538`) with a stable id, and point the bar's `aria-describedby` at it. Left pane, not right: browse mode reads all N left rows then all N bars, so a right-pane description lands N rows away from its summary
 - [x] T060 [US1] Delete the "Click timeline bar to edit" string at `:2781` — do not rephrase it (FR-005)
-- [ ] T061 [US1] Implement `dismissedRowId` as **one** state on the timeline pane: Escape sets it and stops propagation, focus change clears it, and the reveal class is one ternary inside the map. Never one hook per row. Session-sticky dismissal is worse than the defect 1.4.13 asks you to fix
+- [x] T061 [US1] Implement `dismissedRowId` as **one** state on the timeline pane: Escape sets it and stops propagation, focus change clears it, and the reveal class is one ternary inside the map. Never one hook per row. Session-sticky dismissal is worse than the defect 1.4.13 asks you to fix
 - [x] T062 [US1] Flip the card from `bottom-full` to `top-full` for row 0 — it currently renders over the sticky header
-- [ ] T063 [US1] Give the chevron button at `:2456` an `aria-label` and `aria-expanded`. It is icon-only and announces as "button" — **4.1.2 and 1.3.1, both level A, inside the 508 legal floor**, unlike most of this feature
+- [x] T063 [US1] Give the chevron button at `:2456` an `aria-label` and `aria-expanded`. It is icon-only and announces as "button" — **4.1.2 and 1.3.1, both level A, inside the 508 legal floor**, unlike most of this feature
 - [x] T064 [US1] Wrap the timeline in `<section aria-label="Project timeline">`. Three tab stops per row is ~150 before a user escapes a 50-row timeline — 2.4.1 in practice
-- [ ] T065 [US1] Consume `canSeeContributor` at the three **visible** sites (`:2441`, `:2476`, `:2774`), not only in the formatter. Using it in one and leaving `!isClient` in the other recreates precisely the divergence FR-007's single-definition clause forbids
-- [ ] T066 [US1] Add the forced-colors rule giving critical-path bars `outline-style: dashed`. `getGanttBarStyles` sets colours **inline**, which HCM overrides wholesale, so today every bar reads as critical-path — and a solid focus outline makes that worse
+- [x] T065 [US1] *(delivered in C2 — and it is **five** sites, not three: the two `col-span` ternaries are layout consequences of the same decision, and leaving them behind gives a null-role viewer a hidden field and a `col-span-5` gap.)* Consume `canSeeContributor` at the three **visible** sites (`:2441`, `:2476`, `:2774`), not only in the formatter. Using it in one and leaving `!isClient` in the other recreates precisely the divergence FR-007's single-definition clause forbids
+- [x] T066 [US1] Add the forced-colors rule giving critical-path bars `outline-style: dashed`. `getGanttBarStyles` sets colours **inline**, which HCM overrides wholesale, so today every bar reads as critical-path — and a solid focus outline makes that worse
 - [x] T067 [US1] Verify `scroll-margin-top` on the button so tabbing to an off-screen bar is not obscured by the sticky `h-20` header (2.4.11)
 
 ### US5
@@ -475,6 +475,46 @@ resource starts sending the field. That also discharges T078's substance for thi
 
 **Still open for C5:** Escape dismissal (T061), the chevron's name and expanded state (T063), and
 forced-colors (T066).
+
+---
+
+### C5 result — dismissal, the chevron, and High Contrast (2026-09-08)
+
+**T061.** One `dismissedRowId` on the pane, not a hook per row — a `useState` inside the row map
+breaks the rules of hooks the moment a filter changes the row count, and stays invisible until it
+does. Verified live: card opacity `1 -> 0` on Escape with focus retained, and back to `1` after focus
+leaves and returns. The second half matters as much as the first: a session-sticky dismissal loses
+the card permanently, which is worse than the defect 1.4.13 asks to fix. Cleared on pointer-leave as
+well as on focus, so a mouse user who pressed Escape once does not find the card gone thereafter.
+
+**T063.** The clearest defect in the feature: lucide-react marks its own SVGs `aria-hidden`, so eight
+icon-only toggles had a genuinely **empty** accessible name and announced as "button". 4.1.2 and
+1.3.1, both level A, inside the 508 legal floor unlike most of 024. The name describes the content it
+controls and does **not** change on toggle — `aria-expanded` carries state, verified tracking the row
+(`false -> true`) rather than being a constant.
+
+**T066.** Critical-path bars draw `dashed` in forced colours. Two losses stack there: the inline
+background from `getGanttBarStyles` is overridden wholesale, so status is gone from every bar, and
+the critical-path ring is drawn in the same `2px solid` the focus rule uses — so a critical bar and a
+focused bar looked identical. Focus keeps its `!important` and still wins on a bar that is both,
+which is the right precedence: where you are before what it is.
+
+**Verification.** 111 tests (5 new structural), build clean, lint 0 errors, all three design-token
+gates hold. `gantt_dismiss_and_hcm.py` covers the runtime half. **Five tampers, each failing by
+name.**
+
+**T066 is only half-verified, and the check says so at the assertion.** No bar in the seeded data is
+on the critical path, so the loop over critical bars ran zero times and passed — a vacuous pass, the
+same shape as C4's Client-contributor assertion. The check now also sets `data-critical` by hand and
+asserts the rule resolves (`none -> dashed`), which proves the CSS half this environment can see. It
+does **not** prove the app ever marks a bar critical (the structural test holds that wiring) and it
+proves nothing about appearance. **Real Windows High Contrast remains required — T073.**
+
+**Two more attribution failures, both in the instrument.** The "no hooks in the map" assertion nearly
+fired on a *comment* containing "see the useState initializer" — the third prose match in this file,
+fixed by anchoring on `useState(` with the paren. And the chevron-name tamper first **crashed** with a
+TypeError instead of reporting: `.find(...)` returned undefined and `.click()` threw. The run was red
+for the right cause and said nothing useful. Guarded, re-run, now fails by name.
 
 ---
 
