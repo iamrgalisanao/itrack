@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEffectiveUser } from '@/context/PreviewContext'
-import { canSeeContributor } from '@/lib/ganttA11y'
+import { canSeeContributor, buildGanttBarLabel, getGanttStatusLabel } from '@/lib/ganttA11y'
 import AccessDenied from '@/components/AccessDenied'
 import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
 import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
@@ -665,34 +665,12 @@ export default function WorkProgram() {
     }
   }
 
-  // Exhaustive over the API's statuses plus the `pending` rollup. Previously
-  // `blocked`, `backlog` and `for_review` all fell through to `default` and were
-  // labelled "Pending" — a blocked task read as merely not started yet.
-  const getGanttStatusLabel = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'Completed'
-      case 'in_progress':
-        return 'In Progress'
-      case 'for_review':
-        return 'For Review'
-      case 'delayed':
-        return 'Delayed'
-      case 'blocked':
-        return 'Blocked'
-      case 'backlog':
-        return 'Backlog'
-      case 'not_started':
-        return 'Not Started'
-      case 'pending':
-        return 'Pending'
-      default:
-        // Show the unknown value rather than substituting a plausible one.
-        // Silently rendering "Not Started" is exactly how `blocked` read as
-        // "Pending" for so long (FR-008).
-        return status ? status.replace(/_/g, ' ') : 'Unknown'
-    }
-  }
+  // getGanttStatusLabel now lives in lib/ganttA11y.js and is imported above.
+  // It was a component-scoped arrow, which is why the accessible name could not
+  // reach it without minting a fifth status vocabulary -- and briefly there WERE
+  // two copies, the moment the module was added. The visible badge below and the
+  // bar's accessible name now read the same function, so they cannot drift into
+  // announcing one status and displaying another.
 
   // Check if an item matches search/status filter directly
   const ganttItemMatchesDirect = (item) => {
@@ -2334,7 +2312,19 @@ export default function WorkProgram() {
         </div>
       ) : viewMode === 'gantt' ? (
         /* Gantt View */
-        <div id="gantt-chart-container" className="relative border rounded-xl bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col">
+        /* A landmark, because the timeline is now a tab stop per row. Fifty
+           rows is fifty stops to traverse before reaching anything after it --
+           2.4.1 in practice, whatever the technique table says. Still carries
+           the id: the print stylesheet inside selects on it.
+
+           A plain block comment, not {* ... *}: this position is an
+           expression inside a ternary, not a JSX child slot, and a JSX comment
+           here is a second expression rather than an annotation. */
+        <section
+          id="gantt-chart-container"
+          aria-label="Project timeline"
+          className="relative border rounded-xl bg-card text-card-foreground shadow-sm overflow-hidden flex flex-col"
+        >
           {/* Print/Export Styles */}
           <style>{`
             @media print {
@@ -2686,14 +2676,66 @@ export default function WorkProgram() {
 
                               {/* Actual/Current bar */}
                               {actualPos && (
+                                /* A NON-FOCUSABLE WRAPPER holding the position, with a real
+                                   <button> inside carrying the visuals and the activation.
+                                   Converting the old div in place was not an option: the hover
+                                   card below is a DESCENDANT of it, and a field grid inside a
+                                   <button> is invalid content and gets swallowed into the
+                                   element's accessible name. Making the card a SIBLING inside
+                                   this wrapper keeps its positioning context identical -- the
+                                   wrapper occupies exactly the box the bar used to.
+
+                                   `group` lives here, not on the button, so hover and
+                                   focus-within on the whole bar box still drive the card.
+                                   The wrapper takes NO tabIndex and NO onClick: both belong to
+                                   the button, or the element ships two activation paths and
+                                   announces itself twice. */
                                 <div
-                                  className="absolute h-6 rounded-md shadow-sm flex items-center justify-between px-2 group cursor-pointer border hover:shadow transition-all duration-150"
+                                  className="absolute h-6 group"
                                   style={{
                                     left: `${actualPos.left}px`,
                                     width: `${actualPos.width}px`,
                                     top: showBaseline ? '8px' : '12px',
-                                    ...getGanttBarStyles(row.status, isCritical)
                                   }}
+                                >
+                                <button
+                                  type="button"
+                                  /* A stable hook for scripts/uichecks/gantt_keyboard.py.
+                                     The first version of that check selected on the
+                                     focus-visible class, which meant DELETING the focus
+                                     outline made it report "no bars found" instead of "no
+                                     focus indicator" -- a real regression, attributed to
+                                     the wrong cause. A check whose target moves with the
+                                     thing it measures cannot tell you what broke. */
+                                  data-gantt-bar=""
+                                  /* focus-visible:outline, NOT ring. Tailwind v4's ring is a
+                                     box-shadow, and forced-colors mode sets box-shadow: none --
+                                     which leaves no focus indicator at all in Windows High
+                                     Contrast, on the users who most need one. An outline is
+                                     repainted by the UA as a system colour instead.
+
+                                     Deliberately NOT the pattern at :1749 in this same file,
+                                     which pairs `focus-visible:outline-none` with
+                                     `focus-visible:ring-2`. That is fine on a card in normal
+                                     flow and wrong here. No `outline-none` is added anywhere.
+
+                                     DO NOT VERIFY THIS IN HEADLESS CHROMIUM. Measured there,
+                                     getComputedStyle reports outline-width, -color and -offset
+                                     stuck at their initial values (medium / currentColor / 0)
+                                     no matter what is set -- including inline, which nothing can
+                                     override. Only outline-style responds. Headed, the same
+                                     build reports `solid 2px rgb(180,83,255) offset 1.33px`,
+                                     which is --ring at the intended width. An afternoon was
+                                     spent "fixing" a focus indicator that was never broken;
+                                     scripts/uichecks/gantt_keyboard.py now asserts only
+                                     outline-style, and says why.
+
+                                     scroll-mt-24 clears the sticky h-20 header, so tabbing to an
+                                     off-screen bar scrolls it below the header rather than
+                                     underneath it (2.4.11). */
+                                  className="h-full w-full rounded-md shadow-sm flex items-center justify-between px-2 cursor-pointer border hover:shadow transition-all duration-150 scroll-mt-24 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                                  style={getGanttBarStyles(row.status, isCritical)}
+                                  aria-label={buildGanttBarLabel(row)}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (row.type === 'module') {
@@ -2707,9 +2749,13 @@ export default function WorkProgram() {
                                     }
                                   }}
                                 >
+                                  {/* <span>, not <div>. A button's content model is phrasing
+                                      content; a div inside it is invalid and browsers recover
+                                      from it inconsistently. Each carries its own display where
+                                      the box model needs one. */}
                                   {/* Progress fill */}
                                   {row.progress > 0 && (
-                                    <div
+                                    <span
                                       className="absolute left-0 top-0 bottom-0 bg-foreground/20 rounded-l-[5px] transition-all duration-300 pointer-events-none"
                                       style={{ width: `${row.progress}%` }}
                                     />
@@ -2724,8 +2770,9 @@ export default function WorkProgram() {
 
                                   {/* Milestone diamond for 0-duration or 1-day tasks */}
                                   {actualPos.width <= 16 && (
-                                    <div className="w-2.5 h-2.5 rotate-45 bg-current border border-border mx-auto z-10" />
+                                    <span className="block w-2.5 h-2.5 rotate-45 bg-current border border-border mx-auto z-10" />
                                   )}
+                                </button>
 
                                   {/* Hover popover tooltip */}
                                   {/* Hand-rolled hover card, not the shared Tooltip. `bg-popover`
@@ -2852,7 +2899,7 @@ export default function WorkProgram() {
           {/* End Left + Right panels */}
         </div>
         {/* End outer Gantt container */}
-      </div>
+      </section>
     ) : (
       /* 018-taskboard: Client never reaches this branch — viewMode can't be
          'taskboard' for Client (see the useState initializer and the hidden

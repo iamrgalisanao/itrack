@@ -18,12 +18,24 @@ import { fileURLToPath } from 'node:url'
 // Path resolved relative to this file, not to cwd, so `npm test` behaves the
 // same from the repo root and from frontend/.
 const SRC = readFileSync(fileURLToPath(new URL('./WorkProgram.jsx', import.meta.url)), 'utf8')
+const SRC_LINES = SRC.split(/\r?\n/)
 
 test('WorkProgram imports the gate rather than reimplementing it', () => {
-  assert.match(
-    SRC,
-    /import \{ canSeeContributor \} from '@\/lib\/ganttA11y'/,
-    'WorkProgram.jsx does not import canSeeContributor — the tested gate is not the one that ships',
+  // Matches canSeeContributor anywhere in the named-import list, not a single
+  // exact import line. The first form broke the moment C3 imported
+  // buildGanttBarLabel alongside it -- a true failure report for a change that
+  // satisfied the requirement completely. An assertion that fires on a sibling
+  // import is measuring formatting, not wiring.
+  const ganttA11yImport = SRC_LINES.find(
+    (line) => line.startsWith('import') && line.includes("from '@/lib/ganttA11y'"),
+  )
+  assert.ok(
+    ganttA11yImport,
+    'WorkProgram.jsx imports nothing from @/lib/ganttA11y -- the tested gate is not the one that ships',
+  )
+  assert.ok(
+    ganttA11yImport.includes('canSeeContributor'),
+    `canSeeContributor is not among WorkProgram's ganttA11y imports: ${ganttA11yImport}`,
   )
   assert.match(
     SRC,

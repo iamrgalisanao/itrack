@@ -40,6 +40,13 @@ for f in scripts/uichecks/*.py; do python "$f" || echo "FAILED: $f"; done
 Override the front end's origin with `ITRACK_UI_BASE` if you run Vite on another port. Remember that
 the port must also be in `SANCTUM_STATEFUL_DOMAINS` or every request after login silently 401s.
 
+**Check the port Vite actually printed.** If 5173 is already held — by a dev server from an earlier
+session that outlived the terminal that started it — Vite silently takes 5174, 5175, … and says so
+only in its startup banner. The harness still targets 5173 and still passes, because the stale server
+is serving the same working tree over HMR. It stops being harmless the moment the stale server is
+running from a *different* checkout or a killed watcher: then the checks measure code you are not
+looking at, and pass. If a result surprises you, confirm the port before believing it.
+
 ## Prerequisites
 
 `php artisan db:seed` must have been run. The seeder's `seedManualTestingFixtures()` is what makes
@@ -63,6 +70,12 @@ python -m pip install playwright && python -m playwright install --with-deps chr
 | Check | Question | Requirement |
 |---|---|---|
 | `gantt_contributor_gate.py` | Does a Client's Work Program timeline actually withhold the contributor column, and does the layout close the gap rather than leaving one? | FR-007 |
+| `gantt_keyboard.py` | Can the timeline be operated without a mouse — every bar a real `<button>`, reachable by Tab in row order, named, visibly focused, and activated by Enter and Space? | FR-001–FR-003, SC-001 |
+
+`gantt_keyboard.py` selects on `[data-gantt-bar]`, a structural hook in the component, and that is
+deliberate. Its first version selected on the `focus-visible:outline-2` class — so deleting the focus
+outline made it report **"no bars found"** instead of "no focus indicator": the right verdict for the
+wrong reason. A check whose target moves with the thing it measures cannot tell you what broke.
 
 ### Not yet here
 
