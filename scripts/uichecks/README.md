@@ -72,6 +72,7 @@ python -m pip install playwright && python -m playwright install --with-deps chr
 | `gantt_contributor_gate.py` | Does a Client's Work Program timeline actually withhold the contributor column, and does the layout close the gap rather than leaving one? | FR-007 |
 | `gantt_keyboard.py` | Can the timeline be operated without a mouse — every bar a real `<button>`, reachable by Tab in row order, named, visibly focused, and activated by Enter and Space? | FR-001–FR-003, SC-001 |
 | `gantt_announcement.py` | Is each task announced **once**, with the fields the row summary omits — description node present and non-empty, card excluded from the tree, no mouse-only instruction, card revealed by keyboard focus? | FR-004, FR-005, SC-002 |
+| `gantt_dismiss_and_hcm.py` | Does Escape dismiss the card without moving focus and without sticking? Does the chevron have a name and a live expanded state? Does the critical path draw a different stroke from focus in forced colours? | 1.4.13, 4.1.2, 1.3.1 |
 
 `gantt_keyboard.py` selects on `[data-gantt-bar]`, a structural hook in the component, and that is
 deliberate. Its first version selected on the `focus-visible:outline-2` class — so deleting the focus
@@ -85,6 +86,14 @@ wrong reason. A check whose target moves with the thing it measures cannot tell 
   not be lost — it is written and will be ported once its feature is on `main`.
 - **The Gantt keyboard and announcement checks** land with the increments that make the timeline
   focusable.
+
+
+`gantt_dismiss_and_hcm.py`'s forced-colours section is **partly vacuous and says so at the point of
+the assertion**. No bar in the seeded data is on the critical path, so the loop over critical bars
+runs zero times and passes. It therefore also sets `data-critical` by hand to prove the CSS rule
+matches and resolves — which is the half this environment can see. It does **not** prove the app ever
+marks a bar critical; the structural test asserts that wiring, and real Windows High Contrast on real
+data is the only instrument for the appearance.
 
 ## Writing one
 

@@ -289,6 +289,37 @@
     outline: 2px solid Highlight !important;
     outline-offset: 2px !important;
   }
+
+  /* THE CRITICAL PATH, which is otherwise indistinguishable in High Contrast.
+     Two separate losses stack here:
+
+     `getGanttBarStyles` sets the bar's background and colour INLINE. Forced
+     colors overrides those wholesale, so status is gone from every bar and the
+     twelve bars on screen become twelve identical rectangles. The only thing
+     left marking the critical path is the outline that function adds — drawn
+     `2px solid`, which is the same stroke the focus rule above uses. So a
+     critical-path bar and a focused bar look identical, and a focused
+     critical-path bar looks like neither.
+
+     `dashed` costs nothing and separates them: solid means focus, dashed means
+     critical path, and the rule above carries `!important` so focus still wins
+     outright on a bar that is both. That ordering is the point — a user
+     tabbing needs to know where they are before they need to know what it is.
+
+     CanvasText rather than Highlight, deliberately: Highlight is the platform's
+     focus colour and reusing it here would rebuild the collision this rule
+     exists to remove.
+
+     NOT VERIFIABLE HERE. Chromium's forced-colors emulation does not faithfully
+     reproduce the inline-style override this compensates for (T073), and
+     headless additionally reports outline width, colour and offset stuck at
+     their initial values — only `outline-style` is readable, which is exactly
+     the property asserted. Real Windows High Contrast is the only instrument
+     for the rest. */
+  [data-gantt-bar][data-critical='true'] {
+    outline: 2px dashed CanvasText;
+    outline-offset: 2px;
+  }
 }
 
 body {
