@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress'
 import { Input, Label, Textarea } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useEffectiveUser } from '@/context/PreviewContext'
-import { canSeeContributor, buildGanttBarLabel, getGanttStatusLabel } from '@/lib/ganttA11y'
+import { canSeeContributor, buildGanttBarLabel, buildGanttBarDescription, getGanttStatusLabel } from '@/lib/ganttA11y'
 import AccessDenied from '@/components/AccessDenied'
 import ProjectClientAccessPanel from '@/components/ProjectClientAccessPanel'
 import ClientMembershipReviewQueue from '@/components/ClientMembershipReviewQueue'
@@ -2552,6 +2552,33 @@ export default function WorkProgram() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* THE BAR'S ACCESSIBLE DESCRIPTION, and it lives HERE rather
+                      than beside the bar it describes.
+
+                      The two panes are separate subtrees: browse mode reads all
+                      N left rows and then all N timeline bars. A description
+                      node in the right pane would therefore be encountered N
+                      rows away from the row summary it belongs to. Here it
+                      lands immediately after the row it describes, and
+                      aria-describedby still pulls it to the bar in focus mode.
+
+                      OUTSIDE the grid above, not a thirteenth cell: that grid is
+                      grid-cols-12 and its cells already sum to 12 (5+2+2+2+1), so
+                      a thirteenth child wraps to a second line and makes every
+                      left row taller than the bar it must stay level with.
+                      `sr-only` is absolutely positioned, so it costs no layout
+                      here either way.
+
+                      The id is safe to build from row.id because getVisibleGanttRows
+                      prefixes by level -- `module-1`, `task-1` -- so a module and a
+                      task cannot collide and produce two nodes with one id.
+
+                      It takes the DECISION, never the role (FR-007): the same
+                      showContributor that gates the three visible sites. */}
+                  <span id={`gantt-desc-${row.id}`} className="sr-only">
+                    {buildGanttBarDescription(row, { includeContributor: showContributor })}
+                  </span>
                 </div>
               ))}
               {getVisibleGanttRows().length === 0 && (
@@ -2645,7 +2672,7 @@ export default function WorkProgram() {
                     )}
 
                     {/* Row Gantt Bars */}
-                    {visibleRows.map(row => {
+                    {visibleRows.map((row, rowIndex) => {
                       const actualStart = row.actual_start_date || row.plan_start_date
                       const actualEnd = row.actual_end_date || row.plan_end_date
                       const actualPos = calculateBarPosition(actualStart, actualEnd, timelineStart, colWidth)
@@ -2736,6 +2763,7 @@ export default function WorkProgram() {
                                   className="h-full w-full rounded-md shadow-sm flex items-center justify-between px-2 cursor-pointer border hover:shadow transition-all duration-150 scroll-mt-24 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                                   style={getGanttBarStyles(row.status, isCritical)}
                                   aria-label={buildGanttBarLabel(row)}
+                                  aria-describedby={`gantt-desc-${row.id}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (row.type === 'module') {
@@ -2794,17 +2822,31 @@ export default function WorkProgram() {
                                       into @layer base. That was the debt marker, and it is paid --
                                       a plain `border-*-popover-border` utility now wins on its own.
 
-                                      STILL BROKEN, deliberately not fixed here (issue #8 / 024):
-                                      this is mouse-only -- no tabIndex, role, onKeyDown or focus
-                                      style (WCAG 2.1.1, 1.4.13), while the same file has the
-                                      correct pattern at :1738. And `opacity-0` does not remove an
-                                      element from the accessibility tree, so with no aria-hidden a
-                                      screen reader reads this entire card inline for every Gantt
-                                      row. aria-hidden alone would be worse, not better: it would
-                                      delete the information for screen-reader users while leaving
-                                      it mouse-only for everyone else. The fix is a real tooltip
-                                      with a focusable trigger, which is 024's job. */}
-                                  <div className="opacity-0 group-hover:opacity-100 pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg outline-1 outline-popover-border z-50 w-64 transition-all duration-200">
+                                      FIXED, and the comment that stood here was right about why
+                                      it was hard. It said: `opacity-0` does not remove an element
+                                      from the accessibility tree, so with no aria-hidden a screen
+                                      reader reads this whole card inline on every Gantt row -- but
+                                      aria-hidden ALONE would be worse, deleting the information for
+                                      screen-reader users while leaving it mouse-only for everyone
+                                      else.
+
+                                      Both halves had to land together, and they now have. The card
+                                      is aria-hidden because it is a visual duplicate: every field
+                                      in it is in the sr-only description in the left pane, which
+                                      the bar points at with aria-describedby. Nothing is deleted,
+                                      it is relocated to where browse mode meets it beside its own
+                                      row.
+
+                                      `group-has-[:focus-visible]` and NOT `group-focus-visible`:
+                                      after C3 the `group` is the non-focusable wrapper, so
+                                      `group-focus-visible` can never match anything. And NOT
+                                      `group-focus-within`, which also fires on mouse focus and
+                                      would pin the card open behind the modal the click just
+                                      opened. */}
+                                  <div
+                                    aria-hidden="true"
+                                    className={`opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 pointer-events-none absolute left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-xs p-3 rounded-lg shadow-lg outline-1 outline-popover-border z-50 w-64 transition-all duration-200 ${rowIndex === 0 ? 'top-full mt-2' : 'bottom-full mb-2'}`}
+                                  >
                                     <div className="font-semibold text-foreground text-xs mb-1.5 truncate border-b border-b-popover-border pb-1">
                                       {row.code && <span className="text-muted-foreground mr-1">[{row.code}]</span>}
                                       {row.name}
@@ -2851,9 +2893,6 @@ export default function WorkProgram() {
                                           <span className="text-foreground truncate max-w-[140px]">{row.responsible}</span>
                                         </div>
                                       )}
-                                      <div className="text-[9px] text-muted-foreground/60 italic text-center mt-2 border-t border-t-popover-border pt-1.5 select-none pointer-events-none">
-                                        Click timeline bar to edit
-                                      </div>
                                     </div>
                                   </div>
                                 </div>

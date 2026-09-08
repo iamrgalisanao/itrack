@@ -112,6 +112,61 @@ test('the timeline is a labelled landmark', () => {
   assert.ok(SRC.includes('</section>'), 'the landmark is never closed')
 })
 
+test('the bar points at a description, and the description exists', () => {
+  assert.ok(
+    BAR_TAG.includes('aria-describedby={`gantt-desc-${row.id}`}'),
+    'the bar has no aria-describedby — the fields not in the row summary are unreachable',
+  )
+  assert.ok(
+    SRC.includes('<span id={`gantt-desc-${row.id}`} className="sr-only">'),
+    'nothing renders the description node the bar points at — aria-describedby dangling at a missing id announces nothing, silently',
+  )
+})
+
+test('the description takes the decision, never the role', () => {
+  // FR-007's single-definition clause reaches here too: the description is a
+  // fourth consumer of the same gate, not a fourth copy of the question.
+  assert.ok(
+    SRC.includes('buildGanttBarDescription(row, { includeContributor: showContributor })'),
+    'the description does not derive its contributor decision from showContributor',
+  )
+  assert.ok(
+    !/buildGanttBarDescription\([^)]*(userRole|isClient|'Client')/.test(SRC),
+    'the description formatter is being handed a role rather than a decision',
+  )
+})
+
+test('the visual card is hidden from assistive technology', () => {
+  const cardIndex = LINES.findIndex((l) => l.includes('group-has-[:focus-visible]:opacity-100'))
+  assert.notEqual(cardIndex, -1, 'the hover card no longer reveals on focus')
+  const cardTag = LINES.slice(cardIndex - 4, cardIndex + 2).join('\n')
+  assert.ok(
+    cardTag.includes('aria-hidden="true"'),
+    'the hover card is not aria-hidden — opacity-0 does not remove it from the accessibility tree, so every row announces its card inline',
+  )
+})
+
+test('the card reveals on focus without the two selectors that cannot work', () => {
+  // `group-focus-visible` can never match: after C3 the `group` is the
+  // non-focusable wrapper, so it is never itself focus-visible.
+  assert.ok(
+    !SRC.includes('group-focus-visible:opacity-100'),
+    'the card uses group-focus-visible, which cannot match a non-focusable wrapper',
+  )
+  // `group-focus-within` fires on MOUSE focus too, pinning the card open behind
+  // the modal the click just opened.
+  assert.ok(
+    !SRC.includes('group-focus-within:opacity-100'),
+    'the card uses group-focus-within, which pins it open behind the editor after a click',
+  )
+})
+
+test('the mouse-only instruction is gone, not rephrased', () => {
+  // FR-005: an instruction only a mouse user can act on, addressed to people
+  // who cannot. Deleted rather than reworded.
+  assert.ok(!/Click timeline bar/i.test(SRC), 'the click-only instruction is still present')
+})
+
 test('the status vocabulary is imported, not redefined', () => {
   // C1 put getGanttStatusLabel in lib/ganttA11y.js and for one increment there
   // were TWO copies — exactly the fifth-vocabulary outcome the extraction was
