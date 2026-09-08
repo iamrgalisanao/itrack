@@ -3,8 +3,27 @@ name: CI
 on:
   push:
     branches: [main]
+  # DELIBERATELY UNFILTERED, and the filter that was here is why.
+  #
+  # `pull_request: branches: [main]` filters by the pull request's BASE branch,
+  # not its head. It is a natural thing to copy down from the `push` trigger
+  # above, where restricting to the default branch is correct -- and on a
+  # pull_request trigger it means any PR that does not target `main` runs no CI
+  # at all.
+  #
+  # Found when 024 was delivered as a stack of small increments, each PR based
+  # on the one before it. Three of them (#39, #40, #41) showed a clean check
+  # list carrying a single third-party secret scan, while the backend suite, the
+  # frontend build, the contrast gate and the cascade gate had never executed.
+  # Not a failing gate -- no gate, presented as a passing one, which is the
+  # defect class this repository has spent four PRs closing elsewhere.
+  #
+  # Branch protection still gates `main` and is unaffected. This only decides
+  # whether a verdict is PRODUCED; required checks decide whether it BLOCKS.
+  # A stacked PR merging into its parent is not protected by required checks,
+  # so the visible verdict is the only signal a reviewer has, and it has to be
+  # a real one.
   pull_request:
-    branches: [main]
   # Lets CI be re-run from the Actions tab without inventing a commit —
   # needed when a run is lost to a platform incident, or when a re-run is
   # blocked because GitHub still considers the stuck run in progress.

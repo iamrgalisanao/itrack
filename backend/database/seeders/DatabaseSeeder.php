@@ -67,6 +67,72 @@ class DatabaseSeeder extends Seeder
         $this->seedWorkProgram($spreadsheet);
         $this->seedTeam($spreadsheet);
         $this->seedGlossary($spreadsheet);
+        $this->seedManualTestingFixtures();
+    }
+
+    /**
+     * Make the personas above actually exercisable.
+     *
+     * Seeding five role accounts is not the same as seeding five usable roles.
+     * Two gaps kept turning every manual verification pass into a manufacturing
+     * exercise, and a pass that must be set up by hand is a pass that quietly
+     * stops being run:
+     *
+     *   1. THE CLIENT COULD SEE NOTHING. Project::scopeAccessibleTo scopes a
+     *      Client to an explicit ProjectAssignment or an approved
+     *      ProjectMembership, and the seeder created neither -- so no
+     *      Client-facing view was reachable at all. Verifying that a Client is
+     *      correctly denied the contributor column first required granting the
+     *      Client a project by hand, and remembering that assigned_by_user_id
+     *      is not nullable.
+     *
+     *   2. THE STATUS VOCABULARY WAS NEVER FULLY PRESENT. The Excel import
+     *      leaves every task `not_started`, so the summary bar, the status
+     *      chart and the Gantt each rendered one or two of seven statuses. An
+     *      accessibility pass over a colour system cannot judge pairs that do
+     *      not appear: 024's first colourblindness pass was recorded PARTIAL
+     *      for exactly this reason, and the second only worked because fourteen
+     *      rows had been reassigned by hand and then put back.
+     *
+     * Deliberately additive and idempotent: it creates nothing that already
+     * exists and rewrites no imported field except `status`, which the import
+     * has no opinion about beyond its default.
+     */
+    private function seedManualTestingFixtures(): void
+    {
+        $project = Project::first();
+        if (!$project) {
+            return;
+        }
+
+        $admin = User::where('email', 'admin@itrack.test')->first();
+        $client = User::where('email', 'client@itrack.test')->first();
+
+        if ($admin && $client) {
+            \App\Models\ProjectAssignment::firstOrCreate(
+                ['user_id' => $client->id, 'project_id' => $project->id],
+                ['assigned_by_user_id' => $admin->id],
+            );
+            $this->command->info('Client persona assigned to project ' . $project->id . '.');
+        }
+
+        // Every status the API accepts, in a fixed order over tasks ordered by
+        // id, so two runs of the seeder produce the same board and a screenshot
+        // taken today is comparable with one taken next week. `completed` is
+        // last so the modulo leaves the long tail `not_started`, which keeps the
+        // chart's largest bar where a reader expects it.
+        $statuses = ['backlog', 'in_progress', 'for_review', 'blocked', 'delayed', 'completed'];
+
+        $tasks = DetailedActivity::orderBy('id')->get();
+        if ($tasks->count() < count($statuses) * 2) {
+            return;
+        }
+
+        foreach ($tasks->take(count($statuses) * 2)->values() as $index => $task) {
+            $task->update(['status' => $statuses[$index % count($statuses)]]);
+        }
+
+        $this->command->info('Spread ' . (count($statuses) * 2) . ' tasks across all seven statuses.');
     }
 
     private function seedWorkProgram($spreadsheet): void

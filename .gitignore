@@ -33,3 +33,7 @@
 
 # Stray screenshots dropped at the repo root
 /*.png
+
+# Python bytecode from the local verification scripts in scripts/
+__pycache__/
+*.pyc

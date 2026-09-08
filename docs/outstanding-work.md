@@ -309,6 +309,13 @@ one added field from being #14 again, whose reports leak was itself an eager loa
 
 ---
 
+## Found while building the UI verification harness
+
+| Item | Status | Notes |
+|---|---|---|
+| **`php artisan db:seed` is not idempotent — a second run creates a SECOND project** | **OPEN** | `DatabaseSeeder::seedWorkProgram()` calls `Project::create()` unconditionally, so re-seeding an already-seeded database duplicates the whole Work Program tree rather than refreshing it. Pre-existing. It is why the new `seedManualTestingFixtures()` step was verified against a throwaway SQLite database rather than the dev one, and why that step uses `firstOrCreate` and a bounded status spread so *it* is safely re-runnable. The persona, team and glossary steps already use `firstOrCreate`; the Work Program import is the odd one out |
+| **The seeded personas were not exercisable** | **CLOSED** — `seedManualTestingFixtures()` | The Client had no `ProjectAssignment`, and `Project::scopeAccessibleTo` requires one (or an approved membership), so **no Client-facing view was reachable at all** without granting one by hand — including `assigned_by_user_id`, which is not nullable. Separately, the Excel import leaves every task `not_started`, so no view ever rendered more than one or two of the seven statuses; 024's first colourblindness pass was recorded PARTIAL for exactly that reason and the second only worked because fourteen rows were reassigned by hand and then put back. Both now seeded |
+
 ## Closed — verified, not assumed
 
 - **`recent_activities` leaked internal tasks to Clients** (021). **FIXED** — `ProjectController.php`
