@@ -313,6 +313,65 @@ class MyWorkTest extends TestCase
         $this->myWork($member, ['today' => '2026-08-26', 'week_end' => '2026-08-20'])->assertStatus(422);
     }
 
+    /**
+     * THE REGRESSION TEST FOR THE BUG THAT MADE EVERY OTHER TEST HERE ROT.
+     *
+     * `week_end` carried `after_or_equal:today`, and `today` is both the name of
+     * the sibling field and one of the relative date strings Laravel's date
+     * rules understand. It resolved the keyword, so the anchors were compared
+     * against the SERVER'S clock instead of the browser's -- and this whole
+     * endpoint is built on the browser being the only authority on "today",
+     * because iTrack stores no per-user timezone.
+     *
+     * The consequence was invisible on the day it was written and total a week
+     * later: every anchored request 422'd once the fixed test dates fell behind
+     * real time, and no client could ever ask for a week that had already ended.
+     */
+    public function test_a_week_that_has_already_ended_is_still_a_valid_question(): void
+    {
+        $member = $this->createUser('Team Member');
+
+        $this->myWork($member, ['today' => '2020-01-06', 'week_end' => '2020-01-12'])
+            ->assertOk();
+    }
+
+    /**
+     * The same assertion expressed so that it cannot rot: the answer must not
+     * depend on when the suite happens to run. Before the fix this failed at
+     * both ends -- the anchors are in the past from 2099 and in the future from
+     * 2000, and only one of those was ever going to be the failing direction on
+     * any given day.
+     */
+    public function test_anchor_validation_does_not_consult_the_server_clock(): void
+    {
+        $member = $this->createUser('Team Member');
+
+        foreach (['2000-01-01', '2099-12-31'] as $serverNow) {
+            $this->travelTo(\Carbon\Carbon::parse($serverNow));
+
+            $this->myWork($member, self::ANCHORS)
+                ->assertOk("anchors rejected when the server clock says {$serverNow}");
+        }
+
+        $this->travelBack();
+    }
+
+    /**
+     * The invariant that DOES belong -- and until the rule above was removed,
+     * this passed for the wrong reason. `2026-08-20` was rejected because it had
+     * fallen behind the server clock, not because it precedes its own `today`,
+     * so the inverted-anchor check in resolveAnchors was never the thing under
+     * test. Asserting the message is what makes the difference visible.
+     */
+    public function test_inverted_anchors_are_rejected_by_the_partition_check(): void
+    {
+        $member = $this->createUser('Team Member');
+
+        $this->myWork($member, ['today' => '2099-06-10', 'week_end' => '2099-06-03'])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.week_end.0', 'The week end must be on or after today.');
+    }
+
     public function test_invalid_bucket_and_per_bucket_values_are_rejected(): void
     {
         $member = $this->createUser('Team Member');
