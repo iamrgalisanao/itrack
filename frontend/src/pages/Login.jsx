@@ -51,10 +51,8 @@ export default function Login() {
 
       <div className="relative w-full max-w-md rounded-xl border border-border bg-card/80 backdrop-blur-xl shadow-xl p-8 space-y-6">
         <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary">
-            <span className="text-base font-black text-primary-foreground">i</span>
-          </div>
-          <h1 className="text-xl font-bold tracking-tight">iTrack</h1>
+          <img src="/logo.png" alt="iTrack" className="h-32 w-32 object-contain" />
+          <h1 className="sr-only">iTrack</h1>
           <p className="text-sm text-muted-foreground">Sign in to your workspace</p>
         </div>
 

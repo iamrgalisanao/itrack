@@ -296,9 +296,7 @@ function Sidebar({ collapsed, onToggleCollapsed }) {
       <div className={['border-b border-border px-4 py-4', collapsed ? 'px-2' : ''].join(' ')}>
         <div className={['flex items-center gap-3', collapsed ? 'flex-col gap-2' : 'justify-between'].join(' ')}>
           <div className={['flex items-center gap-3 overflow-hidden', collapsed ? 'justify-center' : ''].join(' ')}>
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary shrink-0">
-              <span className="text-sm font-black text-primary-foreground">i</span>
-            </div>
+            <img src="/logo-mark.png" alt="" className="h-9 w-9 shrink-0 object-contain" />
             {!collapsed && (
               <div className="overflow-hidden">
                 <p className="text-base font-bold leading-none tracking-tight">Track</p>
@@ -464,9 +462,7 @@ function MobileBar() {
             <Menu className="h-5 w-5" />
           </button>
           <Link to="/" className="flex items-center gap-2">
-            <div className="flex items-center justify-center h-7 w-7 rounded-md bg-primary">
-              <span className="text-xs font-black text-primary-foreground">i</span>
-            </div>
+            <img src="/logo-mark.png" alt="" className="h-8 w-8 object-contain" />
             <span className="font-bold text-base tracking-tight">Track</span>
           </Link>
         </div>
@@ -494,9 +490,7 @@ function MobileBar() {
         {/* Drawer header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary">
-              <span className="text-sm font-black text-primary-foreground">i</span>
-            </div>
+            <img src="/logo-mark.png" alt="" className="h-9 w-9 object-contain" />
             <div>
               <p className="text-base font-bold leading-none">Track</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">Project Workspace</p>
