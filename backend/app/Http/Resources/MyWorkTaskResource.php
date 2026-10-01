@@ -27,6 +27,7 @@ class MyWorkTaskResource extends JsonResource
         return [
             'id'              => $this->id,
             'name'            => $this->name,
+            'task_id'         => $this->task_id,
             'code'            => $this->code,
             'status'          => $this->status,
             'progress'        => $this->progress,

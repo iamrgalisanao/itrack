@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class DetailedActivity extends Model
 {
@@ -70,6 +71,43 @@ class DetailedActivity extends Model
         'last_client_update_at' => 'datetime',
         'estimated_story_points' => 'integer',
     ];
+
+    /**
+     * Every creation path (task form, taskboard, My Work, support ops, seeder)
+     * goes through Eloquent, so numbering here covers them all. task_number is
+     * not fillable: it is never taken from client input.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $task) {
+            if ($task->task_number !== null || $task->sub_activity_id === null) {
+                return;
+            }
+
+            $projectId = SubActivity::query()
+                ->join('activities', 'activities.id', '=', 'sub_activities.activity_id')
+                ->join('modules', 'modules.id', '=', 'activities.module_id')
+                ->where('sub_activities.id', $task->sub_activity_id)
+                ->value('modules.project_id');
+
+            if ($projectId === null) {
+                return;
+            }
+
+            $task->task_number = DB::transaction(function () use ($projectId) {
+                DB::table('projects')->where('id', $projectId)->increment('task_counter');
+
+                return (int) DB::table('projects')->where('id', $projectId)->value('task_counter');
+            });
+        });
+    }
+
+    public function getTaskIdAttribute(): ?string
+    {
+        return $this->task_number === null
+            ? null
+            : 'TASK-' . str_pad((string) $this->task_number, 3, '0', STR_PAD_LEFT);
+    }
 
     public function subActivity()
     {

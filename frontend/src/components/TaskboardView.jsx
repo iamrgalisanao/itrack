@@ -288,7 +288,7 @@ export default function TaskboardView({ project, modules = [], userRole }) {
                 <TableBody>
                   {group.tasks.map((task) => (
                     <TableRow key={task.id} className="cursor-pointer" onClick={() => setSelectedTask(task)}>
-                      <TableCell className="py-1.5 px-3 text-sm font-medium truncate" title={task.name}>{task.name}</TableCell>
+                      <TableCell className="py-1.5 px-3 text-sm font-medium truncate" title={task.name}>{task.task_id && <span className="mr-2 font-mono text-xs text-muted-foreground">{task.task_id}</span>}{task.name}</TableCell>
                       <TableCell className="py-1.5 px-3 text-xs text-muted-foreground truncate" title={task.module?.name || undefined}>{task.module?.name || '—'}</TableCell>
                       <TableCell className="py-1.5 px-3">
                         <Badge variant="outline" className={STATUS_BADGE_CLASSES[task.status]}>

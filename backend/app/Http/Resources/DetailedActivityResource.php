@@ -12,6 +12,8 @@ class DetailedActivityResource extends JsonResource
     {
         $base = [
             'id' => $this->id,
+            'task_number' => $this->task_number,
+            'task_id' => $this->task_id,
             'sub_activity_id' => $this->sub_activity_id,
             'code' => $this->code,
             'name' => $this->name,

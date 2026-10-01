@@ -300,6 +300,7 @@ export default function TaskDetailModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-primary">{eyebrowLabel}</span>
+            {task?.task_id && <span className="ml-2 text-[10px] font-mono text-muted-foreground">{task.task_id}</span>}
             <DialogTitle className="text-base font-bold text-foreground truncate max-w-lg mt-0.5 leading-none tracking-normal">
               {form.name}
             </DialogTitle>
