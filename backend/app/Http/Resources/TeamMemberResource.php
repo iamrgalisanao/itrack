@@ -23,8 +23,12 @@ class TeamMemberResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'name' => $this->name,
             'side' => $this->side,
             'role' => $this->role,
+            'organization' => $this->organization,
+            'email' => $this->email,
+            'phone' => $this->phone,
             'description' => $this->description,
             'abbreviation' => $this->abbreviation,
             'created_at' => $this->created_at,
