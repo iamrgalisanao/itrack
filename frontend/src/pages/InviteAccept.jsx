@@ -50,6 +50,7 @@ export default function InviteAccept() {
     const approved = state.membershipState === 'approved'
     content = (
       <Panel
+        headingRef={headingRef}
         icon={approved ? CheckCircle2 : Clock}
         tone={approved ? 'text-primary' : 'text-muted-foreground'}
         title={approved ? 'You now have access' : 'Invitation accepted, awaiting approval'}
