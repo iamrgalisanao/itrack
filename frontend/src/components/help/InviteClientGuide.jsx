@@ -125,7 +125,7 @@ const STEPS = [
   { title: 'Enter the email and role', Scene: SceneForm,
     body: 'Type the client user’s email, choose Viewer, Contributor or Client Admin, and click Invite.' },
   { title: 'Track the invitation', Scene: SceneSent,
-    body: 'After you click Invite, copy the invitation link and send it to the client. It is shown only once. The invitation is pending in the Invitations table and expires after 7 days. Re-inviting the same email revokes the old link.' },
+    body: 'After you click Invite, the client is emailed an invitation link. The link is also shown once so you can copy it, for example if the email doesn\u2019t arrive. The invitation is pending in the Invitations table and expires after 7 days. Re-inviting the same email revokes the old link.' },
   { title: 'The client accepts', Scene: SceneAccept,
     body: 'The client opens the link, signs in with the same email address you invited (they need an iTrack account), and clicks Accept invitation. Any other account is refused.' },
   { title: 'Approve the membership', Scene: SceneApprove,

@@ -33,6 +33,8 @@ Set these before first boot:
 - `DB_ROOT_PASSWORD`
 - `SANCTUM_STATEFUL_DOMAINS`
 - `CORS_ALLOWED_ORIGINS`
+- `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` — client invitation emails are sent synchronously; with the default `MAIL_MAILER=log` nothing is delivered and the inviter has to share the link shown in the app
+- `FRONTEND_URL` (optional) — origin used for links in emails; defaults to `APP_URL`
 
 Generate an app key value with:
 

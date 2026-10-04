@@ -12,12 +12,14 @@ use App\Models\Module;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
+use App\Mail\ProjectInvitationMail;
 use App\Models\ProjectInvitation;
 use App\Models\ProjectMembership;
 use App\Models\ProjectOwnership;
 use App\Models\SubActivity;
 use App\Models\User;
 use App\Services\ProjectInvitationTokenService;
+use Illuminate\Support\Facades\Mail;
 use App\Services\ClientDomainPolicy;
 use App\Support\ProjectClientAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -627,6 +629,52 @@ class ProjectClientAccessControlTest extends TestCase
             ->assertJsonPath('data.0.id', $invitation->id)
             ->assertJsonMissingPath('data.0.token_hash')
             ->assertJsonMissingPath('data.0.invitation_url');
+    }
+
+    public function test_creating_an_invitation_emails_the_invitee_a_spa_link_with_the_token(): void
+    {
+        Mail::fake();
+        config(['app.frontend_url' => 'https://app.example.test']);
+        $admin = $this->user('Admin');
+        $organization = $this->organization('mail-invite-client');
+        $project = Project::factory()->create(['client_organization_id' => $organization->id]);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/invitations", [
+                'client_organization_id' => $organization->id,
+                'email' => 'Invitee@Example.Test',
+                'role' => ProjectMembership::ROLE_CLIENT_CONTRIBUTOR,
+            ]);
+
+        $response->assertCreated()->assertJsonPath('data.email_sent', true);
+        $token = (string) str($response->json('data.invitation_url'))->after('token=');
+
+        Mail::assertSent(ProjectInvitationMail::class, function (ProjectInvitationMail $mail) use ($token, $admin) {
+            return $mail->hasTo('invitee@example.test')
+                && $mail->acceptUrl === "https://app.example.test/invitations/accept?token={$token}"
+                && $mail->inviterName === $admin->name
+                && str_contains($mail->render(), 'Contributor');
+        });
+    }
+
+    public function test_invitation_is_still_created_when_the_email_cannot_be_sent(): void
+    {
+        Mail::shouldReceive('to->send')->andThrow(new \RuntimeException('smtp down'));
+        $admin = $this->user('Admin');
+        $organization = $this->organization('mail-fail-client');
+        $project = Project::factory()->create(['client_organization_id' => $organization->id]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/invitations", [
+                'client_organization_id' => $organization->id,
+                'email' => 'invitee@example.test',
+                'role' => ProjectMembership::ROLE_CLIENT_VIEWER,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.email_sent', false)
+            ->assertJsonStructure(['data' => ['invitation_url']]);
+
+        $this->assertDatabaseCount('project_invitations', 1);
     }
 
     public function test_resending_pending_invitation_reuses_existing_invitation_record(): void
