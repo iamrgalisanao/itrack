@@ -179,7 +179,9 @@ class ProjectInvitationController extends Controller
             ['project_id' => $invitation->project_id, 'email_domain' => $invitation->email_domain]
         );
 
-        return true;
+        // The log mailer writes the rendered message, token included, to
+        // laravel.log and delivers nothing, so it must not count as sent.
+        return config('mail.default') !== 'log';
     }
 
     public function accept(Request $request)

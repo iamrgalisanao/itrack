@@ -657,6 +657,24 @@ class ProjectClientAccessControlTest extends TestCase
         });
     }
 
+    public function test_log_mailer_does_not_count_as_a_delivered_invitation_email(): void
+    {
+        Mail::fake();
+        config(['mail.default' => 'log']);
+        $admin = $this->user('Admin');
+        $organization = $this->organization('mail-log-client');
+        $project = Project::factory()->create(['client_organization_id' => $organization->id]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson("/api/projects/{$project->id}/invitations", [
+                'client_organization_id' => $organization->id,
+                'email' => 'invitee@example.test',
+                'role' => ProjectMembership::ROLE_CLIENT_VIEWER,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.email_sent', false);
+    }
+
     public function test_invitation_is_still_created_when_the_email_cannot_be_sent(): void
     {
         Mail::shouldReceive('to->send')->andThrow(new \RuntimeException('smtp down'));
