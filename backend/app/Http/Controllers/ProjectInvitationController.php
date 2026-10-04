@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Support\AccessContext;
 use App\Http\Resources\ProjectInvitationResource;
 use App\Http\Resources\ProjectMembershipResource;
+use App\Mail\ProjectInvitationMail;
 use App\Models\ClientDomain;
 use App\Models\ClientOrganization;
 use App\Models\Project;
@@ -18,6 +19,8 @@ use App\Services\ProjectInvitationTokenService;
 use App\Support\ProjectClientAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 
 class ProjectInvitationController extends Controller
@@ -121,12 +124,64 @@ class ProjectInvitationController extends Controller
             ]
         );
 
+        $emailSent = $this->sendInvitationEmail($request, $invitation, $user, $issued['plaintext_token']);
+
         return response()->json([
             'data' => [
                 ...ProjectInvitationResource::make($invitation)->resolve($request),
                 'invitation_url' => url('/invitations/accept?token=' . $issued['plaintext_token']),
+                'email_sent' => $emailSent,
             ],
         ], 201);
+    }
+
+    /**
+     * A mail failure must not fail the request: the invitation already exists
+     * and the inviter can still share the link by hand.
+     */
+    private function sendInvitationEmail(
+        Request $request,
+        ProjectInvitation $invitation,
+        User $inviter,
+        string $plaintextToken,
+    ): bool {
+        $acceptUrl = rtrim((string) config('app.frontend_url'), '/')
+            . '/invitations/accept?token=' . $plaintextToken;
+
+        try {
+            Mail::to($invitation->email)->send(
+                new ProjectInvitationMail($invitation->loadMissing('project'), $inviter->name, $acceptUrl)
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Project invitation email failed.', [
+                'invitation_id' => $invitation->id,
+                'exception' => $e::class,
+            ]);
+
+            AuditLogger::record(
+                $request,
+                'project_invitation.email_failed',
+                'project_invitation',
+                $invitation->id,
+                "Invitation email could not be sent to {$invitation->email}.",
+                ['project_id' => $invitation->project_id, 'email_domain' => $invitation->email_domain]
+            );
+
+            return false;
+        }
+
+        AuditLogger::record(
+            $request,
+            'project_invitation.email_sent',
+            'project_invitation',
+            $invitation->id,
+            "Invitation email sent to {$invitation->email}.",
+            ['project_id' => $invitation->project_id, 'email_domain' => $invitation->email_domain]
+        );
+
+        // The log mailer writes the rendered message, token included, to
+        // laravel.log and delivers nothing, so it must not count as sent.
+        return config('mail.default') !== 'log';
     }
 
     public function accept(Request $request)

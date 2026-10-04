@@ -106,8 +106,13 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
         client_organization_id: Number(clientOrganizationId),
       })
       const created = res.data?.data ?? res.data
-      setIssuedLink({ email: inviteForm.email, url: spaInvitationUrl(created?.invitation_url) })
-      setAnnouncement(`Invitation link created for ${inviteForm.email}. It is shown only once.`)
+      const emailSent = created?.email_sent === true
+      setIssuedLink({ email: inviteForm.email, url: spaInvitationUrl(created?.invitation_url), emailSent })
+      setAnnouncement(
+        emailSent
+          ? `Invitation emailed to ${inviteForm.email}. The link is also shown once below.`
+          : `The email to ${inviteForm.email} could not be sent. Send them the link shown below; it is shown only once.`
+      )
       setInviteForm({ email: '', role: 'client_viewer' })
       loadAccess()
     } catch (err) {
@@ -179,7 +184,9 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
         {issuedLink?.url && (
           <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
             <p className="text-sm font-semibold">
-              Invitation created for {issuedLink.email}. Send them this link. It is shown only once.
+              {issuedLink.emailSent
+                ? `Invitation emailed to ${issuedLink.email}. You can also share this link yourself. It is shown only once.`
+                : `The email to ${issuedLink.email} could not be sent. Send them this link yourself. It is shown only once.`}
             </p>
             <div className="flex gap-2">
               <Input ref={linkInputRef} readOnly value={issuedLink.url} aria-label="Invitation link" />
