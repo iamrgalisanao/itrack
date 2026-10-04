@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +16,7 @@ import {
   fetchProjectInvitations,
   fetchProjectMemberships,
 } from '@/lib/api'
-import { MailPlus, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Check, Copy, MailPlus, RefreshCw, ShieldCheck } from 'lucide-react'
 
 const CLIENT_ROLES = [
   ['client_viewer', 'Viewer'],
@@ -31,6 +31,20 @@ function stateVariant(state) {
   return 'secondary'
 }
 
+// The API builds its URL from APP_URL, which need not be the SPA's host, so
+// rebuild it from the page origin. The invitation already exists by the time
+// this runs, so a URL we can't parse falls back to the raw one rather than
+// throwing and losing the one-time token.
+function spaInvitationUrl(apiUrl) {
+  if (!apiUrl) return null
+  try {
+    const token = new URL(apiUrl).searchParams.get('token')
+    return token ? `${window.location.origin}/invitations/accept?token=${encodeURIComponent(token)}` : apiUrl
+  } catch {
+    return apiUrl
+  }
+}
+
 export default function ProjectClientAccessPanel({ projectId, clientOrganizationId }) {
   const [invitations, setInvitations] = useState([])
   const [memberships, setMemberships] = useState([])
@@ -40,6 +54,11 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
     role: 'client_viewer',
   })
   const [inviteError, setInviteError] = useState('')
+  const [issuedLink, setIssuedLink] = useState(null)
+  const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
+  const linkInputRef = useRef(null)
 
   const loadAccess = () => {
     if (!projectId) return
@@ -62,14 +81,33 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
     // eslint-disable-next-line react-hooks/exhaustive-deps -- projectId is the only reload boundary for this panel
   }, [projectId])
 
+  // Focusing the link field is the most reliable way to tell a screen-reader
+  // user that a one-time secret now exists.
+  useEffect(() => {
+    if (issuedLink?.url) linkInputRef.current?.focus()
+  }, [issuedLink])
+
+  useEffect(() => {
+    if (!copied) return undefined
+    const id = setTimeout(() => setCopied(false), 5000)
+    return () => clearTimeout(id)
+  }, [copied])
+
   const handleInviteSubmit = async (e) => {
     e.preventDefault()
     setInviteError('')
+    setIssuedLink(null)
+    setCopied(false)
+    setCopyFailed(false)
+    setAnnouncement('')
     try {
-      await createProjectInvitation(projectId, {
+      const res = await createProjectInvitation(projectId, {
         ...inviteForm,
         client_organization_id: Number(clientOrganizationId),
       })
+      const created = res.data?.data ?? res.data
+      setIssuedLink({ email: inviteForm.email, url: spaInvitationUrl(created?.invitation_url) })
+      setAnnouncement(`Invitation link created for ${inviteForm.email}. It is shown only once.`)
       setInviteForm({ email: '', role: 'client_viewer' })
       loadAccess()
     } catch (err) {
@@ -77,6 +115,20 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
       const errors = err.response?.data?.errors
       const firstError = errors ? Object.values(errors)[0]?.[0] : null
       setInviteError(firstError || err.response?.data?.message || 'Failed to create invitation.')
+    }
+  }
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(issuedLink.url)
+      setCopyFailed(false)
+      setCopied(true)
+      setAnnouncement('Link copied to clipboard.')
+    } catch {
+      setCopied(false)
+      setCopyFailed(true)
+      setAnnouncement('Could not copy. Select the link and copy it manually.')
+      linkInputRef.current?.select()
     }
   }
 
@@ -122,7 +174,25 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
             Associate this project with a client organization before sending invitations.
           </p>
         )}
-        {inviteError && <p className="text-xs text-destructive">{inviteError}</p>}
+        <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
+        {inviteError && <p role="alert" className="text-xs text-destructive">{inviteError}</p>}
+        {issuedLink?.url && (
+          <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+            <p className="text-sm font-semibold">
+              Invitation created for {issuedLink.email}. Send them this link. It is shown only once.
+            </p>
+            <div className="flex gap-2">
+              <Input ref={linkInputRef} readOnly value={issuedLink.url} aria-label="Invitation link" />
+              <Button type="button" variant="outline" onClick={copyLink} aria-label="Copy invitation link">
+                {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+                {copied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+            {copyFailed && (
+              <p className="text-xs text-destructive">Could not copy automatically. Select the link above and copy it manually.</p>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">

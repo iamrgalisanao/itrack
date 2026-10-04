@@ -23,6 +23,7 @@ import {
   Bug,
   Sunrise,
   Library,
+  LifeBuoy,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
@@ -31,6 +32,8 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/comp
 import Dashboard from './pages/Dashboard'
 import WorkProgram from './pages/WorkProgram'
 import Glossary from './pages/Glossary'
+import HelpCenter from './pages/HelpCenter'
+import InviteAccept from './pages/InviteAccept'
 import Team from './pages/Team'
 import Kanban from './pages/Kanban'
 import Schedule from './pages/Schedule'
@@ -129,6 +132,7 @@ const NAV_GROUPS = [
     items: [
       { path: '/reports',  label: 'Reports & Health', icon: BarChart3 },
       { path: '/glossary', label: 'Glossary',         icon: BookOpen },
+      { path: '/help',     label: 'Help Center',      icon: LifeBuoy },
     ],
   },
   {
@@ -693,6 +697,8 @@ function AppShell() {
               <Route path="/schedule"     element={<Schedule />} />
               <Route path="/reports"      element={<Reports />} />
               <Route path="/glossary"     element={<Glossary />} />
+              <Route path="/help"         element={<HelpCenter />} />
+              <Route path="/invitations/accept" element={<InviteAccept />} />
               <Route path="/team"         element={<Team />} />
               <Route path="/admin"        element={<AdminGuard><Admin /></AdminGuard>} />
             </Routes>

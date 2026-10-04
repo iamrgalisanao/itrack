@@ -405,3 +405,33 @@ body {
   }
 }
 
+
+/* Help Center animated guides — each scene is re-mounted per step (keyed),
+   so these one-shot animations replay on every step change. Reduced-motion
+   is already neutralized by the global rule above; the guide player also
+   refuses to autoplay in that case. */
+@keyframes help-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes help-type {
+  from { max-width: 0; }
+  to   { max-width: 22ch; }
+}
+@keyframes help-press {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(0.94); }
+}
+@keyframes help-ring {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-primary) 55%, transparent); }
+  100% { box-shadow: 0 0 0 10px transparent; }
+}
+@keyframes help-cursor {
+  from { transform: translate(var(--from-x, 80px), var(--from-y, 60px)); }
+  to   { transform: translate(var(--to-x, 0px), var(--to-y, 0px)); }
+}
+.help-fade-up { animation: help-fade-up 0.5s ease-out both; }
+.help-type    { display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom; animation: help-type 1.4s steps(22, end) both; }
+.help-press   { animation: help-press 0.35s ease-in-out both; }
+.help-ring    { animation: help-ring 1.2s ease-out infinite; }
+.help-cursor  { animation: help-cursor 1s cubic-bezier(.4,0,.2,1) both; }

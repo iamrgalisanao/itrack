@@ -11,8 +11,11 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Keep the query string too: an invitation link's ?token= must survive the login redirect
+  const returnTo = location.state?.from ? `${location.state.from.pathname}${location.state.from.search ?? ''}` : '/'
+
   // Already logged in → bounce back to wherever they were headed
-  if (user) return <Navigate to={location.state?.from?.pathname ?? '/'} replace />
+  if (user) return <Navigate to={returnTo} replace />
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -20,7 +23,7 @@ export default function Login() {
     setSubmitting(true)
     try {
       await login(email, password)
-      navigate(location.state?.from?.pathname ?? '/', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (err) {
       if (!err.response) {
         // No response at all: network failure or the backend is unreachable,
