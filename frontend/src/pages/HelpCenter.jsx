@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LifeBuoy, Search, UserPlus } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import InviteClientGuide from '@/components/help/InviteClientGuide'
 
 const ARTICLES = [
@@ -38,13 +39,13 @@ export default function HelpCenter() {
 
       <div role="search" className="relative max-w-lg">
         <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
+        <Input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search guides..."
           aria-label="Search guides"
-          className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="pl-9"
         />
       </div>
 
