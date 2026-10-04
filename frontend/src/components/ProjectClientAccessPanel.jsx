@@ -31,6 +31,20 @@ function stateVariant(state) {
   return 'secondary'
 }
 
+// The API builds its URL from APP_URL, which need not be the SPA's host, so
+// rebuild it from the page origin. The invitation already exists by the time
+// this runs, so a URL we can't parse falls back to the raw one rather than
+// throwing and losing the one-time token.
+function spaInvitationUrl(apiUrl) {
+  if (!apiUrl) return null
+  try {
+    const token = new URL(apiUrl).searchParams.get('token')
+    return token ? `${window.location.origin}/invitations/accept?token=${encodeURIComponent(token)}` : apiUrl
+  } catch {
+    return apiUrl
+  }
+}
+
 export default function ProjectClientAccessPanel({ projectId, clientOrganizationId }) {
   const [invitations, setInvitations] = useState([])
   const [memberships, setMemberships] = useState([])
@@ -92,13 +106,7 @@ export default function ProjectClientAccessPanel({ projectId, clientOrganization
         client_organization_id: Number(clientOrganizationId),
       })
       const created = res.data?.data ?? res.data
-      // The API builds its URL from APP_URL, which need not be the SPA's host;
-      // rebuild it from the page origin so the link always opens this app.
-      const token = created?.invitation_url ? new URL(created.invitation_url).searchParams.get('token') : null
-      setIssuedLink({
-        email: inviteForm.email,
-        url: token ? `${window.location.origin}/invitations/accept?token=${encodeURIComponent(token)}` : null,
-      })
+      setIssuedLink({ email: inviteForm.email, url: spaInvitationUrl(created?.invitation_url) })
       setAnnouncement(`Invitation link created for ${inviteForm.email}. It is shown only once.`)
       setInviteForm({ email: '', role: 'client_viewer' })
       loadAccess()
