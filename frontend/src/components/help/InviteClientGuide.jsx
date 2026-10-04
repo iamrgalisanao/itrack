@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Pause, Play, SkipBack, SkipForward, MousePointer2, Shield, Settings, MailPlus, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -132,22 +132,66 @@ const STEPS = [
     body: 'If the organization auto-approves a verified email domain, access is granted immediately. Otherwise the membership waits as pending until an Admin or Project Manager approves it.' },
 ]
 
+const REDUCED_QUERY = '(prefers-reduced-motion: reduce)'
+const subscribeReduced = (cb) => {
+  const mq = window.matchMedia?.(REDUCED_QUERY)
+  mq?.addEventListener('change', cb)
+  return () => mq?.removeEventListener('change', cb)
+}
+const getReduced = () => window.matchMedia?.(REDUCED_QUERY).matches ?? false
+
 export default function InviteClientGuide() {
   const [step, setStep] = useState(0)
-  const [reduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
-  const [playing, setPlaying] = useState(!reduced)
+  const reduced = useSyncExternalStore(subscribeReduced, getReduced, () => false)
+  // Autoplay is a one-shot intro: any interaction or focus inside the guide
+  // stops it for good (WCAG 2.2.2), and it never loops.
+  const [stopped, setStopped] = useState(false)
+  const [announcement, setAnnouncement] = useState('')
+  const playing = !reduced && !stopped
+  const last = STEPS.length - 1
 
   useEffect(() => {
     if (!playing) return undefined
-    const id = setTimeout(() => setStep((s) => (s + 1) % STEPS.length), STEP_MS)
+    const id = setTimeout(() => (step < last ? setStep(step + 1) : setStopped(true)), STEP_MS)
     return () => clearTimeout(id)
-  }, [playing, step])
+  }, [playing, step, last])
 
   const { Scene, title, body } = STEPS[step]
-  const go = (n) => setStep((n + STEPS.length) % STEPS.length)
+
+  // Only user-initiated changes are announced; timer ticks stay silent.
+  const go = (n) => {
+    const next = (n + STEPS.length) % STEPS.length
+    setStopped(true)
+    setStep(next)
+    setAnnouncement(`Step ${next + 1} of ${STEPS.length}: ${STEPS[next].title}`)
+  }
+  const togglePlay = () => {
+    if (playing) {
+      setStopped(true)
+    } else {
+      setStep(step === last ? 0 : step)
+      setStopped(false)
+    }
+  }
 
   return (
-    <section aria-label="Animated guide: invite a client user" className="rounded-xl border border-border bg-muted/20 p-4 md:p-6">
+    <section
+      aria-label="Animated guide: invite a client user"
+      className="rounded-xl border border-border bg-muted/20 p-4 md:p-6"
+      onFocusCapture={() => setStopped(true)}
+      onPointerDownCapture={() => setStopped(true)}
+    >
+      <div className="mb-4 flex items-center gap-2">
+        <Button size="icon" variant="outline" onClick={togglePlay} aria-label={playing ? 'Pause animation' : 'Play animation'}>
+          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </Button>
+        <Button size="icon" variant="outline" onClick={() => go(step - 1)} aria-label="Previous step"><SkipBack className="h-4 w-4" /></Button>
+        <Button size="icon" variant="outline" onClick={() => go(step + 1)} aria-label="Next step"><SkipForward className="h-4 w-4" /></Button>
+        <div className="ml-2 flex flex-1 gap-1" aria-hidden="true">
+          {STEPS.map((s, i) => <span key={s.title} className={`h-1 flex-1 rounded-full ${i <= step ? 'bg-primary' : 'bg-border'}`} />)}
+        </div>
+      </div>
+      <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
       <div className="grid gap-6 md:grid-cols-[1.3fr_1fr]">
         <div aria-hidden="true" className="min-h-64 rounded-lg bg-background p-4 overflow-hidden">
           <Scene key={step} />
@@ -155,7 +199,7 @@ export default function InviteClientGuide() {
         <div className="flex flex-col">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Step {step + 1} of {STEPS.length}</p>
           <h3 className="mt-1 text-xl font-bold">{title}</h3>
-          <p className="mt-2 text-sm leading-relaxed" aria-live="polite">{body}</p>
+          <p className="mt-2 text-sm leading-relaxed">{body}</p>
           <ol className="mt-4 space-y-1">
             {STEPS.map((s, i) => (
               <li key={s.title}>
@@ -163,23 +207,13 @@ export default function InviteClientGuide() {
                   type="button"
                   onClick={() => go(i)}
                   aria-current={i === step ? 'step' : undefined}
-                  className={`w-full rounded-md px-2 py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === step ? 'bg-primary/10 font-semibold text-primary' : 'text-muted-foreground hover:bg-muted'}`}
+                  className={`w-full rounded-md border-l-2 px-2 py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${i === step ? 'border-primary bg-primary/10 font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:bg-muted'}`}
                 >
                   {i + 1}. {s.title}
                 </button>
               </li>
             ))}
           </ol>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center gap-2">
-        <Button size="icon" variant="outline" onClick={() => go(step - 1)} aria-label="Previous step"><SkipBack className="h-4 w-4" /></Button>
-        <Button size="icon" variant="outline" onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause animation' : 'Play animation'}>
-          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
-        <Button size="icon" variant="outline" onClick={() => go(step + 1)} aria-label="Next step"><SkipForward className="h-4 w-4" /></Button>
-        <div className="ml-2 flex flex-1 gap-1" aria-hidden="true">
-          {STEPS.map((s, i) => <span key={s.title} className={`h-1 flex-1 rounded-full ${i <= step ? 'bg-primary' : 'bg-border'}`} />)}
         </div>
       </div>
     </section>

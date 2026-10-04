@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { acceptProjectInvitation } from '@/lib/api'
@@ -10,10 +10,18 @@ export default function InviteAccept() {
   const token = params.get('token')
   const { user } = useAuth()
   const [state, setState] = useState({ status: 'idle' })
+  const headingRef = useRef(null)
+
+  // The panel is swapped on success, which would otherwise drop focus and
+  // say nothing; moving focus to the new heading announces the outcome.
+  useEffect(() => {
+    if (state.status === 'done' || state.status === 'error') headingRef.current?.focus()
+  }, [state.status])
 
   // Accepting is an explicit click, not on page load, so a link previewer or
   // a refresh can't consume the single-use token by accident.
   const accept = async () => {
+    if (state.status === 'submitting') return
     setState({ status: 'submitting' })
     try {
       const res = await acceptProjectInvitation(token)
@@ -30,7 +38,7 @@ export default function InviteAccept() {
   let content
   if (!token) {
     content = (
-      <Panel icon={XCircle} tone="text-destructive" title="Invitation link is incomplete">
+      <Panel headingRef={headingRef} icon={XCircle} tone="text-destructive" title="Invitation link is incomplete">
         <p className="text-sm text-muted-foreground">This link has no invitation token. Ask the person who invited you to send it again.</p>
       </Panel>
     )
@@ -52,13 +60,13 @@ export default function InviteAccept() {
     )
   } else {
     content = (
-      <Panel icon={MailCheck} tone="text-primary" title="Accept project invitation">
+      <Panel headingRef={headingRef} icon={MailCheck} tone="text-primary" title="Accept project invitation">
         <p className="text-sm text-muted-foreground">
           You are signed in as <strong className="text-foreground">{user?.email}</strong>. The invitation only works for the
           email address it was sent to.
         </p>
         {state.status === 'error' && <p role="alert" className="mt-3 text-sm text-destructive">{state.message}</p>}
-        <Button className="mt-4" onClick={accept} disabled={state.status === 'submitting'}>
+        <Button className="mt-4" onClick={accept} aria-disabled={state.status === 'submitting'}>
           {state.status === 'submitting' ? 'Accepting...' : 'Accept invitation'}
         </Button>
       </Panel>
@@ -68,11 +76,11 @@ export default function InviteAccept() {
   return <div className="mx-auto max-w-md pt-10">{content}</div>
 }
 
-function Panel({ icon: Icon, tone, title, children }) {
+function Panel({ headingRef, icon: Icon, tone, title, children }) {
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       <Icon className={`h-8 w-8 ${tone}`} aria-hidden="true" />
-      <h1 className="mt-3 text-xl font-bold">{title}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className="mt-3 text-xl font-bold focus:outline-none">{title}</h1>
       <div className="mt-2">{children}</div>
     </div>
   )
