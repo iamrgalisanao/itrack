@@ -65,6 +65,9 @@ class TeamMemberController extends Controller
             'name'         => 'nullable|string|max:255',
             'side'         => 'nullable|string|max:50',
             'role'         => 'required|string|max:255',   // project/job role, NOT system role
+            'organization' => 'nullable|string|max:255',
+            'email'        => 'nullable|email|max:255',
+            'phone'        => 'nullable|string|max:50',
             'description'  => 'nullable|string',
             'abbreviation' => 'nullable|string|max:50',
         ]);
@@ -108,6 +111,9 @@ class TeamMemberController extends Controller
             'name'         => 'nullable|string|max:255',
             'side'         => 'nullable|string|max:50',
             'role'         => 'sometimes|string|max:255',
+            'organization' => 'nullable|string|max:255',
+            'email'        => 'nullable|email|max:255',
+            'phone'        => 'nullable|string|max:50',
             'description'  => 'nullable|string',
             'abbreviation' => 'nullable|string|max:50',
         ]);

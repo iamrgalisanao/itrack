@@ -10,8 +10,12 @@ class TeamMember extends Model
     use HasFactory;
 
     protected $fillable = [
+        'name',
         'side',
         'role',
+        'organization',
+        'email',
+        'phone',
         'description',
         'abbreviation',
     ];
