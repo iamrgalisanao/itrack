@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { acceptProjectInvitation } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { CheckCircle2, Clock, MailCheck, XCircle } from 'lucide-react'
 
 export default function InviteAccept() {
   const [params] = useSearchParams()
+  const navigate = useNavigate()
   const token = params.get('token')
   const { user } = useAuth()
   const [state, setState] = useState({ status: 'idle' })
@@ -27,6 +28,9 @@ export default function InviteAccept() {
       const res = await acceptProjectInvitation(token)
       const membership = res.data?.data ?? res.data
       setState({ status: 'done', membershipState: membership?.state })
+      // The token is spent; drop it from the address bar and history entry so
+      // it can't be copied, bookmarked or read back from history.
+      navigate('/invitations/accept', { replace: true })
     } catch (err) {
       setState({
         status: 'error',
@@ -36,7 +40,7 @@ export default function InviteAccept() {
   }
 
   let content
-  if (!token) {
+  if (state.status !== 'done' && !token) {
     content = (
       <Panel headingRef={headingRef} icon={XCircle} tone="text-destructive" title="Invitation link is incomplete">
         <p className="text-sm text-muted-foreground">This link has no invitation token. Ask the person who invited you to send it again.</p>
@@ -46,6 +50,7 @@ export default function InviteAccept() {
     const approved = state.membershipState === 'approved'
     content = (
       <Panel
+        headingRef={headingRef}
         icon={approved ? CheckCircle2 : Clock}
         tone={approved ? 'text-primary' : 'text-muted-foreground'}
         title={approved ? 'You now have access' : 'Invitation accepted, awaiting approval'}
