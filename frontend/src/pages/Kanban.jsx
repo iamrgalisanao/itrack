@@ -492,6 +492,7 @@ export default function Kanban() {
 
                         {/* Title */}
                         <h3 className="text-xs font-bold leading-normal text-foreground group-hover:text-primary transition-colors pr-4 mb-2">
+                          {task.task_id && <span className="mr-1.5 font-mono text-[10px] font-normal text-muted-foreground">{task.task_id}</span>}
                           {task.name}
                         </h3>
 
