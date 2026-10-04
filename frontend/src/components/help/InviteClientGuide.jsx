@@ -47,10 +47,10 @@ function SceneForm() {
       <div className="rounded-lg border border-border bg-card p-4 shadow-lg">
         <p className="mb-3 font-bold">Client Access</p>
         <div className="grid grid-cols-[1.4fr_1fr_auto] gap-2 text-sm">
-          <div className="rounded-md border border-input px-3 py-2">
+          <div className="rounded-md border border-border px-3 py-2">
             <span className="help-type" style={{ animationDelay: '0.4s' }}>lena@acme-client.com</span>
           </div>
-          <div className="help-fade-up rounded-md border border-input px-3 py-2" style={{ animationDelay: '2s' }}>Contributor</div>
+          <div className="help-fade-up rounded-md border border-border px-3 py-2" style={{ animationDelay: '2s' }}>Contributor</div>
           <div className="help-press inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 font-semibold text-primary-foreground" style={{ animationDelay: '3.2s' }}>
             <MailPlus className="h-4 w-4" />Invite
           </div>
@@ -85,7 +85,7 @@ function SceneAccept() {
   return (
     <div className="rounded-lg border border-border bg-card p-4 shadow-lg">
       <p className="font-bold">Accept project invitation</p>
-      <div className="help-fade-up mt-3 rounded-md border border-input px-3 py-2 text-sm" style={{ animationDelay: '0.3s' }}>lena@acme-client.com</div>
+      <div className="help-fade-up mt-3 rounded-md border border-border px-3 py-2 text-sm" style={{ animationDelay: '0.3s' }}>lena@acme-client.com</div>
       <div className="help-fade-up mt-3 flex items-center gap-2 text-sm" style={{ animationDelay: '1.6s' }}>
         <span className="grid h-5 w-5 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="h-3 w-3" /></span>
         Email matches, so the invitation is accepted
